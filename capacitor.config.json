@@ -1,0 +1,9 @@
+{
+  "appId": "com.hunter.thesystem",
+  "appName": "The System",
+  "webDir": "www",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  }
+}
