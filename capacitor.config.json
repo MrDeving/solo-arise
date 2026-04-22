@@ -1,6 +1,6 @@
 {
-  "appId": "com.hunter.thesystem",
-  "appName": "The System",
+  "appId": "com.hunter.arisesolo",
+  "appName": "Arise solo",
   "webDir": "www",
   "bundledWebRuntime": false,
   "server": {

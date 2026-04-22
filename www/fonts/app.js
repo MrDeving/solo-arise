@@ -10,8 +10,6 @@ let systemState = {
     quests: [] // Quests are now completely empty by default!
 };
 
-let currentFilter = localStorage.getItem('questFilter') || 'all';
-
 // Initialize Audio (Ensure saved.mp3 is in the www folder)
 const levelUpSound = new Audio('saved.mp3');
 
@@ -20,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDates();
     loadGameState();    // 1. Load the Backpack
     checkDailyReset();  // 2. Check if a new day started (Resets quests/streak if needed)
-    setFilter(currentFilter); // 3. Set the remembered filter & Draw the quests
+    renderQuests();     // 3. Draw the quests
     updateStats();      // 4. Update the math (Level, Rank, Streak, XP)
     initChart();
     loadSavedProfile(); // 5. Load the Profile image & name
@@ -32,16 +30,8 @@ function initDates() {
     const optionsDate = { month: 'long', day: 'numeric', year: 'numeric' };
     const optionsDay = { weekday: 'long' };
     
-const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
-    const dayStr = now.toLocaleDateString('en-US', optionsDay).toUpperCase();
-    
-    document.getElementById('current-date').textContent = dateStr;
-    document.getElementById('current-day').textContent = dayStr;
-    
-    const qDate = document.getElementById('quests-current-date');
-    const qDay = document.getElementById('quests-current-day');
-    if (qDate) qDate.textContent = dateStr;
-    if (qDay) qDay.textContent = dayStr;
+    document.getElementById('current-date').textContent = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
+    document.getElementById('current-day').textContent = now.toLocaleDateString('en-US', optionsDay).toUpperCase();
     
     // Simple Timer Mock (Counts down to midnight)
     setInterval(() => {
@@ -49,31 +39,16 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         const h = 23 - d.getHours();
         const m = 59 - d.getMinutes();
         const s = 59 - d.getSeconds();
-        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-        
-        document.getElementById('reset-timer').textContent = timeStr;
-        
-        const qTimer = document.getElementById('quests-reset-timer');
-        if (qTimer) qTimer.textContent = timeStr;
+        document.getElementById('reset-timer').textContent = 
+            `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
     }, 1000);
 }
 
 function renderQuests() {
-    const homeContainer = document.getElementById('quest-container');
-    const mainContainer = document.getElementById('main-quest-container');
-    
-    if (homeContainer) homeContainer.innerHTML = '';
-    if (mainContainer) mainContainer.innerHTML = '';
+    const container = document.getElementById('quest-container');
+    container.innerHTML = '';
 
-    // Filter quests based on currentFilter
-    let questsToRender = systemState.quests;
-    if (currentFilter === 'due') {
-        questsToRender = systemState.quests.filter(q => !q.completed);
-    } else if (currentFilter === 'done') {
-        questsToRender = systemState.quests.filter(q => q.completed);
-    }
-
-    questsToRender.forEach(quest => {
+    systemState.quests.forEach(quest => {
         const questEl = document.createElement('div');
         questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
         
@@ -92,7 +67,7 @@ function renderQuests() {
             
             <!-- Details (Clicking this opens the Edit Menu) -->
             <div class="quest-details" onclick="openEditQuestModal(${quest.id})">
-                <div class="quest-title">${quest.title}</div>
+                <div class="quest-title" style="color: var(--neon-blue);">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
             
@@ -102,15 +77,7 @@ function renderQuests() {
                 <div style="color: ${diffColor}; font-size: 10px; font-weight: 800; margin-top: 4px;">${diffLabel}</div>
             </div>
         `;
-        
-        // Append to the correct tab based on type (Older tasks default to daily)
-        const isDaily = quest.type === 'daily' || !quest.type;
-        
-        if (isDaily && homeContainer) {
-            homeContainer.appendChild(questEl);
-        } else if (!isDaily && mainContainer) {
-            mainContainer.appendChild(questEl);
-        }
+        container.appendChild(questEl);
     });
 }
 
@@ -124,9 +91,7 @@ function deleteQuest(id) {
 
 function toggleQuest(id) {
     const quest = systemState.quests.find(q => q.id === id);
-    
     if (!quest.completed) {
-        // Checking the quest
         quest.completed = true;
         systemState.todayXp += quest.xp;
         systemState.totalXp += quest.xp;
@@ -134,20 +99,11 @@ function toggleQuest(id) {
         // Play System Sound
         levelUpSound.currentTime = 0;
         levelUpSound.play().catch(e => console.log("Audio play blocked by browser policy until user interaction."));
-    } else {
-        // Unchecking the quest
-        quest.completed = false;
-        systemState.todayXp -= quest.xp;
-        systemState.totalXp -= quest.xp;
         
-        // Safeguard to ensure XP never drops below 0
-        if (systemState.todayXp < 0) systemState.todayXp = 0;
-        if (systemState.totalXp < 0) systemState.totalXp = 0;
+        updateStats();
+        renderQuests();
+        saveGameState(); // Saves to the Magical Backpack instantly!
     }
-    
-    updateStats();
-    renderQuests();
-    saveGameState(); // Saves to the Magical Backpack instantly!
 }
 
 function updateStats() {
@@ -196,13 +152,6 @@ function updateStats() {
     document.getElementById('stat-level').textContent = systemState.level;
     document.getElementById('home-rank-text').textContent = currentRank.letter;
 
-    // Quests Screen Updates
-    const qLevel = document.getElementById('quests-player-level');
-    if (qLevel) qLevel.textContent = systemState.level;
-    
-    const qRank = document.getElementById('quests-rank-text');
-    if (qRank) qRank.textContent = currentRank.letter;
-
     // Dashboard Updates (Level/Rank Pill)
     const dashLevelElement = document.getElementById('dash-level');
     if(dashLevelElement) dashLevelElement.textContent = systemState.level;
@@ -238,58 +187,18 @@ function updateStats() {
     
     const dashStreak = document.getElementById('dash-streak');
     if (dashStreak) dashStreak.textContent = `${systemState.streak} Days`;
-
-    const qStreak = document.getElementById('quests-streak-count');
-    if (qStreak) qStreak.textContent = `${systemState.streak} Days`;
 }
 
 // --- Navigation ---
-// We define the exact order of tabs to calculate which way to swipe
-const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
-
 function switchTab(tabId) {
-    // Check if the user is registered. If not, block navigation and show warning.
-    if (tabId !== 'profile' && !localStorage.getItem('hunterName')) {
-        document.getElementById('registration-warning-modal').style.display = 'flex';
-        return; // Stop the function here so the tab doesn't change
-    }
-
-    // Toggle the Static Shared Header
-    const sharedHeader = document.getElementById('shared-header');
-    if (tabId === 'home' || tabId === 'quests') {
-        sharedHeader.classList.remove('hidden');
-    } else {
-        sharedHeader.classList.add('hidden');
-    }
-
-    const targetIndex = tabsOrder.indexOf(tabId);
-
-    // Hide all views and apply directional swipe classes
-    tabsOrder.forEach((tab, index) => {
-        const viewEl = document.getElementById(`view-${tab}`);
-        if (!viewEl) return;
-
-        // Reset previous animation states
-        viewEl.classList.remove('active', 'off-left', 'off-right');
-
-        if (index < targetIndex) {
-            // Tabs to the left of our target slide out/stay off to the left
-            viewEl.classList.add('off-left');
-        } else if (index > targetIndex) {
-            // Tabs to the right of our target slide out/stay off to the right
-            viewEl.classList.add('off-right');
-        } else {
-            // The Target tab slides into the center
-            viewEl.classList.add('active');
-        }
-    });
+    // Hide all views
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    // Show target view
+    document.getElementById(`view-${tabId}`).classList.add('active');
     
-    // Update Nav UI safely
+    // Update Nav UI
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-    
-    // Find the button that matches this tab and highlight it
-    const activeNavBtn = document.querySelector(`.nav-item[onclick="switchTab('${tabId}')"]`);
-    if (activeNavBtn) activeNavBtn.classList.add('active');
+    event.currentTarget.classList.add('active');
 }
 
 // --- Chart.js Initialization ---
@@ -389,13 +298,6 @@ function saveProfileData() {
         localStorage.setItem('hunterAvatar', tempAvatar);
     }
 
-    // Officially register the user's start dates if they don't exist yet
-    if (!localStorage.getItem('dateJoined')) {
-        const options = { year: 'numeric', month: 'long', day: 'numeric' };
-        localStorage.setItem('dateJoined', new Date().toLocaleDateString('en-US', options));
-        localStorage.setItem('lastLoginDate', new Date().toDateString());
-    }
-
     // Apply the saved changes to all screens!
     applySavedDataToUI();
 
@@ -415,9 +317,6 @@ function applySavedDataToUI() {
         if(dashUser) dashUser.textContent = savedName;
         const nameInput = document.getElementById('profile-name-input');
         if(nameInput) nameInput.value = savedName;
-        
-        const qUsername = document.getElementById('quests-username');
-        if (qUsername) qUsername.textContent = savedName;
     }
 
     if (savedAvatar) {
@@ -427,9 +326,6 @@ function applySavedDataToUI() {
         if(dashAv) dashAv.style.backgroundImage = bgUrl;
         const profAv = document.getElementById('profile-avatar-preview');
         if(profAv) profAv.style.backgroundImage = bgUrl;
-        
-        const qAvatar = document.getElementById('quests-avatar');
-        if (qAvatar) qAvatar.style.backgroundImage = bgUrl;
     }
 
     if (dateJoined) {
@@ -442,47 +338,18 @@ function applySavedDataToUI() {
 function loadSavedProfile() {
     const savedName = localStorage.getItem('hunterName');
     
+    // Create Date Joined if it doesn't exist
+    if (!localStorage.getItem('dateJoined')) {
+        const options = { year: 'numeric', month: 'long', day: 'numeric' };
+        localStorage.setItem('dateJoined', new Date().toLocaleDateString('en-US', options));
+    }
+    
     if (savedName) {
         applySavedDataToUI();
         toggleProfileMode('dashboard');
     } else {
         toggleProfileMode('edit');
-        switchTab('profile'); // Automatically route new users to the Profile tab
     }
-}
-
-// ==========================================
-// --- FILTER SYSTEM ---
-// ==========================================
-
-function openFilterModal() {
-    // Make sure the correct button is highlighted before showing the modal
-    document.querySelectorAll('.filter-opt').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.getElementById('filter-' + currentFilter);
-    if (activeBtn) activeBtn.classList.add('active');
-
-    document.getElementById('filter-modal').style.display = 'flex';
-}
-
-function closeFilterModal(event) {
-    // Only close if clicking the dark background outside the panel
-    if (event && event.target !== document.getElementById('filter-modal')) return;
-    document.getElementById('filter-modal').style.display = 'none';
-}
-
-function setFilter(type) {
-    currentFilter = type;
-    localStorage.setItem('questFilter', type); // Save the filter choice to backpack
-    
-    // Update button colors in the filter menu
-    document.querySelectorAll('.filter-opt').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.getElementById('filter-' + type);
-    if (activeBtn) activeBtn.classList.add('active');
-    
-    renderQuests(); // Redraw with the new filter
-    
-    // Close modal if it's open
-    document.getElementById('filter-modal').style.display = 'none';
 }
 
 // ==========================================
@@ -490,16 +357,14 @@ function setFilter(type) {
 // ==========================================
 let currentDifficulty = 'easy'; 
 let editingQuestId = null; // null means "Create", a number means "Edit"
-let currentQuestType = 'daily'; // Keep track of daily vs quest
 
 // ==========================================
 // --- ADD / EDIT QUEST SYSTEM ---
 // ==========================================
 
-function openAddQuestModal(type = 'daily') {
+function openAddQuestModal() {
     editingQuestId = null; 
-    currentQuestType = type;
-    document.getElementById('modal-title').textContent = type === 'daily' ? 'CREATE DAILY' : 'CREATE QUEST';
+    document.getElementById('modal-title').textContent = 'CREATE QUEST';
     document.getElementById('new-quest-title').value = '';
     document.getElementById('new-quest-notes').value = '';
     document.getElementById('modal-delete-btn').style.display = 'none'; // Hide delete button for NEW quests
@@ -511,8 +376,7 @@ function openEditQuestModal(id) {
     editingQuestId = id; 
     const quest = systemState.quests.find(q => q.id === id);
     
-    currentQuestType = quest.type || 'daily';
-    document.getElementById('modal-title').textContent = currentQuestType === 'daily' ? 'EDIT DAILY' : 'EDIT QUEST';
+    document.getElementById('modal-title').textContent = 'EDIT QUEST';
     document.getElementById('new-quest-title').value = quest.title;
     document.getElementById('new-quest-notes').value = quest.notes || '';
     document.getElementById('modal-delete-btn').style.display = 'block'; // Show delete button for EXISTING quests
@@ -569,8 +433,7 @@ function saveQuest() {
             notes: notes,
             xp: xpReward,
             difficulty: currentDifficulty,
-            completed: false,
-            type: currentQuestType
+            completed: false
         });
     }
     
@@ -603,10 +466,6 @@ function confirmDeleteQuest() {
     // Close both popups
     cancelDeleteQuest();
     closeQuestModal();
-}
-
-function closeWarningModal() {
-    document.getElementById('registration-warning-modal').style.display = 'none';
 }
 
 // ==========================================
@@ -680,9 +539,6 @@ function importData(event) {
 // --- DAILY RESET & STREAK SYSTEM ---
 // ==========================================
 function checkDailyReset() {
-    // If the user hasn't registered yet, do nothing.
-    if (!localStorage.getItem('hunterName')) return;
-
     const today = new Date().toDateString(); // Grabs today's date as a simple text string
     const lastLogin = localStorage.getItem('lastLoginDate');
 
@@ -706,12 +562,8 @@ function checkDailyReset() {
             systemState.streak = 1;
         }
 
-        // RESET ONLY DAILY QUESTS & TODAY'S XP
-        systemState.quests.forEach(q => {
-            if (q.type === 'daily' || !q.type) {
-                q.completed = false;
-            }
-        });
+        // RESET DAILY QUESTS & TODAY'S XP
+        systemState.quests.forEach(q => q.completed = false);
         systemState.todayXp = 0;
 
         // Save the new "last login" date to the backpack
