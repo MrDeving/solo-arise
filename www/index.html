@@ -281,7 +281,68 @@
                     <label>Description</label>
                     <textarea id="new-quest-notes" class="sci-fi-input sci-fi-textarea" placeholder="Add details or sub-tasks..."></textarea>
                 </div>
-                
+
+                <!-- DAILY SCHEDULING SECTION -->
+                <div id="scheduling-section" class="input-group" style="border-top: 1px solid var(--panel-border); padding-top: 15px;">
+                    <label>Daily Scheduling</label>
+                    <div class="schedule-row">
+                        <div class="schedule-col">
+                            <label class="sub-label">Start Date</label>
+                            <input type="date" id="schedule-start-date" class="sci-fi-input small">
+                        </div>
+                    </div>
+                    <div class="schedule-row">
+                        <div class="schedule-col">
+                            <label class="sub-label">Repeats</label>
+                            <select id="schedule-type" class="sci-fi-input small" onchange="toggleDayPicker()">
+                                <option value="daily">Daily</option>
+                                <option value="weekly">Weekly</option>
+                                <option value="monthly">Monthly</option>
+                            </select>
+                        </div>
+                        <div class="schedule-col">
+                            <label class="sub-label">Every</label>
+                            <div class="every-input-wrapper">
+                                <input type="number" id="schedule-interval" class="sci-fi-input small" value="1" min="1" onkeypress="return event.charCode >= 48 && event.charCode <= 57" oninput="updateScheduleSummary()">
+                                <span id="interval-label">Days</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="day-picker-container" style="display: none; margin-bottom: 15px;">
+                        <div class="day-picker">
+                            <div class="day-circle" data-day="0" onclick="toggleDay(this)">S</div>
+                            <div class="day-circle" data-day="1" onclick="toggleDay(this)">M</div>
+                            <div class="day-circle" data-day="2" onclick="toggleDay(this)">T</div>
+                            <div class="day-circle" data-day="3" onclick="toggleDay(this)">W</div>
+                            <div class="day-circle" data-day="4" onclick="toggleDay(this)">T</div>
+                            <div class="day-circle" data-day="5" onclick="toggleDay(this)">F</div>
+                            <div class="day-circle" data-day="6" onclick="toggleDay(this)">S</div>
+                        </div>
+                    </div>
+                    <div id="schedule-summary" class="schedule-summary">Repeats DAILY every 1 day</div>
+                </div>
+
+                <!-- NORMAL QUEST SCHEDULING SECTION -->
+                <div id="quest-scheduling-section" class="input-group" style="display: none; border-top: 1px solid var(--panel-border); padding-top: 15px;">
+                    <label>Scheduling</label>
+                    <div class="schedule-row">
+                        <div class="schedule-col">
+                            <label class="sub-label">Due Date</label>
+                            <input type="date" id="quest-due-date" class="sci-fi-input small">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- REMINDERS SECTION (Shared) -->
+                <div id="reminders-section" class="input-group" style="border-top: 1px solid var(--panel-border); padding-top: 15px;">
+                    <label>Reminders</label>
+                    <div id="reminders-list"></div>
+                    <button class="sci-fi-btn outline" style="margin-top: 10px; width: 100%; border-style: dashed;" onclick="addReminderField()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        NEW REMINDER
+                    </button>
+                </div>
+
                 <div class="input-group" style="margin-bottom: 0;">
                     <label>Difficulty</label>
                     <div class="difficulty-grid">
@@ -376,6 +437,7 @@
                 <div class="filter-options">
                     <button class="sci-fi-btn outline filter-opt active" id="filter-all" onclick="setFilter('all')">ALL QUESTS</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-due" onclick="setFilter('due')">DUE</button>
+                    <button class="sci-fi-btn outline filter-opt" id="filter-scheduled" onclick="setFilter('scheduled')" style="display: none;">SCHEDULED</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-done" onclick="setFilter('done')">DONE</button>
                 </div>
             </div>
@@ -406,6 +468,25 @@
                 <span>PROFILE</span>
             </button>
         </nav>
+    </div>
+
+    <!-- IN-APP NOTIFICATION POPUP -->
+    <div id="notification-toast" class="notification-toast" style="display: none;">
+        <div class="notif-header">
+            <div class="notif-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            </div>
+            <span class="notif-app-name">The System</span>
+            <button class="notif-close" onclick="closeNotification()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+            </button>
+        </div>
+        <div class="notif-time">Just now</div>
+        <div class="notif-title" id="notif-title">Quest Title</div>
+        <div class="notif-desc" id="notif-desc">Quest Notes</div>
+        <div class="notif-actions">
+            <button class="notif-complete-btn" id="notif-complete-btn" onclick="completeFromNotification()">COMPLETE</button>
+        </div>
     </div>
 
     <script src="app.js"></script>

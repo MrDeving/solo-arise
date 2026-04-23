@@ -2,6 +2,8 @@
 // We define how much XP it takes to gain 1 Level. (You can change this later!)
 const XP_PER_LEVEL = 500;
 
+let triggeredReminders = new Set(); // Remembers which notifications have popped up so they don't spam
+
 let systemState = {
     level: 0,
     totalXp: 0,
@@ -10,7 +12,12 @@ let systemState = {
     quests: [] // Quests are now completely empty by default!
 };
 
-let currentFilter = localStorage.getItem('questFilter') || 'all';
+// Track filters separately for home (Dailies) and quests
+let filters = {
+    home: localStorage.getItem('filter_home') || 'all',
+    quests: localStorage.getItem('filter_quests') || 'all'
+};
+let currentActiveTab = 'home'; // Tracks which tab we are currently looking at
 
 // Initialize Audio (Ensure saved.mp3 is in the www folder)
 const levelUpSound = new Audio('saved.mp3');
@@ -20,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initDates();
     loadGameState();    // 1. Load the Backpack
     checkDailyReset();  // 2. Check if a new day started (Resets quests/streak if needed)
-    setFilter(currentFilter); // 3. Set the remembered filter & Draw the quests
+    renderQuests();     // 3. Draw the quests (Filters are applied automatically now)
     updateStats();      // 4. Update the math (Level, Rank, Streak, XP)
     initChart();
     loadSavedProfile(); // 5. Load the Profile image & name
@@ -55,6 +62,18 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
+        // --- REMINDER CHECKER ---
+        const nowStr = new Date().toISOString().slice(0, 16); // Gets current time in "YYYY-MM-DDTHH:mm" format
+        systemState.quests.forEach(quest => {
+            if (!quest.completed && quest.reminders) {
+                quest.reminders.forEach(rem => {
+                    if (rem === nowStr && !triggeredReminders.has(`${quest.id}-${rem}`)) {
+                        triggeredReminders.add(`${quest.id}-${rem}`);
+                        showNotification(quest);
+                    }
+                });
+            }
+        });
     }, 1000);
 }
 
@@ -65,15 +84,52 @@ function renderQuests() {
     if (homeContainer) homeContainer.innerHTML = '';
     if (mainContainer) mainContainer.innerHTML = '';
 
-    // Filter quests based on currentFilter
-    let questsToRender = systemState.quests;
-    if (currentFilter === 'due') {
-        questsToRender = systemState.quests.filter(q => !q.completed);
-    } else if (currentFilter === 'done') {
-        questsToRender = systemState.quests.filter(q => q.completed);
-    }
+    systemState.quests.forEach(quest => {
+        const isDaily = quest.type === 'daily' || !quest.type;
 
-    questsToRender.forEach(quest => {
+        // --- SCHEDULING FILTER ---
+        if (isDaily && quest.schedule) {
+            const today = new Date();
+            const dayOfWeek = today.getDay(); 
+            
+            // 1. Day of Week Filter (The Circles)
+            // If user selected specific days, hide quest if today isn't one of them
+            if (quest.schedule.type === 'weekly' && quest.schedule.days && quest.schedule.days.length > 0) {
+                if (!quest.schedule.days.includes(dayOfWeek)) return;
+            }
+            
+            // 2. Interval Logic (Daily, Weekly, Monthly)
+            if (quest.schedule.interval > 1 && quest.schedule.startDate) {
+                const start = new Date(quest.schedule.startDate);
+                const diffTime = Math.abs(today - start);
+                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+                
+                let cycle = 1;
+                if (quest.schedule.type === 'daily') cycle = quest.schedule.interval;
+                if (quest.schedule.type === 'weekly') cycle = quest.schedule.interval * 7;
+                if (quest.schedule.type === 'monthly') cycle = quest.schedule.interval * 30; // Approx month
+                
+                if (diffDays % cycle !== 0) return;
+            }
+        }
+        
+        // Pick the correct filter based on whether this is a daily or main quest
+        const activeFilter = isDaily ? filters.home : filters.quests;
+        
+        // Skip rendering if it doesn't match the active filter for its specific tab
+        // Filter rules!
+        if (activeFilter === 'due' && quest.completed) return; // Dailies: Hide finished ones today
+        
+        if (activeFilter === 'scheduled') {
+            if (quest.completed) return; // Normal Quests: Hide finished ones
+            if (!quest.dueDate) return;  // Normal Quests: Hide ones with no due date assigned
+        }
+        
+        if (activeFilter === 'done' && !quest.completed) return; // Both: Hide unfinished ones
+
+        // Hide completed Main Quests from the list unless the 'done' filter is selected
+        if (!isDaily && quest.completed && activeFilter !== 'done') return;
+
         const questEl = document.createElement('div');
         questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
         
@@ -104,13 +160,12 @@ function renderQuests() {
         `;
         
         // Append to the correct tab based on type (Older tasks default to daily)
-        const isDaily = quest.type === 'daily' || !quest.type;
         
-        if (isDaily && homeContainer) {
-            homeContainer.appendChild(questEl);
-        } else if (!isDaily && mainContainer) {
-            mainContainer.appendChild(questEl);
-        }
+if (isDaily && homeContainer) {
+    homeContainer.appendChild(questEl);
+} else if (!isDaily && mainContainer) {
+    mainContainer.appendChild(questEl);
+}
     });
 }
 
@@ -254,12 +309,19 @@ function switchTab(tabId) {
         return; // Stop the function here so the tab doesn't change
     }
 
-    // Toggle the Static Shared Header
-    const sharedHeader = document.getElementById('shared-header');
+    // Update the active tab tracker so the filter system knows what to highlight
     if (tabId === 'home' || tabId === 'quests') {
-        sharedHeader.classList.remove('hidden');
-    } else {
-        sharedHeader.classList.add('hidden');
+        currentActiveTab = tabId; 
+    }
+
+    // SAFELY toggle the Static Shared Header (prevents freezing/crashing)
+    const sharedHeader = document.getElementById('shared-header');
+    if (sharedHeader) {
+        if (tabId === 'home' || tabId === 'quests') {
+            sharedHeader.classList.remove('hidden');
+        } else {
+            sharedHeader.classList.add('hidden');
+        }
     }
 
     const targetIndex = tabsOrder.indexOf(tabId);
@@ -456,9 +518,22 @@ function loadSavedProfile() {
 // ==========================================
 
 function openFilterModal() {
-    // Make sure the correct button is highlighted before showing the modal
+    // 1. Toggle DUE vs SCHEDULED visibility based on tab
+    if (currentActiveTab === 'home') {
+        document.getElementById('filter-due').style.display = 'block';
+        document.getElementById('filter-scheduled').style.display = 'none';
+        // Failsafe: if home filter was accidentally set to scheduled, reset it to due
+        if (filters.home === 'scheduled') filters.home = 'due'; 
+    } else {
+        document.getElementById('filter-due').style.display = 'none';
+        document.getElementById('filter-scheduled').style.display = 'block';
+        // Failsafe: if quests filter was accidentally set to due, reset it to scheduled
+        if (filters.quests === 'due') filters.quests = 'scheduled';
+    }
+
+    // 2. Highlight the correct button for whichever tab we are currently on
     document.querySelectorAll('.filter-opt').forEach(btn => btn.classList.remove('active'));
-    const activeBtn = document.getElementById('filter-' + currentFilter);
+    const activeBtn = document.getElementById('filter-' + filters[currentActiveTab]);
     if (activeBtn) activeBtn.classList.add('active');
 
     document.getElementById('filter-modal').style.display = 'flex';
@@ -471,18 +546,21 @@ function closeFilterModal(event) {
 }
 
 function setFilter(type) {
-    currentFilter = type;
-    localStorage.setItem('questFilter', type); // Save the filter choice to backpack
+    // Save the choice specifically to the tab we are currently viewing
+    filters[currentActiveTab] = type;
+    localStorage.setItem('filter_' + currentActiveTab, type); 
     
     // Update button colors in the filter menu
     document.querySelectorAll('.filter-opt').forEach(btn => btn.classList.remove('active'));
     const activeBtn = document.getElementById('filter-' + type);
     if (activeBtn) activeBtn.classList.add('active');
     
-    renderQuests(); // Redraw with the new filter
+    renderQuests(); // Redraw the UI
     
     // Close modal if it's open
-    document.getElementById('filter-modal').style.display = 'none';
+    setTimeout(() => {
+        document.getElementById('filter-modal').style.display = 'none';
+    }, 150); // Small delay feels smoother
 }
 
 // ==========================================
@@ -491,6 +569,64 @@ function setFilter(type) {
 let currentDifficulty = 'easy'; 
 let editingQuestId = null; // null means "Create", a number means "Edit"
 let currentQuestType = 'daily'; // Keep track of daily vs quest
+let selectedScheduleDays = [];
+let tempReminders = []; // Holds reminders while editing
+
+function toggleDay(el) {
+    const day = parseInt(el.getAttribute('data-day'));
+    if (selectedScheduleDays.includes(day)) {
+        selectedScheduleDays = selectedScheduleDays.filter(d => d !== day);
+        el.classList.remove('active');
+    } else {
+        selectedScheduleDays.push(day);
+        el.classList.add('active');
+    }
+    updateScheduleSummary();
+
+}
+
+function toggleDayPicker() {
+    const type = document.getElementById('schedule-type').value;
+    const container = document.getElementById('day-picker-container');
+    const label = document.getElementById('interval-label');
+    
+    // Only show the circles if Weekly is selected!
+    if (type === 'weekly') {
+        container.style.display = 'block';
+    } else {
+        container.style.display = 'none';
+    }
+    
+    if(type === 'daily') label.textContent = 'Days';
+    if(type === 'weekly') label.textContent = 'Weeks';
+    if(type === 'monthly') label.textContent = 'Months';
+    
+    updateScheduleSummary();
+}
+function updateScheduleSummary() {
+    const type = document.getElementById('schedule-type').value;
+    let interval = document.getElementById('schedule-interval').value;
+    const summaryEl = document.getElementById('schedule-summary');
+    
+    // Safety check: if you delete the number completely, default to 1 so the text doesn't look broken
+    if (!interval || interval < 1) {
+        interval = 1;
+    }
+    
+    let unit = 'day';
+    if (type === 'weekly') unit = 'week';
+    if (type === 'monthly') unit = 'month';
+
+    let text = `Repeats ${type.toUpperCase()} every ${interval} ${unit}${interval > 1 ? 's' : ''}`;
+    
+    if (type === 'weekly' && selectedScheduleDays.length > 0) {
+        const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const selectedNames = selectedScheduleDays.sort().map(d => dayNames[d]);
+        text += ` on ${selectedNames.join(', ')}`;
+    }
+    
+    summaryEl.textContent = text;
+}
 
 // ==========================================
 // --- ADD / EDIT QUEST SYSTEM ---
@@ -502,8 +638,27 @@ function openAddQuestModal(type = 'daily') {
     document.getElementById('modal-title').textContent = type === 'daily' ? 'CREATE DAILY' : 'CREATE QUEST';
     document.getElementById('new-quest-title').value = '';
     document.getElementById('new-quest-notes').value = '';
-    document.getElementById('modal-delete-btn').style.display = 'none'; // Hide delete button for NEW quests
+    document.getElementById('modal-delete-btn').style.display = 'none';
+    
+    // Reset Scheduling
+    document.getElementById('scheduling-section').style.display = type === 'daily' ? 'block' : 'none';
+    document.getElementById('quest-scheduling-section').style.display = type === 'quest' ? 'block' : 'none';
+    document.getElementById('quest-due-date').value = '';
+    tempReminders = [];
+    renderReminders();
+    document.getElementById('schedule-type').value = 'daily';
+    document.getElementById('schedule-interval').value = 1;
+    document.getElementById('schedule-start-date').value = new Date().toISOString().split('T')[0];
+    selectedScheduleDays = [];
+    document.querySelectorAll('.day-circle').forEach(c => c.classList.remove('active'));
+    toggleDayPicker();
+
     selectDifficulty('easy');
+    // This clears the blue circles when you make a NEW quest
+    selectedScheduleDays = [];
+    document.querySelectorAll('.day-circle').forEach(c => c.classList.remove('active'));
+    document.getElementById('schedule-type').value = 'daily';
+    toggleDayPicker();
     document.getElementById('add-quest-modal').style.display = 'flex';
 }
 
@@ -517,6 +672,24 @@ function openEditQuestModal(id) {
     document.getElementById('new-quest-notes').value = quest.notes || '';
     document.getElementById('modal-delete-btn').style.display = 'block'; // Show delete button for EXISTING quests
     selectDifficulty(quest.difficulty || 'easy');
+    // Load Scheduling Data
+    document.getElementById('scheduling-section').style.display = currentQuestType === 'daily' ? 'block' : 'none';
+    document.getElementById('quest-scheduling-section').style.display = currentQuestType === 'quest' ? 'block' : 'none';
+    document.getElementById('quest-due-date').value = quest.dueDate || '';
+    tempReminders = quest.reminders ? [...quest.reminders] : [];
+    renderReminders();
+    if (quest.schedule) {
+        document.getElementById('schedule-type').value = quest.schedule.type || 'daily';
+        document.getElementById('schedule-interval').value = quest.schedule.interval || 1;
+        document.getElementById('schedule-start-date').value = quest.schedule.startDate || "";
+        selectedScheduleDays = quest.schedule.days || [];
+        document.querySelectorAll('.day-circle').forEach(c => {
+            const d = parseInt(c.getAttribute('data-day'));
+            if(selectedScheduleDays.includes(d)) c.classList.add('active');
+            else c.classList.remove('active');
+        });
+        toggleDayPicker();
+    }
     
     document.getElementById('add-quest-modal').style.display = 'flex';
 }
@@ -546,7 +719,6 @@ function saveQuest() {
         return;
     }
     
-    // Dynamic XP Calculation
     let xpPercent = 0.04; 
     if (currentDifficulty === 'trivial') xpPercent = 0.01;
     if (currentDifficulty === 'medium') xpPercent = 0.07;
@@ -554,15 +726,23 @@ function saveQuest() {
     const xpReward = Math.max(1, Math.round(XP_PER_LEVEL * xpPercent));
     
     if (editingQuestId !== null) {
-        // We are editing an existing quest
         const quest = systemState.quests.find(q => q.id === editingQuestId);
         quest.title = title;
         quest.notes = notes;
         quest.xp = xpReward;
         quest.difficulty = currentDifficulty;
+        quest.dueDate = document.getElementById('quest-due-date').value;
+        quest.reminders = tempReminders.filter(r => r !== '');
     } else {
-        // We are adding a new quest
         const newId = systemState.quests.length > 0 ? Math.max(...systemState.quests.map(q => q.id)) + 1 : 1;
+        
+        const scheduleObj = currentQuestType === 'daily' ? {
+            type: document.getElementById('schedule-type').value,
+            interval: parseInt(document.getElementById('schedule-interval').value),
+            startDate: document.getElementById('schedule-start-date').value,
+            days: [...selectedScheduleDays]
+        } : null;
+
         systemState.quests.push({
             id: newId,
             title: title,
@@ -570,7 +750,10 @@ function saveQuest() {
             xp: xpReward,
             difficulty: currentDifficulty,
             completed: false,
-            type: currentQuestType
+            type: currentQuestType,
+            schedule: scheduleObj,
+            dueDate: document.getElementById('quest-due-date').value,
+            reminders: tempReminders.filter(r => r !== '')
         });
     }
     
@@ -719,5 +902,64 @@ function checkDailyReset() {
         
         // Save the reset quests and new streak to the backpack
         saveGameState();
+    }
+}
+
+// ==========================================
+// --- REMINDERS & NOTIFICATION SYSTEM ---
+// ==========================================
+
+function renderReminders() {
+    const list = document.getElementById('reminders-list');
+    list.innerHTML = '';
+    tempReminders.forEach((rem, index) => {
+        list.innerHTML += `
+            <div class="reminder-row">
+                <button class="icon-btn remove-rem-btn" onclick="removeReminder(${index})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+                <input type="datetime-local" class="sci-fi-input small" value="${rem}" onchange="updateReminder(${index}, this.value)">
+            </div>
+        `;
+    });
+}
+
+function addReminderField() {
+    tempReminders.push('');
+    renderReminders();
+}
+
+function removeReminder(idx) {
+    tempReminders.splice(idx, 1);
+    renderReminders();
+}
+
+function updateReminder(idx, val) {
+    tempReminders[idx] = val;
+}
+
+// Notification Variables
+let activeNotificationQuestId = null;
+
+function showNotification(quest) {
+    activeNotificationQuestId = quest.id;
+    document.getElementById('notif-title').textContent = quest.title;
+    document.getElementById('notif-desc').textContent = quest.notes || "No details provided.";
+    document.getElementById('notification-toast').style.display = 'block';
+    
+    // Play sound when notification pops
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
+}
+
+function closeNotification() {
+    document.getElementById('notification-toast').style.display = 'none';
+    activeNotificationQuestId = null;
+}
+
+function completeFromNotification() {
+    if (activeNotificationQuestId !== null) {
+        toggleQuest(activeNotificationQuestId);
+        closeNotification();
     }
 }
