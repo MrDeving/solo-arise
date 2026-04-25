@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>The System</title>
-    <!-- Futuristic Font -->
-    <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
+    <!-- Scripts -->
     <script src="chart.min.js"></script>
+    <script src="Sortable.min.js"></script>
 </head>
 <body>
     <!-- Global Scanline Effect -->
@@ -109,253 +109,242 @@
             </div>
         </div>
 
-        <!-- ANALYTICS VIEW -->
+        <!-- CALENDAR VIEW -->
         <div id="view-analytics" class="view">
-            <div class="segmented-control">
-                <button class="segment active">OVERVIEW</button>
-                <button class="segment">PROGRESS</button>
-                <button class="segment">STATS</button>
-            </div>
-
-            <div class="stats-grid">
-                <div class="system-panel stat-box">
-                    <div class="stat-icon blue"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
-                    <div class="stat-content">
-                        <div class="stat-label">LEVEL</div>
-                        <div class="stat-val" id="stat-level">9</div>
-                    </div>
-                </div>
-                <div class="system-panel stat-box">
-                    <div class="stat-icon gray"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 15V3m0 12l-4-4m4 4l4-4M2 17l.621 2.485A2 2 0 0 0 4.561 21h14.878a2 2 0 0 0 1.94-1.515L22 17"/></svg></div>
-                    <div class="stat-content">
-                        <div class="stat-label">RANK</div>
-                        <div class="stat-val">E-Rank</div>
-                    </div>
-                </div>
-                <div class="system-panel stat-box">
-                    <div class="stat-icon teal"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div>
-                    <div class="stat-content">
-                        <div class="stat-label">TODAY XP</div>
-                        <div class="stat-val" id="stat-today-xp">0</div>
-                    </div>
-                </div>
-                <div class="system-panel stat-box">
-                    <div class="stat-icon purple"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></div>
-                    <div class="stat-content">
-                        <div class="stat-label">TOTAL XP</div>
-                        <div class="stat-val" id="stat-total-xp">1143</div>
-                    </div>
-                </div>
-            </div>
-
             <div class="section-header">
-                <h3>WEEKLY ACTIVITY</h3>
-            </div>
-            <div class="system-panel chart-container">
-                <canvas id="activityChart"></canvas>
-            </div>
-        </div>
-
-<!-- PROFILE VIEW -->
-<div id="view-profile" class="view">
-    
-    <!-- 1. SETUP / EDIT MODE -->
-    <div id="profile-setup-view" class="system-panel settings-panel" style="display: none;">
-        <div class="settings-header">
-            <h3>SYSTEM INITIALIZATION</h3>
-            <!-- Close Button (Only shows if editing an existing profile) -->
-            <button id="close-edit-btn" class="icon-btn" onclick="toggleProfileMode('dashboard')" style="display: none;">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--neon-red)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-        </div>
-
-        <div id="profile-avatar-preview"></div>
-
-        <div class="input-group">
-            <label>Hunter Identity (Image)</label>
-            <label for="image-upload" class="upload-btn">SELECT IMAGE</label>
-            <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
-        </div>
-
-        <div class="input-group">
-            <label>Hunter Name</label>
-            <input type="text" id="profile-name-input" class="sci-fi-input" placeholder="Enter Name..." oninput="tempChangeName(event)">
-        </div>
-
-        <button class="upload-btn save-btn" onclick="saveProfileData()">SAVE & INITIALIZE</button>
-    </div>
-
-    <!-- 2. DASHBOARD MODE (Matches your reference image) -->
-    <div id="profile-dashboard-view" class="system-panel profile-dashboard" style="display: none;">
-        
-        <!-- Edit Button Top Right -->
-        <button class="icon-btn edit-profile-btn" onclick="toggleProfileMode('edit')">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-        </button>
-        
-        <!-- Center Avatar -->
-        <div class="dash-avatar-wrapper">
-            <div class="avatar-ring"></div>
-            <div id="dash-avatar" class="avatar"></div>
-        </div>
-        
-        <h2 id="dash-username" class="dash-name">Hunter</h2>
-        
-        <!-- Level / Rank Pill -->
-        <div class="level-rank-pill">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-            <span class="pill-text">Level <span id="dash-level">9</span></span>
-            <div class="pill-divider"></div>
-            <div class="mini-hex" id="dash-mini-hex">E</div>
-        </div>
-
-        <!-- Hunter Details List -->
-        <div class="hunter-details">
-            <div class="detail-row"><span>Date Joined</span><span class="detail-val" id="dash-date-joined">--</span></div>
-            <div class="detail-row"><span>System Access</span><span class="detail-val">Verified</span></div>
-        </div>
-
-        <!-- Purple Rank Progress Box -->
-        <div class="rank-progress-card">
-            <div class="rpc-top">
-                <div class="streak-badge">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-                    <span id="dash-streak">0 Days</span>
-                </div>
-                <div class="rpc-level">
-                    <div class="lvl" id="dash-rpc-level">Level 0</div>
-                    <div class="rnk" id="dash-rpc-rank">E-Rank</div>
-                </div>
+                <h3 class="glow-title">RAID CALENDAR</h3>
             </div>
             
-            <div class="rpc-middle">
-                <span class="rpc-label">Rank Progress</span>
-                <div class="rank-transition">
-                    <span class="pill-rank" id="dash-pill-current">E-Rank</span> 
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-                    <span class="pill-rank next-rank" id="dash-pill-next">D-Rank</span>
+            <!-- Calendar Grid -->
+            <div class="system-panel" style="padding: 16px;">
+                <div class="calendar-header">
+                    <button class="icon-btn" onclick="jumpToToday()" style="margin-right: 8px;" title="Jump to Today">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--neon-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="changeEthMonth(-1)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    </button>
+                    <div style="text-align:center">
+                        <h2 id="cal-month-name" style="margin:0; font-size: 20px; color: var(--neon-blue); letter-spacing: 2px; text-transform: uppercase;">Meskerem</h2>
+                        <span id="cal-year-num" style="color:var(--text-muted); font-size: 12px; font-weight: bold;">2016</span>
+                    </div>
+                    <button class="icon-btn" onclick="changeEthMonth(1)">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+                    </button>
+                </div>
+                
+                <div class="cal-grid-header">
+                    <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
+                </div>
+                <div id="cal-days-container" class="cal-days-grid"></div>
+            </div>
+
+            <!-- Tab Toggle -->
+            <div class="segmented-control">
+                <button class="segment active" id="tab-btn-add" onclick="switchCalPanel('add')">ADD EVENT</button>
+                <button class="segment" id="tab-btn-list" onclick="switchCalPanel('list')">ALL EVENTS</button>
+            </div>
+
+            <!-- Add/Edit Event Panel -->
+            <div class="system-panel" id="cal-panel-add" style="padding: 16px;">
+                <h3 id="cal-form-title" style="color: var(--neon-blue); margin-bottom: 12px; font-size: 14px; letter-spacing: 1px;">CREATE EVENT</h3>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                    <div>
+                        <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Day</label>
+                        <input type="number" id="evt-day" class="clean-input small" min="1" max="30" placeholder="DD">
+                    </div>
+                    <div>
+                        <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Month (1-13)</label>
+                        <input type="number" id="evt-month" class="clean-input small" min="1" max="13" placeholder="MM">
+                    </div>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Recurrence</label>
+                    <select id="evt-recurrence" class="clean-input small">
+                        <option value="once">Once</option>
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly</option>
+                    </select>
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">Title</label>
+                    <input type="text" id="evt-title" class="clean-input small" placeholder="Event name...">
+                </div>
+                <div style="margin-bottom:16px;">
+                    <label style="font-size:10px; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px; display:block;">Color</label>
+                    <div class="color-picker" id="evt-color-picker">
+                        <div class="color-opt selected" data-col="#8b5cf6" style="background:#8b5cf6" onclick="selectColor(this, '#8b5cf6')"></div>
+                        <div class="color-opt" data-col="#6366f1" style="background:#6366f1" onclick="selectColor(this, '#6366f1')"></div>
+                        <div class="color-opt" data-col="#3b82f6" style="background:#3b82f6" onclick="selectColor(this, '#3b82f6')"></div>
+                        <div class="color-opt" data-col="#10b981" style="background:#10b981" onclick="selectColor(this, '#10b981')"></div>
+                        <div class="color-opt" data-col="#eab308" style="background:#eab308" onclick="selectColor(this, '#eab308')"></div>
+                        <div class="color-opt" data-col="#f97316" style="background:#f97316" onclick="selectColor(this, '#f97316')"></div>
+                        <div class="color-opt" data-col="#ef4444" style="background:#ef4444" onclick="selectColor(this, '#ef4444')"></div>
+                    </div>
+                </div>
+                <button class="action-btn" id="btn-save-evt" style="width:100%; justify-content:center; margin-top:10px;" onclick="addCalendarEvent()">SAVE EVENT</button>
+                <div style="display:flex; gap:10px; margin-top:10px;">
+                    <button class="action-btn" id="btn-cancel-evt" style="flex:1; justify-content:center; display:none; background:transparent; border-color:var(--text-muted); color:var(--text-muted);" onclick="resetCalForm()">CANCEL</button>
+                    <button class="action-btn" id="btn-delete-evt" style="flex:1; justify-content:center; display:none; background:rgba(248, 113, 113, 0.1); border-color:var(--neon-red); color:var(--neon-red);" onclick="deleteEvent(currentEditEventId)">DELETE</button>
                 </div>
             </div>
 
-            <div class="progress-bar-container">
-                <div class="progress-bar-fill" id="dash-progress-fill" style="width: 0%;"></div>
-            </div>
-
-            <div class="rpc-bottom">
-                <span id="dash-progress-text">0% in E-Rank</span>
-                <span id="dash-levels-left">10 levels to next rank</span>
+            <!-- List Events Panel -->
+            <div class="system-panel" id="cal-panel-list" style="display: none; padding: 16px;">
+                <input type="text" id="search-event" class="clean-input small" placeholder="Search events..." onkeyup="renderEventList()" style="margin-bottom: 16px;">
+                <div id="event-list-container" style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                </div>
             </div>
         </div>
 
-        <!-- System Data Management (Export/Import) -->
-        <div class="data-management-card">
-            <button class="sci-fi-btn" onclick="exportData()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                EXPORT DATA
-            </button>
-            <button class="sci-fi-btn outline" onclick="document.getElementById('import-file').click()">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                IMPORT DATA
-            </button>
-            <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(event)">
-        </div>
-
-    </div>
-</div>
-
-        <!-- ADD / EDIT QUEST POPUP (MODAL) -->
-        <div id="add-quest-modal" class="modal-overlay" style="display: none;">
-            <div class="system-panel modal-content">
+        <!-- PROFILE VIEW -->
+        <div id="view-profile" class="view">
+            
+            <!-- 1. SETUP / EDIT MODE -->
+            <div id="profile-setup-view" class="system-panel settings-panel" style="display: none;">
                 <div class="settings-header">
-                    <h3 id="modal-title" style="color: var(--neon-blue); font-size: 18px;">CREATE QUEST</h3>
-                    <!-- NEW DELETE BUTTON (Only shows on Edit) -->
-                    <span id="modal-delete-btn" onclick="requestDeleteQuest()" style="display: none; color: var(--neon-red); font-size: 14px; font-weight: 800; cursor: pointer; letter-spacing: 1px;">DELETE</span>
-                </div>
-                
-                <div class="input-group">
-                    <label>Task Title</label>
-                    <input type="text" id="new-quest-title" class="sci-fi-input" placeholder="e.g. Read 10 Pages">
-                </div>
-                
-                <div class="input-group">
-                    <label>Description</label>
-                    <textarea id="new-quest-notes" class="sci-fi-input sci-fi-textarea" placeholder="Add details or sub-tasks..."></textarea>
-                </div>
-
-                <!-- DAILY SCHEDULING SECTION -->
-                <div id="scheduling-section" class="input-group" style="border-top: 1px solid var(--panel-border); padding-top: 15px;">
-                    <label>Daily Scheduling</label>
-                    <div class="schedule-row">
-                        <div class="schedule-col">
-                            <label class="sub-label">Start Date</label>
-                            <input type="date" id="schedule-start-date" class="sci-fi-input small">
-                        </div>
-                    </div>
-                    <div class="schedule-row">
-                        <div class="schedule-col">
-                            <label class="sub-label">Repeats</label>
-                            <select id="schedule-type" class="sci-fi-input small" onchange="toggleDayPicker()">
-                                <option value="daily">Daily</option>
-                                <option value="weekly">Weekly</option>
-                                <option value="monthly">Monthly</option>
-                            </select>
-                        </div>
-                        <div class="schedule-col">
-                            <label class="sub-label">Every</label>
-                            <div class="every-input-wrapper">
-                                <input type="number" id="schedule-interval" class="sci-fi-input small" value="1" min="1" onkeypress="return event.charCode >= 48 && event.charCode <= 57" oninput="updateScheduleSummary()">
-                                <span id="interval-label">Days</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div id="day-picker-container" style="display: none; margin-bottom: 15px;">
-                        <div class="day-picker">
-                            <div class="day-circle" data-day="0" onclick="toggleDay(this)">S</div>
-                            <div class="day-circle" data-day="1" onclick="toggleDay(this)">M</div>
-                            <div class="day-circle" data-day="2" onclick="toggleDay(this)">T</div>
-                            <div class="day-circle" data-day="3" onclick="toggleDay(this)">W</div>
-                            <div class="day-circle" data-day="4" onclick="toggleDay(this)">T</div>
-                            <div class="day-circle" data-day="5" onclick="toggleDay(this)">F</div>
-                            <div class="day-circle" data-day="6" onclick="toggleDay(this)">S</div>
-                        </div>
-                    </div>
-                    <div id="schedule-summary" class="schedule-summary">Repeats DAILY every 1 day</div>
-                </div>
-
-                <!-- NORMAL QUEST SCHEDULING SECTION -->
-                <div id="quest-scheduling-section" class="input-group" style="display: none; border-top: 1px solid var(--panel-border); padding-top: 15px;">
-                    <label>Scheduling</label>
-                    <div class="schedule-row">
-                        <div class="schedule-col">
-                            <label class="sub-label">Due Date</label>
-                            <input type="date" id="quest-due-date" class="sci-fi-input small">
-                        </div>
-                    </div>
-                </div>
-
-                <!-- REMINDERS SECTION (Shared) -->
-                <div id="reminders-section" class="input-group" style="border-top: 1px solid var(--panel-border); padding-top: 15px;">
-                    <label>Reminders</label>
-                    <div id="reminders-list"></div>
-                    <button class="sci-fi-btn outline" style="margin-top: 10px; width: 100%; border-style: dashed;" onclick="addReminderField()">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        NEW REMINDER
+                    <h3>SYSTEM INITIALIZATION</h3>
+                    <!-- Close Button (Only shows if editing an existing profile) -->
+                    <button id="close-edit-btn" class="icon-btn" onclick="toggleProfileMode('dashboard')" style="display: none;">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--neon-red)" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                 </div>
 
-                <div class="input-group" style="margin-bottom: 0;">
+                <div id="profile-avatar-preview"></div>
+
+                <div class="input-group">
+                    <label>Hunter Identity (Image)</label>
+                    <label for="image-upload" class="upload-btn">SELECT IMAGE</label>
+                    <input type="file" id="image-upload" accept="image/*" style="display: none;" onchange="handleImageUpload(event)">
+                </div>
+
+                <div class="input-group">
+                    <label>Hunter Name</label>
+                    <input type="text" id="profile-name-input" class="sci-fi-input" placeholder="Enter Name..." oninput="tempChangeName(event)">
+                </div>
+
+                <button class="upload-btn save-btn" onclick="saveProfileData()">SAVE & INITIALIZE</button>
+            </div>
+
+            <!-- 2. DASHBOARD MODE -->
+            <div id="profile-dashboard-view" class="system-panel profile-dashboard" style="display: none;">
+                
+                <!-- Edit Button Top Right -->
+                <button class="icon-btn edit-profile-btn" onclick="toggleProfileMode('edit')">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                </button>
+                
+                <!-- Center Avatar -->
+                <div class="dash-avatar-wrapper">
+                    <div class="avatar-ring"></div>
+                    <div id="dash-avatar" class="avatar"></div>
+                </div>
+                
+                <h2 id="dash-username" class="dash-name">Hunter</h2>
+                
+                <!-- Level / Rank Pill -->
+                <div class="level-rank-pill">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+                    <span class="pill-text">Level <span id="dash-level">9</span></span>
+                    <div class="pill-divider"></div>
+                    <div class="mini-hex" id="dash-mini-hex">E</div>
+                </div>
+
+                <!-- Hunter Details List -->
+                <div class="hunter-details">
+                    <div class="detail-row"><span>Date Joined</span><span class="detail-val" id="dash-date-joined">--</span></div>
+                    <div class="detail-row"><span>System Access</span><span class="detail-val">Verified</span></div>
+                </div>
+
+                <!-- Purple Rank Progress Box -->
+                <div class="rank-progress-card">
+                    <div class="rpc-top">
+                        <div class="streak-badge">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                            <span id="dash-streak">0 Days</span>
+                        </div>
+                        <div class="rpc-level">
+                            <div class="lvl" id="dash-rpc-level">Level 0</div>
+                            <div class="rnk" id="dash-rpc-rank">E-Rank</div>
+                        </div>
+                    </div>
+                    
+                    <div class="rpc-middle">
+                        <span class="rpc-label">Rank Progress</span>
+                        <div class="rank-transition">
+                            <span class="pill-rank" id="dash-pill-current">E-Rank</span> 
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                            <span class="pill-rank next-rank" id="dash-pill-next">D-Rank</span>
+                        </div>
+                    </div>
+
+                    <div class="progress-bar-container">
+                        <div class="progress-bar-fill" id="dash-progress-fill" style="width: 0%;"></div>
+                    </div>
+
+                    <div class="rpc-bottom">
+                        <span id="dash-progress-text">0% in E-Rank</span>
+                        <span id="dash-levels-left">10 levels to next rank</span>
+                    </div>
+                </div>
+
+                <!-- System Data Management (Export/Import) -->
+                <div class="data-management-card">
+                    <button class="sci-fi-btn" onclick="exportData()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        EXPORT DATA
+                    </button>
+                    <button class="sci-fi-btn outline" onclick="document.getElementById('import-file').click()">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        IMPORT DATA
+                    </button>
+                    <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(event)">
+                </div>
+
+            </div>
+        </div>
+
+        <!-- FULLSCREEN ADD / EDIT QUEST VIEW -->
+        <div id="add-quest-modal" class="fullscreen-modal" style="display: none;">
+            
+            <!-- Top Sticky Header -->
+            <div class="quest-header">
+                <button class="back-btn" onclick="closeQuestModal()">
+                    <!-- Back Arrow Icon -->
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                </button>
+                <h3 id="modal-title" style="display:none;">CREATE QUEST</h3> <!-- Hidden so JS doesn't crash -->
+                <div class="quest-header-actions">
+                    <span id="modal-delete-btn" class="header-text-btn delete" onclick="requestDeleteQuest()" style="display: none;">DELETE</span>
+                    <span class="header-text-btn save" onclick="saveQuest()">SAVE</span>
+                </div>
+            </div>
+
+            <!-- Scrollable Content -->
+            <div class="quest-body">
+                
+                <div class="quest-section">
+                    <label>Task Title</label>
+                    <input type="text" id="new-quest-title" class="clean-input" placeholder="Enter task title...">
+                </div>
+                
+                <div class="quest-section">
+                    <label>Notes</label>
+                    <textarea id="new-quest-notes" class="clean-input sci-fi-textarea" placeholder="Add details or sub-tasks..."></textarea>
+                </div>
+
+                <div class="divider"></div>
+
+                <div class="quest-section">
                     <label>Difficulty</label>
                     <div class="difficulty-grid">
-                        
                         <!-- Trivial -->
                         <div class="diff-option" onclick="selectDifficulty('trivial')">
                             <div class="diff-box" id="box-trivial">
-                                <!-- Change width/height here to make the star bigger/smaller! -->
                                 <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
                             </div>
                             <span id="text-trivial">Trivial</span>
                         </div>
-
                         <!-- Easy -->
                         <div class="diff-option" onclick="selectDifficulty('easy')">
                             <div class="diff-box active" id="box-easy">
@@ -366,7 +355,6 @@
                             </div>
                             <span class="active" id="text-easy">Easy</span>
                         </div>
-
                         <!-- Medium -->
                         <div class="diff-option" onclick="selectDifficulty('medium')">
                             <div class="diff-box" id="box-medium">
@@ -378,7 +366,6 @@
                             </div>
                             <span id="text-medium">Medium</span>
                         </div>
-
                         <!-- Hard -->
                         <div class="diff-option" onclick="selectDifficulty('hard')">
                             <div class="diff-box" id="box-hard">
@@ -388,22 +375,86 @@
                                 </div>
                                 <div class="star-row">
                                     <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke-width="1" stroke="currentColor"><path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z"/></svg>
                                 </div>
                             </div>
                             <span id="text-hard">Hard</span>
                         </div>
-
                     </div>
                 </div>
-                
-                <div class="data-management-card">
-                    <button class="sci-fi-btn outline" onclick="closeQuestModal()">CANCEL</button>
-                    <button class="sci-fi-btn" onclick="saveQuest()">SAVE</button>
+
+                <div class="divider"></div>
+
+                <!-- DAILY SCHEDULING SECTION -->
+                <div id="scheduling-section" class="quest-section">
+                    <label>Scheduling</label>
+                    <div class="schedule-box">
+                        <div class="schedule-row">
+                            <div class="schedule-col">
+                                <label class="sub-label">Start Date</label>
+                                <input type="date" id="schedule-start-date" class="clean-input small">
+                            </div>
+                        </div>
+                        <div class="schedule-row" style="margin-bottom: 0;">
+                            <div class="schedule-col">
+                                <label class="sub-label">Repeats</label>
+                                <select id="schedule-type" class="clean-input small" onchange="toggleDayPicker()">
+                                    <option value="daily">Daily</option>
+                                    <option value="weekly">Weekly</option>
+                                    <option value="monthly">Monthly</option>
+                                </select>
+                            </div>
+                            <div class="schedule-col">
+                                <label class="sub-label">Every</label>
+                                <div class="every-input-wrapper">
+                                    <input type="number" id="schedule-interval" class="clean-input small" value="1" min="1" onkeypress="return event.charCode >= 48 && event.charCode <= 57" oninput="updateScheduleSummary()">
+                                    <span id="interval-label">Days</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="day-picker-container" style="display: none; margin-top: 15px;">
+                            <div class="day-picker">
+                                <div class="day-circle" data-day="0" onclick="toggleDay(this)">S</div>
+                                <div class="day-circle" data-day="1" onclick="toggleDay(this)">M</div>
+                                <div class="day-circle" data-day="2" onclick="toggleDay(this)">T</div>
+                                <div class="day-circle" data-day="3" onclick="toggleDay(this)">W</div>
+                                <div class="day-circle" data-day="4" onclick="toggleDay(this)">T</div>
+                                <div class="day-circle" data-day="5" onclick="toggleDay(this)">F</div>
+                                <div class="day-circle" data-day="6" onclick="toggleDay(this)">S</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="schedule-summary" class="schedule-summary" style="margin-top:10px;">Repeats DAILY every 1 day</div>
                 </div>
+
+                <!-- NORMAL QUEST SCHEDULING SECTION -->
+                <div id="quest-scheduling-section" class="quest-section" style="display: none;">
+                    <label>Scheduling</label>
+                    <div class="schedule-box">
+                        <div class="schedule-row" style="margin-bottom:0;">
+                            <div class="schedule-col">
+                                <label class="sub-label">Due Date</label>
+                                <input type="date" id="quest-due-date" class="clean-input small">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- REMINDERS SECTION (Shared) -->
+                <div id="reminders-section" class="quest-section">
+                    <label>Reminders</label>
+                    <div id="reminders-list"></div>
+                    <button class="clean-add-btn" onclick="addReminderField()">
+                        <span class="plus-icon">+</span> New reminder
+                    </button>
+                </div>
+
+                <!-- Padding at bottom so scroll doesn't get cut off behind the screen -->
+                <div style="height: 100px;"></div>
             </div>
         </div>
-
         <!-- REGISTRATION WARNING MODAL -->
         <div id="registration-warning-modal" class="modal-overlay" style="display: none; z-index: 2000;">
             <div class="system-panel modal-content" style="max-width: 320px; text-align: center; border-color: var(--neon-gold);">
@@ -458,8 +509,9 @@
             </button>
             
             <button class="nav-item" onclick="switchTab('analytics')">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                <span>STATS</span>
+                <!-- Raw SVG loads instantly -->
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
+                <span>CALENDAR</span>
             </button>
             
             <!-- Added onclick here! -->

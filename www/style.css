@@ -11,11 +11,18 @@
     --neon-gold: #fbbf24;
 }
 
+@font-face {
+    font-family: 'Rajdhani';
+    src: url('fonts/Rajdhani-Regular.ttf') format('truetype');
+    font-weight: normal;
+    font-style: normal;
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
-    font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    font-family: 'Rajdhani', 'Segoe UI', sans-serif;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
@@ -409,6 +416,71 @@ button.sci-fi-btn.filter-opt.active {
     font-weight: 900;
 }
 
+/* --- FEATURE 3: SWIPE TO DELETE --- */
+.quest-swipe-wrapper {
+    position: relative;
+    overflow: hidden;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+.quest-delete-action {
+    position: absolute;
+    right: 0; top: 0; bottom: 0; width: 80px;
+    background: var(--neon-red);
+    display: flex; justify-content: center; align-items: center;
+    border-radius: 12px;
+    cursor: pointer;
+    z-index: 1; /* Stays behind the quest card */
+    opacity: 0; /* Hidden until the user actually swipes */
+    transition: opacity 0.2s ease;
+}
+.quest-swipe-wrapper.is-swiping .quest-delete-action {
+    opacity: 1;
+}
+.quest-delete-action svg { color: white; }
+.quest-swipe-wrapper .quest-item {
+    margin-bottom: 0 !important; /* Wrapper handles margin now */
+    transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s ease, filter 0.2s ease;
+    width: 100%;
+    position: relative;
+    z-index: 2; /* Sits on top of the delete action */
+}
+
+/* HUD Quest List */
+.quest-item {
+    cursor: grab;
+    touch-action: pan-y; /* CRITICAL: Fixes mobile scrolling vs dragging conflict */
+    -webkit-user-select: none; /* Prevents accidental text highlighting on long-press */
+    user-select: none;
+}
+.quest-item:active {
+    cursor: grabbing;
+}
+
+/* The empty slot left behind in the list */
+.sortable-ghost {
+    opacity: 0.3 !important;
+    background: rgba(0, 0, 0, 0.2) !important;
+    border: 2px dashed var(--neon-blue) !important;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5) !important;
+}
+
+/* CRITICAL: Hides the text inside the empty slot so it looks like the card was actually removed */
+.sortable-ghost * {
+    opacity: 0 !important;
+}
+
+/* The actual item floating in your hand */
+.sortable-drag {
+    /* (Removed transform so SortableJS can actually move the card with your finger!) */
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.8), 0 0 20px rgba(56, 189, 248, 0.4) !important;
+    cursor: grabbing !important;
+    z-index: 9999 !important;
+    border: 1px solid var(--neon-blue) !important;
+    background: rgba(15, 23, 42, 1) !important; /* Solid background so it pops */
+    opacity: 1 !important;
+}
+
 .quest-details { flex: 1; }
 .quest-title {
     font-size: 15px;
@@ -451,70 +523,63 @@ button.sci-fi-btn.filter-opt.active {
     opacity: 0.5;
 }
 
-/* Analytics Tab Specifics */
+/* Segmented Toggle Control */
 .segmented-control {
     display: flex;
     background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
     border-radius: 8px;
     padding: 4px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
 }
 .segment {
-    flex: 1;
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    padding: 10px;
-    font-size: 12px;
-    font-weight: bold;
+    flex: 1; background: none; border: none; color: var(--text-muted);
+    padding: 10px; font-size: 12px; font-weight: bold; border-radius: 6px; letter-spacing: 1px;
+}
+.segment.active { background: rgba(56, 189, 248, 0.2); color: var(--neon-blue); }
+
+/* --- CALENDAR STYLES --- */
+.calendar-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.cal-grid-header { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; color: var(--text-muted); font-size: 12px; font-weight: bold; margin-bottom: 8px; }
+.cal-days-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+
+.cal-cell {
+    aspect-ratio: 1;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid var(--panel-border);
     border-radius: 6px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    cursor: pointer; font-weight: bold; font-size: 14px; transition: 0.2s; position: relative;
 }
-.segment.active {
-    background: var(--accent-blue);
-    color: white;
+.cal-cell:active { transform: scale(0.9); }
+.cal-cell.empty { background: transparent; border-color: transparent; cursor: default; }
+.cal-cell.has-event { color: #ffffff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.8); }
+.cal-cell.multi-event { border-width: 2px; }
+.cal-cell.multi-event span { position: relative; z-index: 2; color: white; text-shadow: 0 0 4px black; }
+
+.cal-cell.is-today {
+    border: 2px solid var(--neon-blue);
+    box-shadow: 0 0 10px var(--neon-blue-glow);
 }
 
-.stats-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-    margin-bottom: 24px;
+/* Tooltip */
+.cal-tooltip {
+    position: absolute; bottom: 110%; left: 50%; transform: translateX(-50%);
+    background: #020617; border: 1px solid var(--panel-border); padding: 5px 10px;
+    border-radius: 4px; font-size: 10px; white-space: nowrap; opacity: 0;
+    pointer-events: none; transition: 0.2s; z-index: 20; display: flex; flex-direction: column; gap: 4px;
 }
-.stat-box {
-    display: flex;
-    align-items: center;
-    padding: 16px;
-    gap: 12px;
-    margin-bottom: 0;
-}
-.stat-icon {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    background: rgba(255,255,255,0.05);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-.stat-icon.blue { color: var(--accent-blue); }
-.stat-icon.teal { color: var(--accent-green); }
-.stat-icon.purple { color: #a855f7; }
-.stat-icon.gray { color: var(--text-muted); }
+.cal-cell:hover .cal-tooltip, .cal-cell:active .cal-tooltip { opacity: 1; bottom: 120%; }
+.tooltip-item { display: flex; align-items: center; gap: 6px; color: white; }
+.tooltip-dot { width: 6px; height: 6px; border-radius: 50%; }
 
-.stat-content .stat-label {
-    font-size: 10px;
-    color: var(--text-muted);
-    letter-spacing: 1px;
-}
-.stat-content .stat-val {
-    font-size: 18px;
-    font-weight: bold;
-}
+/* Color Picker */
+.color-picker { display: flex; gap: 10px; flex-wrap: wrap; }
+.color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; }
+.color-opt.selected { border-color: white; transform: scale(1.2); box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 
-.chart-container {
-    padding: 16px;
-    height: 200px;
-}
+/* Event List Items */
+.event-item-row { display: flex; justify-content: space-between; align-items: center; padding: 12px; background: rgba(30, 41, 59, 0.7); border-radius: 8px; border: 1px solid var(--panel-border); }
 
 /* Bottom Navigation */
 .bottom-nav {
@@ -817,6 +882,129 @@ button.sci-fi-btn.filter-opt.active {
 }
 .reminder-row input { flex: 1; margin: 0; }
 .remove-rem-btn { padding: 4px; border-radius: 4px; background: rgba(248, 113, 113, 0.1); cursor: pointer; }
+
+/* --- NOTIFICATION TOAST --- */
+.notification-toast {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90%;
+    max-width: 350px;
+    background: #1e1e1e;
+    border-radius: 16px;
+    padding: 16px;
+    z-index: 9999;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255,255,255,0.1);
+    animation: slideDownToast 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+    color: white;
+}
+@keyframes slideDownToast {
+    from { top: -100px; opacity: 0; }
+    to { top: 20px; opacity: 1; }
+}
+.notif-header { display: flex; align-items: center; margin-bottom: 8px; }
+.notif-icon { background: #c084fc; color: #1e1e1e; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 10px; }
+.notif-app-name { font-size: 12px; font-family: sans-serif; color: #a1a1aa; flex: 1; }
+.notif-close { background: none; border: none; color: #a1a1aa; cursor: pointer; }
+.notif-time { font-size: 11px; color: #71717a; margin-bottom: 8px; font-family: sans-serif; }
+.notif-title { font-size: 18px; font-weight: bold; margin-bottom: 4px; }
+.notif-desc { font-size: 14px; color: #a1a1aa; margin-bottom: 16px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.notif-actions { display: flex; justify-content: flex-start; }
+.notif-complete-btn { background: transparent; border: none; color: #fecdd3; font-weight: bold; font-size: 14px; letter-spacing: 1px; cursor: pointer; padding: 8px 0; }
+.notif-complete-btn:active { color: white; }
+/* ========================================== */
+/* --- FULLSCREEN QUEST EDIT VIEW --- */
+/* ========================================== */
+
+.fullscreen-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: var(--bg-dark); /* Matches your app's deep space background */
+    z-index: 3000;
+    display: flex;
+    flex-direction: column;
+    /* Smooth, professional slide instead of the bouncy one */
+    animation: slideUpModal 0.25s ease-out forwards; 
+}
+
+@keyframes slideUpModal {
+    from { transform: translateY(100%); }
+    to { transform: translateY(0); }
+}
+
+/* Header */
+.quest-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    background: rgba(15, 23, 42, 0.95); /* Matches your glass panels */
+    border-bottom: 1px solid var(--panel-border); /* Sci-fi cyan line */
+    z-index: 10;
+}
+.back-btn {
+    background: none; border: none;
+    color: var(--neon-blue);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+}
+.quest-header-actions { display: flex; gap: 20px; align-items: center; }
+.header-text-btn { font-size: 14px; font-weight: 800; letter-spacing: 1px; cursor: pointer; text-transform: uppercase; }
+.header-text-btn.delete { color: var(--text-muted); }
+.header-text-btn.save { color: var(--neon-blue); }
+
+/* Body */
+.quest-body { flex: 1; overflow-y: auto; padding: 20px; }
+.quest-section { margin-bottom: 24px; }
+.quest-section > label { 
+    display: block; 
+    font-size: 12px; 
+    text-transform: uppercase; 
+    letter-spacing: 1.5px; 
+    color: var(--text-muted); 
+    margin-bottom: 10px; 
+    font-weight: 800; 
+} /* Matches your app's labels exactly */
+
+/* Inputs */
+.clean-input {
+    width: 100%;
+    background: rgba(15, 23, 42, 0.6); /* Matches your app's inputs */
+    border: 1px solid var(--panel-border); /* Uses your cyan border */
+    color: white;
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+    box-shadow: inset 0 0 10px rgba(0,0,0,0.5); /* Inner shadow from your theme */
+    transition: 0.2s;
+}
+.clean-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue-glow); }
+.clean-input.small { padding: 12px; font-size: 14px; }
+.sci-fi-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+
+/* Dividers & Boxes */
+.divider { height: 1px; background: var(--panel-border); margin: 24px 0; width: 100%; opacity: 0.3; }
+.schedule-box { background: rgba(15, 23, 42, 0.4); padding: 16px; border-radius: 8px; border: 1px solid var(--panel-border); }
+
+/* Reminders */
+.clean-add-btn {
+    width: 100%;
+    background: rgba(56, 189, 248, 0.05); /* Uses your neon blue tint */
+    border: 1px dashed var(--neon-blue);
+    color: var(--neon-blue);
+    padding: 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; text-align: left;
+}
+.clean-add-btn .plus-icon { font-size: 18px; font-weight: bold; }
+.reminder-row { background: rgba(15, 23, 42, 0.6); border: 1px solid var(--panel-border); border-radius: 8px; margin-bottom: 10px; padding: 6px; display: flex; align-items: center; gap: 8px; }
+.remove-rem-btn { color: var(--neon-red); background: transparent; padding: 8px; display: flex; justify-content: center; align-items: center; border: none; cursor: pointer; }
 
 /* --- NOTIFICATION TOAST --- */
 .notification-toast {

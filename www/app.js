@@ -9,7 +9,11 @@ let systemState = {
     totalXp: 0,
     todayXp: 0,
     streak: 0,
-    quests: [] // Quests are now completely empty by default!
+    quests: [], 
+    streakIncrementedToday: false,
+    lastCompletedDate: null, 
+    weeklyHistory: [], 
+    events: [] // --- CALENDAR: Stores all scheduled events
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -29,9 +33,74 @@ document.addEventListener('DOMContentLoaded', () => {
     checkDailyReset();  // 2. Check if a new day started (Resets quests/streak if needed)
     renderQuests();     // 3. Draw the quests (Filters are applied automatically now)
     updateStats();      // 4. Update the math (Level, Rank, Streak, XP)
-    initChart();
     loadSavedProfile(); // 5. Load the Profile image & name
+    initSortable();     // 6. Initialize drag-and-drop reordering
+    
+    // 7. Render Calendar (No Lucide required anymore!)
+    renderEthCalendar();
+    renderEventList();
 });
+
+// --- Drag and Drop Feature ---
+function initSortable() {
+    const containers = [
+        document.getElementById('quest-container'),
+        document.getElementById('main-quest-container')
+    ];
+
+    const sortableOptions = {
+        animation: 250, 
+        easing: "cubic-bezier(0.25, 1, 0.5, 1)", 
+        
+        // --- MOBILE TOUCH FIXES ---
+        delay: 200, 
+        delayOnTouchOnly: true, 
+        fallbackTolerance: 3, 
+        forceFallback: true, 
+        fallbackClass: 'sortable-drag', 
+        fallbackOnBody: true, // CRITICAL: Appends the dragged card to the body so it doesn't get clipped by the scrolling container
+        
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function (evt) {
+            const itemEl = evt.item;
+            const movedId = parseInt(itemEl.getAttribute('data-id'));
+            
+            // Find the elements it was dropped next to
+            const nextEl = itemEl.nextElementSibling;
+            const prevEl = itemEl.previousElementSibling;
+
+            // 1. Find and remove the moved quest from the main array
+            const movedQuestIndex = systemState.quests.findIndex(q => q.id === movedId);
+            if (movedQuestIndex === -1) return;
+            const movedQuest = systemState.quests.splice(movedQuestIndex, 1)[0];
+
+            // 2. Figure out where to put it back based on its new siblings
+            // This safely bypasses hidden/filtered quests without losing data!
+            if (nextEl) {
+                const nextId = parseInt(nextEl.getAttribute('data-id'));
+                const nextQuestIndex = systemState.quests.findIndex(q => q.id === nextId);
+                systemState.quests.splice(nextQuestIndex, 0, movedQuest);
+            } else if (prevEl) {
+                const prevId = parseInt(prevEl.getAttribute('data-id'));
+                const prevQuestIndex = systemState.quests.findIndex(q => q.id === prevId);
+                systemState.quests.splice(prevQuestIndex + 1, 0, movedQuest);
+            } else {
+                // Failsafe: Put it at the end
+                systemState.quests.push(movedQuest);
+            }
+
+            // 3. Save the newly arranged backpack instantly!
+            saveGameState();
+        }
+    };
+
+    containers.forEach(container => {
+        if (container) {
+            new Sortable(container, sortableOptions);
+        }
+    });
+}
 
 // --- UI Functions ---
 function initDates() {
@@ -62,14 +131,34 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
+        // --- SYSTEM STREAK WARNING ---
+        // Triggers at exactly 18:00 (6 PM) if you have an active streak but haven't done anything today.
+        const todayStr = d.toDateString();
+        const warningKey = `streak-warning-${todayStr}`;
+        
+        if (d.getHours() === 18 && systemState.streak > 0 && systemState.todayXp === 0) {
+            if (!triggeredReminders.has(warningKey)) {
+                triggeredReminders.add(warningKey);
+                // --- FEATURE 2: Trigger Native or Toast ---
+                triggerSystemAlert({
+                    id: 'system-warning',
+                    title: 'SYSTEM PENALTY IMMINENT',
+                    notes: 'You have not completed any daily tasks. Streak reset in 6 hours.'
+                });
+            }
+        }
+
         // --- REMINDER CHECKER ---
-        const nowStr = new Date().toISOString().slice(0, 16); // Gets current time in "YYYY-MM-DDTHH:mm" format
+        const now = new Date();
+        const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+        const nowStr = localISOTime; // Safely gets local time in "YYYY-MM-DDTHH:mm" format
         systemState.quests.forEach(quest => {
             if (!quest.completed && quest.reminders) {
                 quest.reminders.forEach(rem => {
                     if (rem === nowStr && !triggeredReminders.has(`${quest.id}-${rem}`)) {
                         triggeredReminders.add(`${quest.id}-${rem}`);
-                        showNotification(quest);
+                        // --- FEATURE 2: Trigger Native or Toast ---
+                        triggerSystemAlert(quest);
                     }
                 });
             }
@@ -130,9 +219,57 @@ function renderQuests() {
         // Hide completed Main Quests from the list unless the 'done' filter is selected
         if (!isDaily && quest.completed && activeFilter !== 'done') return;
 
+        // --- FEATURE 3: SWIPE TO DELETE WRAPPER ---
+        const wrapperEl = document.createElement('div');
+        wrapperEl.className = 'quest-swipe-wrapper';
+        wrapperEl.setAttribute('data-id', quest.id); // Sortable needs this on the wrapper now
+
+        // Delete Background
+        const deleteBg = document.createElement('div');
+        deleteBg.className = 'quest-delete-action';
+        deleteBg.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+        deleteBg.onclick = () => deleteQuest(quest.id);
+
         const questEl = document.createElement('div');
         questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
         
+        // Swipe Touch Logic
+        let startX = 0; let currentX = 0; let startY = 0; let isSwiping = false;
+        
+        questEl.addEventListener('touchstart', e => {
+            startX = e.touches[0].clientX;
+            startY = e.touches[0].clientY;
+            isSwiping = false;
+        }, {passive: true});
+        
+        questEl.addEventListener('touchmove', e => {
+            currentX = e.touches[0].clientX;
+            const diffX = currentX - startX;
+            const diffY = e.touches[0].clientY - startY;
+            
+            // Trigger swipe only if moving left horizontally (avoid SortableJS/Scroll conflict)
+            if (Math.abs(diffX) > Math.abs(diffY) && diffX < 0) {
+                isSwiping = true;
+                wrapperEl.classList.add('is-swiping'); // Reveal the delete button only during a real swipe
+                questEl.style.transform = `translateX(${Math.max(diffX, -80)}px)`;
+            }
+        }, {passive: true});
+        
+        questEl.addEventListener('touchend', () => {
+            if (!isSwiping) return;
+            const diffX = currentX - startX;
+            if (diffX < -40) {
+                questEl.style.transform = `translateX(-80px)`; // Lock open
+                setTimeout(() => {
+                    questEl.style.transform = `translateX(0px)`;
+                    wrapperEl.classList.remove('is-swiping'); // Hide the button again once it snaps back
+                }, 1500); // Auto-close after 3s
+            } else {
+                questEl.style.transform = `translateX(0px)`; // Snap back
+                wrapperEl.classList.remove('is-swiping');
+            }
+        });
+
         // Map Colors (Trivial=Blue, Easy=Green, Medium=Yellow, Hard=Red)
         let diffColor = 'var(--neon-blue)';
         if(quest.difficulty === 'easy') diffColor = 'var(--neon-green)';
@@ -159,13 +296,15 @@ function renderQuests() {
             </div>
         `;
         
-        // Append to the correct tab based on type (Older tasks default to daily)
-        
-if (isDaily && homeContainer) {
-    homeContainer.appendChild(questEl);
-} else if (!isDaily && mainContainer) {
-    mainContainer.appendChild(questEl);
-}
+        wrapperEl.appendChild(deleteBg);
+        wrapperEl.appendChild(questEl);
+
+        // Append to the correct tab based on type
+        if (isDaily && homeContainer) {
+            homeContainer.appendChild(wrapperEl);
+        } else if (!isDaily && mainContainer) {
+            mainContainer.appendChild(wrapperEl);
+        }
     });
 }
 
@@ -179,12 +318,24 @@ function deleteQuest(id) {
 
 function toggleQuest(id) {
     const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return; // Safeguard against system warnings
     
     if (!quest.completed) {
         // Checking the quest
         quest.completed = true;
         systemState.todayXp += quest.xp;
         systemState.totalXp += quest.xp;
+        
+        // --- STREAK LOGIC: The Trigger ---
+        const isDaily = quest.type === 'daily' || !quest.type;
+        if (isDaily) {
+            systemState.lastCompletedDate = new Date().toDateString(); // Register that work was done today
+            
+            if (!systemState.streakIncrementedToday) {
+                systemState.streak += 1;
+                systemState.streakIncrementedToday = true;
+            }
+        }
         
         // Play System Sound
         levelUpSound.currentTime = 0;
@@ -206,8 +357,11 @@ function toggleQuest(id) {
 }
 
 function updateStats() {
-    document.getElementById('stat-today-xp').textContent = systemState.todayXp;
-    document.getElementById('stat-total-xp').textContent = systemState.totalXp;
+    const statToday = document.getElementById('stat-today-xp');
+    if (statToday) statToday.textContent = systemState.todayXp;
+
+    const statTotal = document.getElementById('stat-total-xp');
+    if (statTotal) statTotal.textContent = systemState.totalXp;
     
     // 1. Calculate Level based on Total XP
     const previousLevel = systemState.level;
@@ -244,12 +398,17 @@ function updateStats() {
         
     const levelsToNext = currentRankIndex === 5 ? 0 : 10 - levelsIntoRank;
 
-    // --- APPLY TO UI ---
+// --- APPLY TO UI ---
     
     // Home Screen Updates
-    document.getElementById('player-level').textContent = systemState.level;
-    document.getElementById('stat-level').textContent = systemState.level;
-    document.getElementById('home-rank-text').textContent = currentRank.letter;
+    const playerLevelEl = document.getElementById('player-level');
+    if (playerLevelEl) playerLevelEl.textContent = systemState.level;
+    
+    const statLevelEl = document.getElementById('stat-level');
+    if (statLevelEl) statLevelEl.textContent = systemState.level;
+    
+    const homeRankEl = document.getElementById('home-rank-text');
+    if (homeRankEl) homeRankEl.textContent = currentRank.letter;
 
     // Quests Screen Updates
     const qLevel = document.getElementById('quests-player-level');
@@ -354,45 +513,272 @@ function switchTab(tabId) {
     if (activeNavBtn) activeNavBtn.classList.add('active');
 }
 
-// --- Chart.js Initialization ---
-function initChart() {
-    const ctx = document.getElementById('activityChart');
-    if (ctx && window.Chart) {
-        new Chart(ctx, {
-            type: 'line',
-            data: {
-                labels: ['F', 'S', 'S', 'M', 'T', 'W', 'T'],
-                datasets: [{
-                    label: 'Activity',
-                    data: [100, 100, 105, 50, 48, 55, 0],
-                    borderColor: '#00e676', // Neon green
-                    backgroundColor: 'rgba(0, 230, 118, 0.1)',
-                    borderWidth: 3,
-                    tension: 0.4, // Smooth curves
-                    fill: true,
-                    pointRadius: 0
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { 
-                        beginAtZero: true, max: 120, 
-                        grid: { color: 'rgba(255,255,255,0.05)' },
-                        ticks: { color: '#8ba3c7' }
-                    },
-                    x: { 
-                        grid: { display: false },
-                        ticks: { color: '#8ba3c7' }
-                    }
-                }
-            }
-        });
-    } else {
-        console.warn("Chart.js not loaded. Ensure chart.min.js is in the www folder.");
+// ==========================================
+// --- ETHIOPIAN CALENDAR SYSTEM ---
+// ==========================================
+function getLiveEthDate() {
+    const anchorGC = new Date("2026-02-09T00:00:00"); 
+    const anchorEth = { y: 2018, m: 6, d: 2 }; 
+
+    const today = new Date();
+    const diffTime = today.setHours(0,0,0,0) - anchorGC.setHours(0,0,0,0);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    let d = anchorEth.d + diffDays;
+    let m = anchorEth.m;
+    let y = anchorEth.y;
+
+    while (true) {
+        let dim = 30; 
+        if (m === 13) dim = (y % 4 === 3) ? 6 : 5;
+
+        if (d > dim) {
+            d -= dim; m++;
+            if (m > 13) { m = 1; y++; }
+        } else if (d < 1) {
+            m--;
+            if (m < 1) { m = 13; y--; }
+            let pdim = 30;
+            if (m === 13) pdim = (y % 4 === 3) ? 6 : 5;
+            d += pdim;
+        } else { break; }
     }
+    return { year: y, month: m, day: d };
+}
+
+const TODAY_ETH = getLiveEthDate();
+let ethCurrentYear = TODAY_ETH.year; 
+let ethCurrentMonth = TODAY_ETH.month;
+const ETH_MONTHS = ["", "መስከረም", "ጥቅምት", "ህዳር", "ታህሳስ", "ጥር", "የካቲት", "መጋቢት", "ሚያዝያ", "ግንቦት", "ሰኔ", "ሐምሌ", "ነሐሴ", "ጳጉሜ"];
+
+let selectedEventColor = '#8b5cf6';
+let currentEditEventId = null;
+
+function switchCalPanel(panel) {
+    document.getElementById('cal-panel-add').style.display = panel === 'add' ? 'block' : 'none';
+    document.getElementById('cal-panel-list').style.display = panel === 'list' ? 'block' : 'none';
+    document.getElementById('tab-btn-add').classList.toggle('active', panel === 'add');
+    document.getElementById('tab-btn-list').classList.toggle('active', panel === 'list');
+    if(panel === 'list') renderEventList();
+}
+
+function getEthMonthStartDay(year, month) {
+    let totalDays = 0;
+    for(let y = 2016; y < year; y++) totalDays += (y % 4 === 3) ? 366 : 365; 
+    totalDays += (month - 1) * 30;
+    return (totalDays + 2) % 7;
+}
+
+function isEventActive(ev, day, month, year) {
+    if (ev.recurrence === 'monthly') return ev.day === day;
+    if (ev.recurrence === 'yearly' || !ev.recurrence) return ev.day === day && ev.month === month;
+    if (ev.recurrence === 'once') return ev.day === day && ev.month === month && ev.year === year;
+    return false;
+}
+
+function renderEthCalendar() {
+    if(!systemState.events) systemState.events = [];
+    const container = document.getElementById('cal-days-container');
+    if(!container) return;
+    container.innerHTML = '';
+    
+    document.getElementById('cal-month-name').innerText = ETH_MONTHS[ethCurrentMonth];
+    document.getElementById('cal-year-num').innerText = ethCurrentYear;
+
+    let daysInMonth = (ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30;
+    const startDay = getEthMonthStartDay(ethCurrentYear, ethCurrentMonth);
+    const gridOffset = (startDay + 6) % 7; 
+
+    for (let i = 0; i < gridOffset; i++) {
+        const d = document.createElement('div');
+        d.className = 'cal-cell empty';
+        container.appendChild(d);
+    }
+
+    for (let d = 1; d <= daysInMonth; d++) {
+        const div = document.createElement('div');
+        div.className = 'cal-cell';
+        
+        if (ethCurrentYear === TODAY_ETH.year && ethCurrentMonth === TODAY_ETH.month && d === TODAY_ETH.day) {
+            div.classList.add('is-today');
+        }
+
+        const numSpan = document.createElement('span');
+        numSpan.innerText = d;
+        div.appendChild(numSpan);
+
+        const daysEvents = systemState.events.filter(ev => isEventActive(ev, d, ethCurrentMonth, ethCurrentYear));
+        
+        if (daysEvents.length > 0) {
+            div.classList.add('has-event');
+            
+            // FINDASH MECHANISM: Background manipulation
+            if (daysEvents.length === 1) {
+                const c = daysEvents[0].color;
+                // Add '40' to hex for 25% opacity, fallback if old var(--color) is saved
+                div.style.backgroundColor = c.startsWith('#') ? c + '40' : 'rgba(56, 189, 248, 0.25)';
+                div.style.borderColor = c;
+            } else {
+                div.classList.add('multi-event');
+                const slice = 100 / daysEvents.length;
+                let gradient = "conic-gradient(";
+                daysEvents.forEach((ev, i) => {
+                    gradient += `${ev.color} ${i * slice}% ${(i + 1) * slice}%${i < daysEvents.length - 1 ? ',' : ''}`;
+                });
+                gradient += ")";
+                div.style.background = gradient;
+            }
+
+            // Keep the Tooltip logic so they can hover/press to read what the events are
+            const tip = document.createElement('div');
+            tip.className = 'cal-tooltip';
+            tip.innerHTML = daysEvents.map(ev => `
+                <div class="tooltip-item"><div class="tooltip-dot" style="background:${ev.color}"></div><span>${ev.title}</span></div>
+            `).join('');
+            div.appendChild(tip);
+            
+            // --- FINDASH FEATURE: Click to Edit & Cycle ---
+            // If the day has events, clicking it loads the event into the editor.
+            // If it has MULTIPLE events, each click cycles to the next one automatically!
+            let clickIndex = 0;
+            div.onclick = () => {
+                loadEventToEdit(daysEvents[clickIndex].id);
+                // Advance the index so the next click loads the next event on this day
+                clickIndex = (clickIndex + 1) % daysEvents.length;
+            };
+        } else {
+            div.onclick = () => {
+                resetCalForm();
+                document.getElementById('evt-day').value = d;
+                document.getElementById('evt-month').value = ethCurrentMonth;
+                switchCalPanel('add');
+            };
+        }
+        container.appendChild(div);
+    }
+}
+
+function changeEthMonth(delta) {
+    ethCurrentMonth += delta;
+    if (ethCurrentMonth > 13) { ethCurrentMonth = 1; ethCurrentYear++; }
+    else if (ethCurrentMonth < 1) { ethCurrentMonth = 13; ethCurrentYear--; }
+    renderEthCalendar();
+}
+
+function selectColor(el, color) {
+    document.querySelectorAll('.color-opt').forEach(d => d.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedEventColor = color;
+}
+
+function jumpToToday() {
+    ethCurrentYear = TODAY_ETH.year;
+    ethCurrentMonth = TODAY_ETH.month;
+    renderEthCalendar();
+}
+
+function addCalendarEvent() {
+    const day = parseInt(document.getElementById('evt-day').value);
+    const month = parseInt(document.getElementById('evt-month').value);
+    const title = document.getElementById('evt-title').value;
+    const recurrence = document.getElementById('evt-recurrence').value;
+
+    if(!day || !month || !title) {
+        showNotification({ 
+            id: 'error', 
+            title: 'SYSTEM ERROR', 
+            notes: 'Please fill day, month, and title to create an event.' 
+        });
+        return;
+    }
+
+    const eventData = { 
+        id: currentEditEventId || Date.now(), 
+        day, month, title, recurrence, 
+        color: selectedEventColor, 
+        year: ethCurrentYear 
+    };
+
+    if (currentEditEventId) {
+        const idx = systemState.events.findIndex(e => e.id === currentEditEventId);
+        systemState.events[idx] = eventData;
+    } else {
+        systemState.events.push(eventData);
+    }
+
+    resetCalForm();
+    saveGameState();
+    renderEthCalendar();
+    renderEventList();
+}
+
+function renderEventList() {
+    const container = document.getElementById('event-list-container');
+    if(!container) return;
+    const searchTerm = document.getElementById('search-event').value.toLowerCase();
+    
+    const filtered = (systemState.events || []).filter(e => e.title.toLowerCase().includes(searchTerm));
+
+    container.innerHTML = filtered.map(e => `
+        <div class="event-item-row">
+            <div style="display:flex; align-items:center; gap:12px;">
+                <div style="width:12px; height:12px; border-radius:50%; background:${e.color}; box-shadow: 0 0 8px ${e.color};"></div>
+                <div>
+                    <div style="font-weight:bold; font-size:14px; color:white;">${e.title}</div>
+                    <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase;">${(e.recurrence || 'yearly')}: Day ${e.day}${e.recurrence !== 'monthly' ? ', Month ' + e.month : ''}</div>
+                </div>
+            </div>
+            <div style="display:flex; gap:8px;">
+                <button class="icon-btn" onclick="loadEventToEdit(${e.id})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--neon-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                </button>
+                <button class="icon-btn" onclick="deleteEvent(${e.id})">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--neon-red)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                </button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function loadEventToEdit(id) {
+    const ev = systemState.events.find(e => e.id === id);
+    if(!ev) return;
+    switchCalPanel('add');
+    currentEditEventId = id;
+    document.getElementById('evt-day').value = ev.day;
+    document.getElementById('evt-month').value = ev.month;
+    document.getElementById('evt-title').value = ev.title;
+    document.getElementById('evt-recurrence').value = ev.recurrence || 'yearly';
+    selectedEventColor = ev.color;
+    document.querySelectorAll('.color-opt').forEach(el => el.classList.toggle('selected', el.getAttribute('data-col') === ev.color));
+    document.getElementById('cal-form-title').innerText = "UPDATE EVENT";
+    document.getElementById('btn-save-evt').innerText = "SAVE CHANGES";
+    document.getElementById('btn-cancel-evt').style.display = 'flex';
+    document.getElementById('btn-delete-evt').style.display = 'flex';
+}
+
+function deleteEvent(id) {
+    if(confirm("SYSTEM WARNING: Delete this event?")) {
+        systemState.events = systemState.events.filter(e => e.id !== id);
+        saveGameState();
+        renderEthCalendar();
+        renderEventList();
+    }
+}
+
+function resetCalForm() {
+    currentEditEventId = null;
+    document.getElementById('evt-title').value = '';
+    document.getElementById('cal-form-title').innerText = "CREATE EVENT";
+    document.getElementById('btn-save-evt').innerText = "SAVE EVENT";
+    document.getElementById('btn-cancel-evt').style.display = 'none';
+    document.getElementById('btn-delete-evt').style.display = 'none';
+    
+    // Reset color picker to default (Neon Blue)
+    selectedEventColor = '#8b5cf6';
+    document.querySelectorAll('.color-opt').forEach(el => {
+        el.classList.toggle('selected', el.getAttribute('data-col') === '#8b5cf6');
+    });
 }
 
 // --- Profile & Data Management ---
@@ -461,8 +847,26 @@ function saveProfileData() {
     // Apply the saved changes to all screens!
     applySavedDataToUI();
 
+    // --- FEATURE 2: Ask for Native Notification Permission ---
+    requestNotificationPermission();
+
     // Switch to dashboard view
     toggleProfileMode('dashboard');
+}
+
+function requestNotificationPermission() {
+    if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
+        Notification.requestPermission();
+    }
+}
+
+function triggerSystemAlert(quest) {
+    // Falls back to in-app toast if Native is denied or on an unsupported mobile browser
+    if ("Notification" in window && Notification.permission === "granted") {
+        new Notification(quest.title, { body: quest.notes || "System update available." });
+    } else {
+        showNotification(quest); 
+    }
 }
 
 // 5. Applies data to HTML elements on load AND after save
@@ -743,7 +1147,7 @@ function saveQuest() {
             days: [...selectedScheduleDays]
         } : null;
 
-        systemState.quests.push({
+        systemState.quests.unshift({
             id: newId,
             title: title,
             notes: notes,
@@ -804,6 +1208,9 @@ function loadGameState() {
     const savedState = localStorage.getItem('systemState');
     if (savedState) {
         systemState = JSON.parse(savedState);
+        // SAFETY CATCH: Ensures older save files get the new features without crashing!
+        if (!systemState.events) systemState.events = [];
+        if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
     }
 }
 
@@ -873,20 +1280,20 @@ function checkDailyReset() {
     if (lastLogin !== today) {
         
         if (lastLogin) {
-            // Check if they logged in EXACTLY yesterday
             const yesterday = new Date();
             yesterday.setDate(yesterday.getDate() - 1);
             
-            if (lastLogin === yesterday.toDateString()) {
-                // They kept the streak!
-                systemState.streak += 1;
+            // --- STREAK LOGIC: The Penalty ---
+            // Did they actually complete a task yesterday?
+            if (systemState.lastCompletedDate === yesterday.toDateString() || systemState.lastCompletedDate === today) {
+                // They did the work. Streak is safe.
             } else {
-                // They missed a day. Penalty! Reset streak.
+                // They didn't do the work. Penalty applied!
                 systemState.streak = 0;
             }
         } else {
             // First time ever opening the app!
-            systemState.streak = 1;
+            systemState.streak = 0;
         }
 
         // RESET ONLY DAILY QUESTS & TODAY'S XP
@@ -895,7 +1302,22 @@ function checkDailyReset() {
                 q.completed = false;
             }
         });
+        
+        // --- FEATURE 1: Save today's XP to History before resetting ---
+        const yesterdayDate = new Date();
+        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+        const dayLabel = yesterdayDate.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+        
+        if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
+        systemState.weeklyHistory.push({ day: dayLabel, xp: systemState.todayXp });
+        
+        // Keep only the last 7 days
+        if (systemState.weeklyHistory.length > 7) {
+            systemState.weeklyHistory.shift();
+        }
+
         systemState.todayXp = 0;
+        systemState.streakIncrementedToday = false; // Reset the daily streak tracker
 
         // Save the new "last login" date to the backpack
         localStorage.setItem('lastLoginDate', today);
@@ -915,10 +1337,10 @@ function renderReminders() {
     tempReminders.forEach((rem, index) => {
         list.innerHTML += `
             <div class="reminder-row">
-                <button class="icon-btn remove-rem-btn" onclick="removeReminder(${index})">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                <button class="remove-rem-btn" onclick="removeReminder(${index})">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
-                <input type="datetime-local" class="sci-fi-input small" value="${rem}" onchange="updateReminder(${index}, this.value)">
+                <input type="datetime-local" class="clean-input small" value="${rem}" onchange="updateReminder(${index}, this.value)">
             </div>
         `;
     });
@@ -940,6 +1362,7 @@ function updateReminder(idx, val) {
 
 // Notification Variables
 let activeNotificationQuestId = null;
+let notificationTimeout = null;
 
 function showNotification(quest) {
     activeNotificationQuestId = quest.id;
@@ -950,11 +1373,18 @@ function showNotification(quest) {
     // Play sound when notification pops
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
+
+    // Auto-hide after 5 seconds
+    if (notificationTimeout) clearTimeout(notificationTimeout);
+    notificationTimeout = setTimeout(() => {
+        closeNotification();
+    }, 5000);
 }
 
 function closeNotification() {
     document.getElementById('notification-toast').style.display = 'none';
     activeNotificationQuestId = null;
+    if (notificationTimeout) clearTimeout(notificationTimeout);
 }
 
 function completeFromNotification() {
