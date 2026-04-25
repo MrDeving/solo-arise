@@ -325,12 +325,12 @@
                 
                 <div class="quest-section">
                     <label>Task Title</label>
-                    <input type="text" id="new-quest-title" class="clean-input" placeholder="Enter task title...">
+                    <input type="text" id="new-quest-title" class="clean-input" placeholder="Enter task title..." onfocus="setTimeout(() => this.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)">
                 </div>
                 
                 <div class="quest-section">
                     <label>Notes</label>
-                    <textarea id="new-quest-notes" class="clean-input sci-fi-textarea" placeholder="Add details or sub-tasks..."></textarea>
+                    <textarea id="new-quest-notes" class="clean-input sci-fi-textarea" placeholder="Add details or sub-tasks..." onfocus="setTimeout(() => this.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)"></textarea>
                 </div>
 
                 <div class="divider"></div>
@@ -452,7 +452,7 @@
                 </div>
 
                 <!-- Padding at bottom so scroll doesn't get cut off behind the screen -->
-                <div style="height: 100px;"></div>
+                <div style="height: 400px;"></div>
             </div>
         </div>
         <!-- REGISTRATION WARNING MODAL -->

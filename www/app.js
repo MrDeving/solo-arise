@@ -834,7 +834,7 @@ function saveProfileData() {
 
     // If they uploaded an image, save it.
     if(tempAvatar) {
-        loccalStorage.setItem('hunterAvatar', tempAvatar);
+        localStorage.setItem('hunterAvatar', tempAvatar);
     }
 
     // Officially register the user's start dates if they don't exist yet
