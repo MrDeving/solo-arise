@@ -175,19 +175,18 @@ function renderQuests() {
 
     systemState.quests.forEach(quest => {
         const isDaily = quest.type === 'daily' || !quest.type;
+        const activeFilter = isDaily ? filters.home : filters.quests;
 
-        // --- SCHEDULING FILTER ---
-        if (isDaily && quest.schedule) {
+        // --- SCHEDULING FILTER (DAILIES ONLY) ---
+        // If the filter is 'all', bypass schedule hiding so we absolutely list every daily quest!
+        if (isDaily && quest.schedule && activeFilter !== 'all') {
             const today = new Date();
             const dayOfWeek = today.getDay(); 
             
-            // 1. Day of Week Filter (The Circles)
-            // If user selected specific days, hide quest if today isn't one of them
             if (quest.schedule.type === 'weekly' && quest.schedule.days && quest.schedule.days.length > 0) {
                 if (!quest.schedule.days.includes(dayOfWeek)) return;
             }
             
-            // 2. Interval Logic (Daily, Weekly, Monthly)
             if (quest.schedule.interval > 1 && quest.schedule.startDate) {
                 const start = new Date(quest.schedule.startDate);
                 const diffTime = Math.abs(today - start);
@@ -196,28 +195,29 @@ function renderQuests() {
                 let cycle = 1;
                 if (quest.schedule.type === 'daily') cycle = quest.schedule.interval;
                 if (quest.schedule.type === 'weekly') cycle = quest.schedule.interval * 7;
-                if (quest.schedule.type === 'monthly') cycle = quest.schedule.interval * 30; // Approx month
+                if (quest.schedule.type === 'monthly') cycle = quest.schedule.interval * 30; 
                 
                 if (diffDays % cycle !== 0) return;
             }
         }
         
-        // Pick the correct filter based on whether this is a daily or main quest
-        const activeFilter = isDaily ? filters.home : filters.quests;
+        // --- VISIBILITY RULES ---
         
-        // Skip rendering if it doesn't match the active filter for its specific tab
-        // Filter rules!
-        if (activeFilter === 'due' && quest.completed) return; // Dailies: Hide finished ones today
+        // 1. "Done" Filter: Applies to both. Hides anything that IS NOT completed.
+        if (activeFilter === 'done' && !quest.completed) return;
         
+        // 2. "Due" Filter (Dailies): Hides anything that IS completed.
+        if (activeFilter === 'due' && quest.completed) return;
+        
+        // 3. "Scheduled" Filter (Main Quests): Hides completed, and hides ones missing a due date.
         if (activeFilter === 'scheduled') {
-            if (quest.completed) return; // Normal Quests: Hide finished ones
-            if (!quest.dueDate) return;  // Normal Quests: Hide ones with no due date assigned
+            if (quest.completed) return; 
+            if (!quest.dueDate) return;  
         }
-        
-        if (activeFilter === 'done' && !quest.completed) return; // Both: Hide unfinished ones
 
-        // Hide completed Main Quests from the list unless the 'done' filter is selected
-        if (!isDaily && quest.completed && activeFilter !== 'done') return;
+        // 4. "All" Filter (Main Quests): Hides completed quests. 
+        // (Dailies bypass this rule entirely so they always show everything).
+        if (!isDaily && activeFilter === 'all' && quest.completed) return;
 
         // --- FEATURE 3: SWIPE TO DELETE WRAPPER ---
         const wrapperEl = document.createElement('div');
@@ -834,7 +834,7 @@ function saveProfileData() {
 
     // If they uploaded an image, save it.
     if(tempAvatar) {
-        localStorage.setItem('hunterAvatar', tempAvatar);
+        loccalStorage.setItem('hunterAvatar', tempAvatar);
     }
 
     // Officially register the user's start dates if they don't exist yet
@@ -854,17 +854,32 @@ function saveProfileData() {
     toggleProfileMode('dashboard');
 }
 
-function requestNotificationPermission() {
-    if ("Notification" in window && Notification.permission !== "granted" && Notification.permission !== "denied") {
-        Notification.requestPermission();
+async function requestNotificationPermission() {
+    // Ask the phone's native system for permission!
+    try {
+        await Capacitor.Plugins.LocalNotifications.requestPermissions();
+    } catch (e) {
+        console.log("Not on mobile, skipping native permission");
     }
 }
 
-function triggerSystemAlert(quest) {
-    // Falls back to in-app toast if Native is denied or on an unsupported mobile browser
-    if ("Notification" in window && Notification.permission === "granted") {
-        new Notification(quest.title, { body: quest.notes || "System update available." });
-    } else {
+async function triggerSystemAlert(quest) {
+    try {
+        // Tell the phone to show a native notification right now!
+        await Capacitor.Plugins.LocalNotifications.schedule({
+            notifications: [
+                {
+                    title: quest.title,
+                    body: quest.notes || "System update available.",
+                    id: quest.id,
+                    schedule: { at: new Date(Date.now() + 1000) }, // Pop up in 1 second
+                    sound: null, // You can add custom sounds later!
+                    smallIcon: "ic_stat_icon_config_sample" 
+                }
+            ]
+        });
+    } catch (e) {
+        // If they are playing on a computer browser, fall back to your toast notification
         showNotification(quest); 
     }
 }
@@ -1215,7 +1230,7 @@ function loadGameState() {
 }
 
 // 7. Export Data (Including literally everything)
-function exportData() {
+async function exportData() {
     const masterSave = {
         system: systemState,
         hunterName: localStorage.getItem('hunterName') || '',
@@ -1224,10 +1239,34 @@ function exportData() {
         lastLoginDate: localStorage.getItem('lastLoginDate') || ''
     };
 
-    const dataStr = JSON.stringify(masterSave);
+    // Formats the JSON nicely so it's readable
+    const dataStr = JSON.stringify(masterSave, null, 2);
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
+
+    // Modern Web API: Opens your file explorer and asks WHERE you want to save it!
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: 'solo-leveling-save.json',
+                types: [{
+                    description: 'JSON File',
+                    accept: {'application/json': ['.json']},
+                }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(dataBlob);
+            await writable.close();
+            alert("SYSTEM MESSAGE: Data Exported Successfully!");
+            return;
+        } catch (err) {
+            // If the user clicks 'Cancel' in the file picker, do nothing
+            if (err.name === 'AbortError') return;
+            console.warn("Save picker failed, trying fallback...", err);
+        }
+    }
+
+    // Fallback for older browsers or restricted mobile app containers
     const url = URL.createObjectURL(dataBlob);
-    
     const link = document.createElement('a');
     link.href = url;
     link.download = 'solo-leveling-save.json'; 

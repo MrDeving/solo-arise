@@ -77,6 +77,11 @@ body {
     padding-top: 226px !important; /* Increased to clear the static header and force override */
 }
 
+/* Adjust the distance from the top of the screen for the Calendar */
+#view-analytics {
+    padding-top: 1px !important; /* CHANGE THIS NUMBER to move it up or down */
+}
+
 .view.active {
     visibility: visible;
     opacity: 1;
@@ -256,18 +261,20 @@ body {
 .timer-card .label {
     font-size: 11px;
     color: var(--text-muted);
+    font-weight: 700; /* Bolds the "DATE:" and "DAY:" text */
     text-transform: uppercase;
     letter-spacing: 1px;
     margin-bottom: 4px;
 }
 .timer-card .time {
     font-size: 18px;
-    color: var(--accent-blue);
-    font-weight: bold;
-    text-shadow: 0 0 10px var(--accent-blue-glow);
+    color: var(--neon-blue); /* Fixed color variable */
+    font-weight: 900;
+    text-shadow: 0 0 1px var(--neon-blue-glow);
 }
 .timer-card .highlight {
-    color: var(--accent-green);
+    color: var(--text-main); /* Makes it bright white so it pops */
+    font-weight: 900; /* Makes the actual date (e.g., MARCH 12) extra bold */
 }
 .timer-right { text-align: right; }
 
@@ -758,8 +765,8 @@ button.sci-fi-btn.filter-opt.active {
     cursor: pointer;
 }
 .diff-box {
-    width: 100%;
-    aspect-ratio: 1 / 1;
+    width: 70px;  /* CHANGE THIS to make the box wider/narrower */
+    height: 70px; /* CHANGE THIS to make the box taller/shorter */
     background: rgba(30, 41, 59, 0.8);
     border-radius: 12px;
     display: flex;
@@ -776,6 +783,11 @@ button.sci-fi-btn.filter-opt.active {
     font-weight: 700;
 }
 .star-row { display: flex; gap: 4px; justify-content: center; align-items: center;}
+
+/* Makes the star icons inside the difficulty boxes exactly 1.2x bigger */
+.diff-box svg {
+    transform: scale(1.1);
+}
 
 /* Active Difficulty State */
 .diff-box.active {
