@@ -310,6 +310,7 @@ function renderQuests() {
 
 function deleteQuest(id) {
     if(confirm("SYSTEM WARNING: Delete this quest?")) {
+        cancelWorkManagerTasks(id); // Delete background tasks from OS!
         systemState.quests = systemState.quests.filter(q => q.id !== id);
         saveGameState();
         renderQuests();
@@ -865,23 +866,75 @@ async function requestNotificationPermission() {
 
 async function triggerSystemAlert(quest) {
     try {
-        // Tell the phone to show a native notification right now!
-        await Capacitor.Plugins.LocalNotifications.schedule({
-            notifications: [
-                {
+        // If on mobile, the Android WorkManager already scheduled reminders in the background!
+        // We only use this immediate popup for the 6 PM System Penalty warning now.
+        if (quest.id === 'system-warning') {
+            await Capacitor.Plugins.LocalNotifications.schedule({
+                notifications: [{
                     title: quest.title,
-                    body: quest.notes || "System update available.",
-                    id: quest.id,
-                    schedule: { at: new Date(Date.now() + 1000) }, // Pop up in 1 second
-                    sound: null, // You can add custom sounds later!
+                    body: quest.notes || "System penalty imminent.",
+                    id: 99999, // Unique ID for penalty
+                    schedule: { at: new Date(Date.now() + 1000) }, 
                     smallIcon: "ic_stat_icon_config_sample" 
-                }
-            ]
-        });
+                }]
+            });
+        }
     } catch (e) {
-        // If they are playing on a computer browser, fall back to your toast notification
+        // Browser Fallback (Since PCs don't have Android WorkManager)
         showNotification(quest); 
     }
+}
+
+// ==========================================
+// --- WORKMANAGER BACKGROUND SCHEDULER ---
+// ==========================================
+async function scheduleNativeWorkManager(quest) {
+    try {
+        // 1. Wipe old WorkManager tasks for this quest so they don't duplicate if you edit it
+        const pending = await Capacitor.Plugins.LocalNotifications.getPending();
+        const toCancel = pending.notifications.filter(n => n.id >= quest.id * 100 && n.id < (quest.id + 1) * 100);
+        if (toCancel.length > 0) {
+            await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
+        }
+
+        // 2. Queue up the new exact times into Android WorkManager
+        let futureTasks = [];
+        if (quest.reminders) {
+            quest.reminders.forEach((rem, idx) => {
+                const remDate = new Date(rem);
+                // Only schedule it if the time hasn't passed yet!
+                if (remDate.getTime() > Date.now()) {
+                    futureTasks.push({
+                        title: quest.title,
+                        body: quest.notes || "A task requires your attention.",
+                        id: (quest.id * 100) + idx, // Generates a unique ID so they don't collide
+                        schedule: { at: remDate },
+                        smallIcon: "ic_stat_icon_config_sample"
+                    });
+                }
+            });
+        }
+
+        // 3. Hand off to the Phone's OS! (Even if app is fully closed, it will ring)
+        if (futureTasks.length > 0) {
+            await Capacitor.Plugins.LocalNotifications.schedule({
+                notifications: futureTasks
+            });
+        }
+    } catch (e) {
+        console.log("App running in browser. Background WorkManager skipped.");
+    }
+}
+
+// Helper to delete background tasks when you delete a quest
+async function cancelWorkManagerTasks(questId) {
+    try {
+        const pending = await Capacitor.Plugins.LocalNotifications.getPending();
+        const toCancel = pending.notifications.filter(n => n.id >= questId * 100 && n.id < (questId + 1) * 100);
+        if (toCancel.length > 0) {
+            await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
+        }
+    } catch (e) { }
 }
 
 // 5. Applies data to HTML elements on load AND after save
@@ -1178,6 +1231,11 @@ function saveQuest() {
     
     saveGameState(); 
     renderQuests();  
+    
+    // --- WORKMANAGER: Schedule the background tasks natively ---
+    const savedQuest = systemState.quests.find(q => q.title === title);
+    if (savedQuest) scheduleNativeWorkManager(savedQuest);
+
     closeQuestModal(); 
 }
 
@@ -1196,6 +1254,8 @@ function cancelDeleteQuest() {
 }
 
 function confirmDeleteQuest() {
+    cancelWorkManagerTasks(editingQuestId); // Delete background tasks from OS!
+    
     // Actually delete it
     systemState.quests = systemState.quests.filter(q => q.id !== editingQuestId);
     
@@ -1239,19 +1299,37 @@ async function exportData() {
         lastLoginDate: localStorage.getItem('lastLoginDate') || ''
     };
 
-    // Formats the JSON nicely so it's readable
     const dataStr = JSON.stringify(masterSave, null, 2);
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
 
-    // Modern Web API: Opens your file explorer and asks WHERE you want to save it!
+    // --- NEW: NATIVE ANDROID "SAVE TO" WORKFLOW ---
+    // This hands the file directly to Android OS. It will open a bottom sheet
+    // allowing the user to select "Save to Files", Drive, etc.
+    if (navigator.canShare) {
+        try {
+            // Convert our data into a physical File object
+            const file = new File([dataStr], "solo-leveling-save.json", { type: "application/json" });
+            
+            if (navigator.canShare({ files: [file] })) {
+                await navigator.share({
+                    title: 'System Data Backup',
+                    text: 'Here is your exported Hunter Data.',
+                    files: [file]
+                });
+                return; // The Android OS handles the rest!
+            }
+        } catch (err) {
+            if (err.name === 'AbortError') return; // User closed the native menu
+            console.warn("Native sharing failed, falling back...", err);
+        }
+    }
+
+    // --- FALLBACK 1: PC/Desktop Web File Picker ---
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
                 suggestedName: 'solo-leveling-save.json',
-                types: [{
-                    description: 'JSON File',
-                    accept: {'application/json': ['.json']},
-                }],
+                types: [{ description: 'JSON File', accept: {'application/json': ['.json']} }],
             });
             const writable = await handle.createWritable();
             await writable.write(dataBlob);
@@ -1259,13 +1337,11 @@ async function exportData() {
             alert("SYSTEM MESSAGE: Data Exported Successfully!");
             return;
         } catch (err) {
-            // If the user clicks 'Cancel' in the file picker, do nothing
             if (err.name === 'AbortError') return;
-            console.warn("Save picker failed, trying fallback...", err);
         }
     }
 
-    // Fallback for older browsers or restricted mobile app containers
+    // --- FALLBACK 2: Standard Silent Download (Older devices) ---
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
