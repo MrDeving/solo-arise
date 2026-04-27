@@ -1377,7 +1377,7 @@ function loadGameState() {
     }
 }
 
-// 7. Export Data (Including literally everything)
+// 7. Export Data (Using Native Share Menu)
 async function exportData() {
     const masterSave = {
         system: systemState,
@@ -1389,12 +1389,10 @@ async function exportData() {
 
     const dataStr = JSON.stringify(masterSave, null, 2);
 
-    // --- NEW: NATIVE ANDROID "SAVE TO" WORKFLOW ---
-    // This hands the file directly to Android OS. It will open a bottom sheet
-    // allowing the user to select "Save to Files", Drive, etc.
+    // 1. Try the Native Share Menu (Allows "Save to Files", Drive, etc.)
     if (navigator.canShare) {
         try {
-            // Convert our data into a physical File object
+            // Package the data into a physical File object
             const file = new File([dataStr], "solo-leveling-save.json", { type: "application/json" });
             
             if (navigator.canShare({ files: [file] })) {
@@ -1403,33 +1401,17 @@ async function exportData() {
                     text: 'Here is your exported Hunter Data.',
                     files: [file]
                 });
-                return; // The Android OS handles the rest!
+                return; // Successfully handed off to the OS!
             }
         } catch (err) {
-            if (err.name === 'AbortError') return; // User closed the native menu
-            console.warn("Native sharing failed, falling back...", err);
+            // If the user just swipes the share menu away, ignore the error
+            if (err.name === 'AbortError') return; 
+            console.log("Share failed, falling back to direct download...");
         }
     }
 
-    // --- FALLBACK 1: PC/Desktop Web File Picker ---
+    // 2. Fallback for PC/Browsers that don't support Mobile Share menus
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: 'solo-leveling-save.json',
-                types: [{ description: 'JSON File', accept: {'application/json': ['.json']} }],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(dataBlob);
-            await writable.close();
-            alert("SYSTEM MESSAGE: Data Exported Successfully!");
-            return;
-        } catch (err) {
-            if (err.name === 'AbortError') return;
-        }
-    }
-
-    // --- FALLBACK 2: Standard Silent Download (Older devices) ---
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
