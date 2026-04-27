@@ -151,19 +151,63 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         // --- REMINDER CHECKER ---
         const now = new Date();
         const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-        const nowStr = localISOTime; // Safely gets local time in "YYYY-MM-DDTHH:mm" format
+        const nowStr = localISOTime; // For Normal Quests: "YYYY-MM-DDTHH:mm"
+        const timeStrOnly = now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit' }); // For Dailies: "HH:mm"
+        
         systemState.quests.forEach(quest => {
             if (!quest.completed && quest.reminders) {
+                const isDaily = quest.type === 'daily' || !quest.type;
+                
+                // If it's a daily, ensure it's actually scheduled for today before ringing!
+                if (isDaily && !isQuestActiveOnDate(quest, now)) return;
+
                 quest.reminders.forEach(rem => {
-                    if (rem === nowStr && !triggeredReminders.has(`${quest.id}-${rem}`)) {
-                        triggeredReminders.add(`${quest.id}-${rem}`);
-                        // --- FEATURE 2: Trigger Native or Toast ---
+                    let shouldRing = false;
+                    let notifKey = "";
+
+                    if (isDaily && rem === timeStrOnly) {
+                        shouldRing = true;
+                        notifKey = `${quest.id}-${now.toDateString()}-${rem}`; // Unique per day
+                    } else if (!isDaily && rem === nowStr) {
+                        shouldRing = true;
+                        notifKey = `${quest.id}-${rem}`; // Unique once
+                    }
+
+                    if (shouldRing && !triggeredReminders.has(notifKey)) {
+                        triggeredReminders.add(notifKey);
                         triggerSystemAlert(quest);
                     }
                 });
             }
         });
     }, 1000);
+}
+
+// --- NEW HELPER: Checks if a Daily Quest is supposed to happen on a specific date ---
+function isQuestActiveOnDate(quest, dateObj) {
+    if (!quest.schedule) return true;
+    const dayOfWeek = dateObj.getDay();
+    
+    if (quest.schedule.type === 'weekly' && quest.schedule.days && quest.schedule.days.length > 0) {
+        if (!quest.schedule.days.includes(dayOfWeek)) return false;
+    }
+    
+    if (quest.schedule.interval > 1 && quest.schedule.startDate) {
+        const start = new Date(quest.schedule.startDate);
+        start.setHours(0,0,0,0);
+        const check = new Date(dateObj);
+        check.setHours(0,0,0,0);
+        const diffTime = Math.abs(check - start);
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        let cycle = 1;
+        if (quest.schedule.type === 'daily') cycle = quest.schedule.interval;
+        if (quest.schedule.type === 'weekly') cycle = quest.schedule.interval * 7;
+        if (quest.schedule.type === 'monthly') cycle = quest.schedule.interval * 30; 
+        
+        if (diffDays % cycle !== 0) return false;
+    }
+    return true;
 }
 
 function renderQuests() {
@@ -178,27 +222,8 @@ function renderQuests() {
         const activeFilter = isDaily ? filters.home : filters.quests;
 
         // --- SCHEDULING FILTER (DAILIES ONLY) ---
-        // If the filter is 'all', bypass schedule hiding so we absolutely list every daily quest!
-        if (isDaily && quest.schedule && activeFilter !== 'all') {
-            const today = new Date();
-            const dayOfWeek = today.getDay(); 
-            
-            if (quest.schedule.type === 'weekly' && quest.schedule.days && quest.schedule.days.length > 0) {
-                if (!quest.schedule.days.includes(dayOfWeek)) return;
-            }
-            
-            if (quest.schedule.interval > 1 && quest.schedule.startDate) {
-                const start = new Date(quest.schedule.startDate);
-                const diffTime = Math.abs(today - start);
-                const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-                
-                let cycle = 1;
-                if (quest.schedule.type === 'daily') cycle = quest.schedule.interval;
-                if (quest.schedule.type === 'weekly') cycle = quest.schedule.interval * 7;
-                if (quest.schedule.type === 'monthly') cycle = quest.schedule.interval * 30; 
-                
-                if (diffDays % cycle !== 0) return;
-            }
+        if (isDaily && activeFilter !== 'all') {
+            if (!isQuestActiveOnDate(quest, new Date())) return;
         }
         
         // --- VISIBILITY RULES ---
@@ -856,9 +881,39 @@ function saveProfileData() {
 }
 
 async function requestNotificationPermission() {
-    // Ask the phone's native system for permission!
     try {
         await Capacitor.Plugins.LocalNotifications.requestPermissions();
+        
+        // Create high-priority channel for Time-Sensitive Heads-Up alerts
+        await Capacitor.Plugins.LocalNotifications.createChannel({
+            id: 'system_alerts',
+            name: 'System Alerts',
+            description: 'Time-sensitive Quest Notifications',
+            importance: 5, 
+            visibility: 1, 
+            vibration: true
+        });
+
+        // Register the background 'Complete' button
+        await Capacitor.Plugins.LocalNotifications.registerActionTypes({
+            types:[{
+                id: 'QUEST_ACTIONS',
+                actions:[{
+                    id: 'COMPLETE_QUEST',
+                    title: 'COMPLETE', 
+                    foreground: false 
+                }]
+            }]
+        });
+
+        // Listen for the button press in the background
+        Capacitor.Plugins.LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+            if (notificationAction.actionId === 'COMPLETE_QUEST') {
+                const questId = notificationAction.notification.extra.questId;
+                if (questId) toggleQuest(questId);
+            }
+        });
+
     } catch (e) {
         console.log("Not on mobile, skipping native permission");
     }
@@ -890,32 +945,65 @@ async function triggerSystemAlert(quest) {
 // ==========================================
 async function scheduleNativeWorkManager(quest) {
     try {
-        // 1. Wipe old WorkManager tasks for this quest so they don't duplicate if you edit it
         const pending = await Capacitor.Plugins.LocalNotifications.getPending();
         const toCancel = pending.notifications.filter(n => n.id >= quest.id * 100 && n.id < (quest.id + 1) * 100);
         if (toCancel.length > 0) {
             await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
         }
 
-        // 2. Queue up the new exact times into Android WorkManager
-        let futureTasks = [];
+        let futureTasks =[];
         if (quest.reminders) {
-            quest.reminders.forEach((rem, idx) => {
-                const remDate = new Date(rem);
-                // Only schedule it if the time hasn't passed yet!
-                if (remDate.getTime() > Date.now()) {
-                    futureTasks.push({
-                        title: quest.title,
-                        body: quest.notes || "A task requires your attention.",
-                        id: (quest.id * 100) + idx, // Generates a unique ID so they don't collide
-                        schedule: { at: remDate },
-                        smallIcon: "ic_stat_icon_config_sample"
-                    });
-                }
-            });
+            const isDaily = quest.type === 'daily' || !quest.type;
+
+            if (isDaily) {
+                quest.reminders.forEach((rem, remIdx) => {
+                    const [hours, minutes] = rem.split(':').map(Number);
+                    if (isNaN(hours) || isNaN(minutes)) return;
+
+                    let daysScheduled = 0;
+                    for (let i = 0; i < 30; i++) {
+                        if (daysScheduled >= 14) break; 
+
+                        let checkDate = new Date();
+                        checkDate.setDate(checkDate.getDate() + i);
+                        checkDate.setHours(hours, minutes, 0, 0);
+
+                        if (i === 0 && checkDate.getTime() <= Date.now()) continue;
+
+                        if (isQuestActiveOnDate(quest, checkDate)) {
+                            futureTasks.push({
+                                title: quest.title,
+                                body: quest.notes || "A daily task requires your attention.",
+                                id: parseInt(`${quest.id}${remIdx}${daysScheduled}`), 
+                                schedule: { at: checkDate },
+                                smallIcon: "ic_stat_icon_config_sample",
+                                channelId: 'system_alerts',
+                                actionTypeId: 'QUEST_ACTIONS',
+                                extra: { questId: quest.id }
+                            });
+                            daysScheduled++;
+                        }
+                    }
+                });
+            } else {
+                quest.reminders.forEach((rem, idx) => {
+                    const remDate = new Date(rem);
+                    if (remDate.getTime() > Date.now()) {
+                        futureTasks.push({
+                            title: quest.title,
+                            body: quest.notes || "A task requires your attention.",
+                            id: (quest.id * 100) + idx, 
+                            schedule: { at: remDate },
+                            smallIcon: "ic_stat_icon_config_sample",
+                            channelId: 'system_alerts',
+                            actionTypeId: 'QUEST_ACTIONS',
+                            extra: { questId: quest.id }
+                        });
+                    }
+                });
+            }
         }
 
-        // 3. Hand off to the Phone's OS! (Even if app is fully closed, it will ring)
         if (futureTasks.length > 0) {
             await Capacitor.Plugins.LocalNotifications.schedule({
                 notifications: futureTasks
@@ -1449,13 +1537,17 @@ function checkDailyReset() {
 function renderReminders() {
     const list = document.getElementById('reminders-list');
     list.innerHTML = '';
+    
+    // Daily Quests only need a Time. Normal Quests need Date and Time.
+    const inputType = currentQuestType === 'daily' ? 'time' : 'datetime-local';
+
     tempReminders.forEach((rem, index) => {
         list.innerHTML += `
             <div class="reminder-row">
                 <button class="remove-rem-btn" onclick="removeReminder(${index})">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                 </button>
-                <input type="datetime-local" class="clean-input small" value="${rem}" onchange="updateReminder(${index}, this.value)">
+                <input type="${inputType}" class="clean-input small" value="${rem}" onchange="updateReminder(${index}, this.value)">
             </div>
         `;
     });
