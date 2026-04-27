@@ -39,6 +39,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
     renderEventList();
+
+    // 8. CRITICAL: Re-register native listeners on boot!
+    requestNotificationPermission();
 });
 
 // --- Drag and Drop Feature ---
@@ -882,38 +885,45 @@ function saveProfileData() {
 
 async function requestNotificationPermission() {
     try {
-        await Capacitor.Plugins.LocalNotifications.requestPermissions();
+        // 1. Check current status before requesting (Android 13+ Requirement)
+        let permStatus = await Capacitor.Plugins.LocalNotifications.checkPermissions();
         
-        // Create high-priority channel for Time-Sensitive Heads-Up alerts
-        await Capacitor.Plugins.LocalNotifications.createChannel({
-            id: 'system_alerts',
-            name: 'System Alerts',
-            description: 'Time-sensitive Quest Notifications',
-            importance: 5, 
-            visibility: 1, 
-            vibration: true
-        });
+        if (permStatus.display !== 'granted') {
+            permStatus = await Capacitor.Plugins.LocalNotifications.requestPermissions();
+        }
 
-        // Register the background 'Complete' button
-        await Capacitor.Plugins.LocalNotifications.registerActionTypes({
-            types:[{
-                id: 'QUEST_ACTIONS',
-                actions:[{
-                    id: 'COMPLETE_QUEST',
-                    title: 'COMPLETE', 
-                    foreground: false 
+        // 2. If granted, set up the Native Channels & Listeners
+        if (permStatus.display === 'granted') {
+            await Capacitor.Plugins.LocalNotifications.createChannel({
+                id: 'system_alerts',
+                name: 'System Alerts',
+                description: 'Time-sensitive Quest Notifications',
+                importance: 5, 
+                visibility: 1, 
+                vibration: true
+            });
+
+            await Capacitor.Plugins.LocalNotifications.registerActionTypes({
+                types:[{
+                    id: 'QUEST_ACTIONS',
+                    actions:[{
+                        id: 'COMPLETE_QUEST',
+                        title: 'COMPLETE', 
+                        foreground: false 
+                    }]
                 }]
-            }]
-        });
+            });
 
-        // Listen for the button press in the background
-        Capacitor.Plugins.LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
-            if (notificationAction.actionId === 'COMPLETE_QUEST') {
-                const questId = notificationAction.notification.extra.questId;
-                if (questId) toggleQuest(questId);
-            }
-        });
+            // Clear old listeners so we don't get duplicates when reloading
+            await Capacitor.Plugins.LocalNotifications.removeAllListeners();
 
+            Capacitor.Plugins.LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+                if (notificationAction.actionId === 'COMPLETE_QUEST') {
+                    const questId = notificationAction.notification.extra.questId;
+                    if (questId) toggleQuest(questId);
+                }
+            });
+        }
     } catch (e) {
         console.log("Not on mobile, skipping native permission");
     }
@@ -945,12 +955,15 @@ async function triggerSystemAlert(quest) {
 // ==========================================
 async function scheduleNativeWorkManager(quest) {
     try {
+        // Failsafe: Ensure permissions are valid before scheduling
+        let permStatus = await Capacitor.Plugins.LocalNotifications.checkPermissions();
+        if (permStatus.display !== 'granted') return;
+
         const pending = await Capacitor.Plugins.LocalNotifications.getPending();
         const toCancel = pending.notifications.filter(n => n.id >= quest.id * 100 && n.id < (quest.id + 1) * 100);
         if (toCancel.length > 0) {
             await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
         }
-
         let futureTasks =[];
         if (quest.reminders) {
             const isDaily = quest.type === 'daily' || !quest.type;
