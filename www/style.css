@@ -1043,13 +1043,18 @@ button.sci-fi-btn.filter-opt.active {
     padding: 16px;
     border-radius: 8px;
     font-size: 16px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* Clean standard font */
     outline: none;
     box-shadow: inset 0 0 10px rgba(0,0,0,0.5); /* Inner shadow from your theme */
     transition: 0.2s;
 }
 .clean-input:focus { border-color: var(--neon-blue); box-shadow: 0 0 10px var(--neon-blue-glow); }
 .clean-input.small { padding: 12px; font-size: 14px; }
-.sci-fi-textarea { resize: vertical; min-height: 80px; font-family: inherit; }
+.sci-fi-textarea { 
+    resize: vertical; 
+    min-height: 80px; 
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; /* Clean standard font */
+}
 
 /* Dividers & Boxes */
 .divider { height: 1px; background: var(--panel-border); margin: 24px 0; width: 100%; opacity: 0.3; }
