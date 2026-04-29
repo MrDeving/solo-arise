@@ -1,6 +1,6 @@
 {
   "name": "Arise-solo",
-  "version": "1.2",
+  "version": "2.0",
   "description": "Solo Leveling System Task Manager",
   "main": "www/index.html",
   "scripts": {
@@ -13,6 +13,7 @@
     "@capacitor/local-notifications": "^8.0.0"
   },
   "devDependencies": {
+    "@capacitor/assets": "^3.0.5",
     "@capacitor/cli": "^8.0.0"
   }
 }
