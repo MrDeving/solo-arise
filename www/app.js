@@ -931,21 +931,24 @@ async function requestNotificationPermission() {
 
 async function triggerSystemAlert(quest) {
     try {
-        // If on mobile, the Android WorkManager already scheduled reminders in the background!
-        // We only use this immediate popup for the 6 PM System Penalty warning now.
+        // Web Browser Failsafe
+        if (!window.Capacitor || !Capacitor.Plugins.LocalNotifications) {
+            showNotification(quest); 
+            return;
+        }
+
         if (quest.id === 'system-warning') {
             await Capacitor.Plugins.LocalNotifications.schedule({
-                notifications: [{
+                notifications:[{
                     title: quest.title,
                     body: quest.notes || "System penalty imminent.",
-                    id: 99999, // Unique ID for penalty
-                    schedule: { at: new Date(Date.now() + 1000) }, 
-                    smallIcon: "ic_stat_icon_config_sample" 
+                    id: 99999, 
+                    schedule: { at: new Date(Date.now() + 1000), allowWhileIdle: true }, // Wakes up sleeping phones
+                    channelId: 'system_alerts'
                 }]
             });
         }
     } catch (e) {
-        // Browser Fallback (Since PCs don't have Android WorkManager)
         showNotification(quest); 
     }
 }
@@ -955,7 +958,8 @@ async function triggerSystemAlert(quest) {
 // ==========================================
 async function scheduleNativeWorkManager(quest) {
     try {
-        // Failsafe: Ensure permissions are valid before scheduling
+        if (!window.Capacitor || !Capacitor.Plugins.LocalNotifications) return;
+
         let permStatus = await Capacitor.Plugins.LocalNotifications.checkPermissions();
         if (permStatus.display !== 'granted') return;
 
@@ -964,13 +968,14 @@ async function scheduleNativeWorkManager(quest) {
         if (toCancel.length > 0) {
             await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
         }
+        
         let futureTasks =[];
         if (quest.reminders) {
             const isDaily = quest.type === 'daily' || !quest.type;
 
             if (isDaily) {
                 quest.reminders.forEach((rem, remIdx) => {
-                    const [hours, minutes] = rem.split(':').map(Number);
+                    const[hours, minutes] = rem.split(':').map(Number);
                     if (isNaN(hours) || isNaN(minutes)) return;
 
                     let daysScheduled = 0;
@@ -988,8 +993,7 @@ async function scheduleNativeWorkManager(quest) {
                                 title: quest.title,
                                 body: quest.notes || "A daily task requires your attention.",
                                 id: parseInt(`${quest.id}${remIdx}${daysScheduled}`), 
-                                schedule: { at: checkDate },
-                                smallIcon: "ic_stat_icon_config_sample",
+                                schedule: { at: checkDate, allowWhileIdle: true }, // <--- CRITICAL: Pierces Android Doze Mode
                                 channelId: 'system_alerts',
                                 actionTypeId: 'QUEST_ACTIONS',
                                 extra: { questId: quest.id }
@@ -1006,8 +1010,7 @@ async function scheduleNativeWorkManager(quest) {
                             title: quest.title,
                             body: quest.notes || "A task requires your attention.",
                             id: (quest.id * 100) + idx, 
-                            schedule: { at: remDate },
-                            smallIcon: "ic_stat_icon_config_sample",
+                            schedule: { at: remDate, allowWhileIdle: true }, // <--- CRITICAL
                             channelId: 'system_alerts',
                             actionTypeId: 'QUEST_ACTIONS',
                             extra: { questId: quest.id }
@@ -1023,7 +1026,7 @@ async function scheduleNativeWorkManager(quest) {
             });
         }
     } catch (e) {
-        console.log("App running in browser. Background WorkManager skipped.");
+        console.log("App running in browser or plugin missing. Background WorkManager skipped.");
     }
 }
 
@@ -1390,7 +1393,7 @@ function loadGameState() {
     }
 }
 
-// 7. Export Data (Using Native Share Menu)
+// 7. Export Data (Native Capacitor Filesystem + Share)
 async function exportData() {
     const masterSave = {
         system: systemState,
@@ -1401,34 +1404,74 @@ async function exportData() {
     };
 
     const dataStr = JSON.stringify(masterSave, null, 2);
+    const fileName = 'solo-leveling-save.json';
 
-    // 1. Try the Native Share Menu (Allows "Save to Files", Drive, etc.)
+    // 1. Try Native Capacitor Plugins (Bulletproof for Mobile)
+    if (window.Capacitor && Capacitor.Plugins.Filesystem && Capacitor.Plugins.Share) {
+        try {
+            // Write the file invisibly to the phone's Cache
+            const writeResult = await Capacitor.Plugins.Filesystem.writeFile({
+                path: fileName,
+                data: dataStr,
+                directory: 'CACHE', 
+                encoding: 'utf8'
+            });
+
+            // Hand the native file URI directly to Android OS
+            await Capacitor.Plugins.Share.share({
+                title: 'System Data Backup',
+                text: 'Here is your exported Hunter Data.',
+                url: writeResult.uri,
+                dialogTitle: 'Save Backup'
+            });
+            return; // Successfully handed off to Android OS!
+        } catch (err) {
+            console.warn("Native Filesystem/Share failed, falling back...", err);
+        }
+    }
+
+    // 2. Try the Web Share API (For regular mobile browsers)
     if (navigator.canShare) {
         try {
-            // Package the data into a physical File object
-            const file = new File([dataStr], "solo-leveling-save.json", { type: "application/json" });
-            
+            const file = new File([dataStr], fileName, { type: "application/json" });
             if (navigator.canShare({ files: [file] })) {
                 await navigator.share({
                     title: 'System Data Backup',
                     text: 'Here is your exported Hunter Data.',
-                    files: [file]
+                    files:[file]
                 });
-                return; // Successfully handed off to the OS!
+                return;
             }
         } catch (err) {
-            // If the user just swipes the share menu away, ignore the error
             if (err.name === 'AbortError') return; 
-            console.log("Share failed, falling back to direct download...");
         }
     }
 
-    // 2. Fallback for PC/Browsers that don't support Mobile Share menus
+    // 3. Ultimate Fallbacks for Desktop/PC Browsers
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    // Modern Desktop API
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types:[{ description: 'JSON File', accept: {'application/json': ['.json']} }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(dataBlob);
+            await writable.close();
+            alert("SYSTEM MESSAGE: Data Exported Successfully!");
+            return;
+        } catch (err) {
+            if (err.name === 'AbortError') return;
+        }
+    }
+
+    // Old Browser Download
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'solo-leveling-save.json'; 
+    link.download = fileName; 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
