@@ -33,8 +33,21 @@ jobs:
       - name: Add Android Platform
         run: npx cap add android
 
+      - name: Generate App Icons and Splash Screens
+        run: npx @capacitor/assets generate --android
+
       - name: Sync Capacitor
         run: npx cap sync android
+
+      - name: Sync Version Number to Android
+        run: |
+          # Grabs the version number (e.g., "1.2") directly from your package.json
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}"
+          
+          # Magically injects it into Android's native build file without Android Studio!
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
 
       - name: Build APK
         working-directory: ./android
