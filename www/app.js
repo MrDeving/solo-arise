@@ -993,7 +993,7 @@ async function scheduleNativeWorkManager(quest) {
                                 title: quest.title,
                                 body: quest.notes || "A daily task requires your attention.",
                                 id: parseInt(`${quest.id}${remIdx}${daysScheduled}`), 
-                                schedule: { at: checkDate, allowWhileIdle: true }, // <--- CRITICAL: Pierces Android Doze Mode
+                                schedule: { at: checkDate, allowWhileIdle: true }, // <--- FORCES ANDROID TO WAKE UP
                                 channelId: 'system_alerts',
                                 actionTypeId: 'QUEST_ACTIONS',
                                 extra: { questId: quest.id }
@@ -1010,7 +1010,7 @@ async function scheduleNativeWorkManager(quest) {
                             title: quest.title,
                             body: quest.notes || "A task requires your attention.",
                             id: (quest.id * 100) + idx, 
-                            schedule: { at: remDate, allowWhileIdle: true }, // <--- CRITICAL
+                            schedule: { at: remDate, allowWhileIdle: true }, // <--- FORCES ANDROID TO WAKE UP
                             channelId: 'system_alerts',
                             actionTypeId: 'QUEST_ACTIONS',
                             extra: { questId: quest.id }
