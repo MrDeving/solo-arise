@@ -14,25 +14,24 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '22'
 
       - name: Install Dependencies
-        run: npm install
+        run: |
+          npm install
+          # Note: If the build fails on GitHub, you might need 'npm ci' instead
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '17'
+          java-version: '21' # Updated for Capacitor 8 compatibility
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v2
+        uses: android-actions/setup-android@v3
 
       - name: Add Android Platform
-        run: npx cap add android || echo "Android platform already exists"
-
-      - name: Generate App Icons
-        run: npx @capacitor/assets generate --android
+        run: npx cap add android
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -44,5 +43,5 @@ jobs:
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: TheSystem-APK
+          name: Arisesolo-APK
           path: android/app/build/outputs/apk/debug/app-debug.apk
