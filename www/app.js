@@ -363,12 +363,25 @@ function toggleQuest(id) {
             if (!systemState.streakIncrementedToday) {
                 systemState.streak += 1;
                 systemState.streakIncrementedToday = true;
+                
+                // Show the Classic SL Popup! (With Safeguards)
+                const streakDisplay = document.getElementById('sl-streak-display');
+                const streakModal = document.getElementById('sl-streak-up-modal');
+                
+                if (streakDisplay && streakModal) {
+                    streakDisplay.textContent = systemState.streak;
+                    streakModal.style.display = 'flex';
+                }
+            } else {
+                // Only play normal sound if we aren't showing the popup
+                levelUpSound.currentTime = 0;
+                levelUpSound.play().catch(e => console.log("Audio blocked"));
             }
+        } else {
+            // Play normal sound for non-dailies
+            levelUpSound.currentTime = 0;
+            levelUpSound.play().catch(e => console.log("Audio blocked"));
         }
-        
-        // Play System Sound
-        levelUpSound.currentTime = 0;
-        levelUpSound.play().catch(e => console.log("Audio play blocked by browser policy until user interaction."));
     } else {
         // Unchecking the quest
         quest.completed = false;
@@ -1395,6 +1408,7 @@ function loadGameState() {
 
 // 7. Export Data (Native Capacitor Filesystem + Share)
 async function exportData() {
+    // Step A: Gather the Data
     const masterSave = {
         system: systemState,
         hunterName: localStorage.getItem('hunterName') || '',
@@ -1403,36 +1417,39 @@ async function exportData() {
         lastLoginDate: localStorage.getItem('lastLoginDate') || ''
     };
 
-    const dataStr = JSON.stringify(masterSave, null, 2);
-    // Generates a unique name with today's date so you don't overwrite old backups
+    const dataString = JSON.stringify(masterSave, null, 2);
     const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    // 1. Mobile App (Android/iOS) Native Save
+    // Step B & C: Native Mobile Export (The Capacitor Docs Way)
     if (window.Capacitor && window.Capacitor.isNative) {
         try {
             const Filesystem = Capacitor.Plugins.Filesystem;
             const Share = Capacitor.Plugins.Share;
 
             if (!Filesystem || !Share) {
-                alert("SYSTEM ERROR: Capacitor plugins missing! Make sure @capacitor/filesystem and @capacitor/share are in package.json");
+                alert("SYSTEM ERROR: Capacitor plugins missing from build.");
                 return;
             }
 
-            // Write the file to the app's invisible CACHE folder first
-            const writeResult = await Filesystem.writeFile({
+            // 1. Write the file to a Temporary File (Cache)
+            await Filesystem.writeFile({
                 path: fileName,
-                data: dataStr,
+                data: dataString,
                 directory: 'CACHE', 
-                encoding: 'utf8'
+                encoding: 'utf8'    
             });
 
-            // Trigger Android's Native "Share / Save As" dialog
-            // This hands the file over to Android, prompting you to choose where to save it
+            // 2. Get the URI of the file you just wrote
+            const uriResult = await Filesystem.getUri({
+                directory: 'CACHE',
+                path: fileName
+            });
+
+            // 3. Trigger the Native Share Sheet
             await Share.share({
-                title: 'Export System Data',
-                text: 'Select a location to save your Hunter data backup.',
-                url: writeResult.uri,
-                dialogTitle: 'Save Backup File'
+                title: 'Export My Data',
+                url: uriResult.uri, // This shares the actual file
+                dialogTitle: 'Where would you like to save your data?'
             });
             
             return;
@@ -1443,8 +1460,8 @@ async function exportData() {
         }
     }
 
-    // 2. Web API Fallbacks (If you run it in Chrome instead of the APK)
-    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    // --- Web Browser Fallback (If you run it in Chrome on a PC) ---
+    const dataBlob = new Blob([dataString], { type: 'application/json' });
 
     if (window.showSaveFilePicker) {
         try {
@@ -1463,7 +1480,7 @@ async function exportData() {
         }
     }
 
-    // Ultimate fallback: standard HTML download link
+    // Old Browser Download Link
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
@@ -1485,6 +1502,10 @@ function importData(event) {
     reader.onload = function(e) {
         try {
             const loadedData = JSON.parse(e.target.result);
+            
+            // ---> NEW: Create a hidden "Quick Load" backup of this exact file in memory
+            localStorage.setItem('quickLoadBackup', e.target.result);
+
             if (loadedData.system) systemState = loadedData.system;
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
@@ -1496,6 +1517,9 @@ function importData(event) {
             updateStats();
             applySavedDataToUI(); 
             
+            // NEW: Automatically switch them out of "Setup Mode" and into the Dashboard
+            toggleProfileMode('dashboard');
+            
             alert("SYSTEM MESSAGE: All Data Restored Successfully!");
         } catch (error) {
             alert("SYSTEM ERROR: Corrupt Save File.");
@@ -1503,6 +1527,50 @@ function importData(event) {
     };
     reader.readAsText(file); 
     event.target.value = ''; 
+}
+
+// 9. Manual Reload / Sync function (QUICK LOAD)
+function reloadSaveFile() {
+    const backupData = localStorage.getItem('quickLoadBackup');
+    
+    if (!backupData) {
+        alert("SYSTEM ERROR: No backup file found in memory. Please import a file normally first.");
+        return;
+    }
+
+    if (confirm("SYSTEM WARNING: Re-load from your last imported save file? This will overwrite your current progress.")) {
+        try {
+            const loadedData = JSON.parse(backupData);
+            
+            // Re-apply all data from the backup
+            if (loadedData.system) systemState = loadedData.system;
+            if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
+            if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
+            if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
+            if (loadedData.lastLoginDate) localStorage.setItem('lastLoginDate', loadedData.lastLoginDate);
+            
+            // Save and refresh UI
+            saveGameState();
+            renderQuests();
+            updateStats();
+            applySavedDataToUI(); 
+            renderEthCalendar();
+            renderEventList();
+            
+            // Quick visual flash to confirm it worked
+            const btn = document.querySelector('.reload-profile-btn');
+            if (btn) {
+                btn.style.color = 'var(--neon-green)';
+                btn.style.opacity = '1';
+                setTimeout(() => {
+                    btn.style.color = 'var(--text-muted)';
+                    btn.style.opacity = '0.4';
+                }, 400);
+            }
+        } catch (error) {
+            alert("SYSTEM ERROR: Backup data corrupted.");
+        }
+    }
 }
 
 // ==========================================
@@ -1528,11 +1596,19 @@ function checkDailyReset() {
                 // They did the work. Streak is safe.
             } else {
                 // They didn't do the work. Penalty applied!
+                if (systemState.streak > 0) {
+                    // Triggers the punishment sequence!
+                    window.showPenaltySequence = true; 
+                }
                 systemState.streak = 0;
             }
         } else {
             // First time ever opening the app!
             systemState.streak = 0;
+        }
+
+        if (window.showPenaltySequence) {
+            document.getElementById('sl-streak-lost-modal').style.display = 'flex';
         }
 
         // RESET ONLY DAILY QUESTS & TODAY'S XP
@@ -1643,4 +1719,50 @@ function completeFromNotification() {
         toggleQuest(activeNotificationQuestId);
         closeNotification();
     }
+}
+
+// ==========================================
+// --- CLASSIC SOLO LEVELING POPUP LOGIC ---
+// ==========================================
+
+function proceedStreakUp() {
+    document.getElementById('sl-streak-up-modal').style.display = 'none';
+    
+    // Play sound exactly when "PROCEED" is clicked
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
+}
+
+function proceedStreakLost() {
+    document.getElementById('sl-streak-lost-modal').style.display = 'none';
+    
+    // Play sound for the warning
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
+    
+    // Immediately trigger step 2 (Level Penalty)
+    setTimeout(() => {
+        document.getElementById('sl-penalty-modal').style.display = 'flex';
+    }, 300); // 0.3s delay for dramatic effect
+}
+
+function proceedPenalty() {
+    document.getElementById('sl-penalty-modal').style.display = 'none';
+    
+    // Play sound for acceptance
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
+    
+    // Deduct 5 Levels worth of XP (XP_PER_LEVEL is 500, so 5 * 500 = 2500)
+    const penaltyXP = 5 * XP_PER_LEVEL;
+    systemState.totalXp -= penaltyXP;
+    
+    // Ensure XP never goes below 0 (Can't drop below Level 0)
+    if (systemState.totalXp < 0) {
+        systemState.totalXp = 0;
+    }
+    
+    // Immediately force the UI to update your Level/Rank on the screen to reflect the loss
+    updateStats();
+    saveGameState();
 }
