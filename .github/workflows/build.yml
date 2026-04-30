@@ -49,6 +49,11 @@ jobs:
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
 
+      - name: Inject Exact Alarm Permissions
+        run: |
+          # Magically injects the notification bypass permissions into the AndroidManifest before building!
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+
       - name: Build APK
         working-directory: ./android
         run: ./gradlew assembleDebug
