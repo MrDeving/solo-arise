@@ -18,6 +18,9 @@
     font-style: normal;
 }
 
+/* Hides scrollbars universally for a clean native app look */
+::-webkit-scrollbar { display: none; }
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -25,6 +28,7 @@
     font-family: 'Rajdhani', 'Segoe UI', sans-serif;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    scrollbar-width: none; /* Firefox support */
 }
 
 body {
@@ -66,48 +70,39 @@ body {
     overflow-y: auto;
     padding: 20px 16px 80px 16px; 
     
-    /* ---> CHANGE THE 0.15s VALUES BELOW TO MAKE IT FASTER OR SLOWER <--- */
+    /* HARDWARE ACCELERATION: Prevents white flash on Android */
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    
     transition: transform 0.13s ease-out, opacity 0.13s ease-out, visibility 0.13s;
     
-    transform: translateX(30%); 
+    /* Using translate3d forces the phone's GPU to process the animation instead of the CPU */
+    transform: translate3d(30%, 0, 0); 
 }
 
 /* Push content down ONLY on tabs that share the static header */
 #view-home, #view-quests {
-    padding-top: 226px !important; /* Increased to clear the static header and force override */
+    padding-top: 226px !important; 
 }
 
 /* Adjust the distance from the top of the screen for the Calendar */
 #view-analytics {
-    padding-top: 1px !important; /* CHANGE THIS NUMBER to move it up or down */
+    padding-top: 1px !important; 
 }
 
+/* Directional Classes for Swiping using GPU 3D Transforms */
 .view.active {
     visibility: visible;
     opacity: 1;
     pointer-events: auto;
     z-index: 10;
-    transform: translateX(0); 
+    transform: translate3d(0, 0, 0); 
 }
 .view.off-left {
-    transform: translateX(-30%); 
+    transform: translate3d(-30%, 0, 0); 
 }
 .view.off-right {
-    transform: translateX(30%); 
-}
-.view.active {
-    visibility: visible;
-    opacity: 1;
-    pointer-events: auto;
-    z-index: 10;
-    transform: translateX(0); /* Brings it to the center */
-}
-/* New Directional Classes for Swiping */
-.view.off-left {
-    transform: translateX(-30%); /* Pushes it to the left */
-}
-.view.off-right {
-    transform: translateX(30%); /* Pushes it to the right */
+    transform: translate3d(30%, 0, 0); 
 }
 
 /* Zoom out ONLY the Home Page */
@@ -125,6 +120,10 @@ body {
     margin-bottom: 16px;
     position: relative;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+    
+    /* GPU FIX: Prevents blur filters from flashing when moving */
+    -webkit-transform: translateZ(0);
+    transform: translateZ(0);
 }
 
 /* Outer HUD Glow lines */

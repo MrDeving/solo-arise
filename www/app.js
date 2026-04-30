@@ -1404,58 +1404,53 @@ async function exportData() {
     };
 
     const dataStr = JSON.stringify(masterSave, null, 2);
-    const fileName = 'solo-leveling-save.json';
+    // Generates a unique name with today's date so you don't overwrite old backups
+    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    // 1. Try Native Capacitor Plugins (Bulletproof for Mobile)
-    if (window.Capacitor && Capacitor.Plugins.Filesystem && Capacitor.Plugins.Share) {
+    // 1. Mobile App (Android/iOS) Native Save
+    if (window.Capacitor && window.Capacitor.isNative) {
         try {
-            // Write the file invisibly to the phone's Cache
-            const writeResult = await Capacitor.Plugins.Filesystem.writeFile({
+            const Filesystem = Capacitor.Plugins.Filesystem;
+            const Share = Capacitor.Plugins.Share;
+
+            if (!Filesystem || !Share) {
+                alert("SYSTEM ERROR: Capacitor plugins missing! Make sure @capacitor/filesystem and @capacitor/share are in package.json");
+                return;
+            }
+
+            // Write the file to the app's invisible CACHE folder first
+            const writeResult = await Filesystem.writeFile({
                 path: fileName,
                 data: dataStr,
                 directory: 'CACHE', 
                 encoding: 'utf8'
             });
 
-            // Hand the native file URI directly to Android OS
-            await Capacitor.Plugins.Share.share({
-                title: 'System Data Backup',
-                text: 'Here is your exported Hunter Data.',
+            // Trigger Android's Native "Share / Save As" dialog
+            // This hands the file over to Android, prompting you to choose where to save it
+            await Share.share({
+                title: 'Export System Data',
+                text: 'Select a location to save your Hunter data backup.',
                 url: writeResult.uri,
-                dialogTitle: 'Save Backup'
+                dialogTitle: 'Save Backup File'
             });
-            return; // Successfully handed off to Android OS!
+            
+            return;
         } catch (err) {
-            console.warn("Native Filesystem/Share failed, falling back...", err);
+            alert("SYSTEM ERROR: Failed to export file natively. " + err.message);
+            console.error(err);
+            return;
         }
     }
 
-    // 2. Try the Web Share API (For regular mobile browsers)
-    if (navigator.canShare) {
-        try {
-            const file = new File([dataStr], fileName, { type: "application/json" });
-            if (navigator.canShare({ files: [file] })) {
-                await navigator.share({
-                    title: 'System Data Backup',
-                    text: 'Here is your exported Hunter Data.',
-                    files:[file]
-                });
-                return;
-            }
-        } catch (err) {
-            if (err.name === 'AbortError') return; 
-        }
-    }
-
-    // 3. Ultimate Fallbacks for Desktop/PC Browsers
+    // 2. Web API Fallbacks (If you run it in Chrome instead of the APK)
     const dataBlob = new Blob([dataStr], { type: 'application/json' });
-    
-    // Modern Desktop API
+
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
                 suggestedName: fileName,
-                types:[{ description: 'JSON File', accept: {'application/json': ['.json']} }],
+                types: [{ description: 'JSON File', accept: { 'application/json':['.json'] } }],
             });
             const writable = await handle.createWritable();
             await writable.write(dataBlob);
@@ -1463,19 +1458,22 @@ async function exportData() {
             alert("SYSTEM MESSAGE: Data Exported Successfully!");
             return;
         } catch (err) {
-            if (err.name === 'AbortError') return;
+            if (err.name !== 'AbortError') alert("Export failed: " + err.message);
+            return;
         }
     }
 
-    // Old Browser Download
+    // Ultimate fallback: standard HTML download link
     const url = URL.createObjectURL(dataBlob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = fileName; 
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+    
+    alert("SYSTEM MESSAGE: Download triggered! Check your browser's downloads folder.");
 }
 
 // 8. Import Data (Unpacking everything)
@@ -1615,6 +1613,14 @@ function showNotification(quest) {
     document.getElementById('notif-desc').textContent = quest.notes || "No details provided.";
     document.getElementById('notification-toast').style.display = 'block';
     
+    // Hide the "COMPLETE" button for system errors and warnings
+    const actionsDiv = document.querySelector('.notif-actions');
+    if (quest.id === 'error' || quest.id === 'system-warning') {
+        actionsDiv.style.display = 'none';
+    } else {
+        actionsDiv.style.display = 'flex';
+    }
+
     // Play sound when notification pops
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
