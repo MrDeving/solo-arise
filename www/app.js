@@ -1594,7 +1594,7 @@ function loadGameState() {
     }
 }
 
-// 7. Export Data (Native Capacitor Filesystem + Share)
+// 7. Export Data (Secure Browser Link Transfer)
 async function exportData() {
     // Step A: Gather the Data
     const masterSave = {
@@ -1606,79 +1606,45 @@ async function exportData() {
     };
 
     const dataString = JSON.stringify(masterSave, null, 2);
-    
-    // CRITICAL FIX: Android Share Sheet hates .json files.
-    // Changing it to .txt forces Android to let you "Save to Drive" or "Save to Device"!
-    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.txt`;
+    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    // Step B & C: Native Mobile Export
-    if (window.Capacitor && window.Capacitor.isNative) {
-        try {
-            const Filesystem = Capacitor.Plugins.Filesystem;
-            const Share = Capacitor.Plugins.Share;
+    sysAlert("Establishing secure transfer link...", { title: 'UPLOADING DATA', icon: '⏳', color: 'blue' });
 
-            if (!Filesystem || !Share) {
-                sysAlert("Plugins missing! Sync Capacitor with npx cap sync.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-                return;
-            }
+    try {
+        // 1. Package the save file into a format the web understands
+        const blob = new Blob([dataString], { type: 'application/json' });
+        const formData = new FormData();
+        formData.append('file', blob, fileName);
 
-            // 1. Write the file to Cache
-            const writeResult = await Filesystem.writeFile({
-                path: fileName,
-                data: dataString,
-                directory: 'CACHE', 
-                encoding: 'utf8'    
-            });
+        // 2. Upload to File.io (A secure, auto-deleting temporary server)
+        const response = await fetch('https://file.io', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
 
-            // 2. Trigger the Native Share Sheet
-            await Share.share({
-                title: 'Export My Data',
-                text: 'Here is your Solo Leveling backup data.',
-                url: writeResult.uri, // Use the exact local file URI
-                dialogTitle: 'Save your Backup'
-            });
+        if (result.success) {
+            // 3. Show the generated URL to the user
+            const msg = `Transfer Ready.\n\nOption 1: Tap CONFIRM to open browser and download to this device.\n\nOption 2: Type this link on a PC:\n${result.link}\n\n(Link self-destructs after 1 download!)`;
             
-            // 3. Let the user know the system didn't freeze
-            sysAlert("Share menu opened. Please choose a location to save your backup.", { title: 'EXPORT INITIATED', icon: '✔', color: 'blue' });
-            return;
-        } catch (err) {
-            sysAlert("Failed to export natively: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-            console.error(err);
-            return;
-        }
-    }
-
-    // --- Web Browser Fallback (If you run it in Chrome on a PC) ---
-    const dataBlob = new Blob([dataString], { type: 'text/plain' });
-
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: fileName,
-                types:[{ description: 'Backup File', accept: { 'text/plain':['.txt'] } }],
+            sysConfirm(msg, { title: 'LINK GENERATED', icon: '🔗', color: 'gold' }).then(ok => {
+                if (ok) {
+                    // 4. Force the OS Browser (Chrome/Safari) to open and handle the download safely
+                    const a = document.createElement('a');
+                    a.href = result.link;
+                    a.target = '_blank';
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                }
             });
-            const writable = await handle.createWritable();
-            await writable.write(dataBlob);
-            await writable.close();
-            sysAlert("Data exported successfully!", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
-            return;
-        } catch (err) {
-            if (err.name !== 'AbortError') sysAlert("Export failed: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-            return;
+        } else {
+            sysAlert("Server rejected the transfer. Try again.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
         }
+    } catch (err) {
+        sysAlert("Network error. Wi-Fi or Mobile Data required.", { title: 'CONNECTION FAILED', icon: '✖', color: 'red' });
     }
-
-    // Old Browser Download Link
-    const url = URL.createObjectURL(dataBlob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
-    
-    sysAlert("Download triggered. Check your downloads folder.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
 }
 
 // 8. Import Data (Unpacking everything)
