@@ -1608,42 +1608,50 @@ async function exportData() {
     const dataString = JSON.stringify(masterSave, null, 2);
     const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    sysAlert("Establishing secure transfer link...", { title: 'UPLOADING DATA', icon: '⏳', color: 'blue' });
+    // Build the file entirely in memory — zero internet needed
+    const blob = new Blob([dataString], { type: 'application/json' });
 
-    try {
-        // 1. Package the save file into a format the web understands
-        const blob = new Blob([dataString], { type: 'application/json' });
-        const formData = new FormData();
-        formData.append('file', blob, fileName);
+    // --- METHOD 1: Web Share API (works on Android, shares via OS sheet) ---
+    if (navigator.share && navigator.canShare) {
+        const file = new File([blob], fileName, { type: 'application/json' });
+        const canShare = navigator.canShare({ files: [file] });
 
-        // 2. Upload to File.io (A secure, auto-deleting temporary server)
-        const response = await fetch('https://file.io', {
-            method: 'POST',
-            body: formData
-        });
-        
-        const result = await response.json();
-
-        if (result.success) {
-            // 3. Show the generated URL to the user
-            const msg = `Transfer Ready.\n\nOption 1: Tap CONFIRM to open browser and download to this device.\n\nOption 2: Type this link on a PC:\n${result.link}\n\n(Link self-destructs after 1 download!)`;
-            
-            sysConfirm(msg, { title: 'LINK GENERATED', icon: '🔗', color: 'gold' }).then(ok => {
-                if (ok) {
-                    // 4. Force the OS Browser (Chrome/Safari) to open and handle the download safely
-                    const a = document.createElement('a');
-                    a.href = result.link;
-                    a.target = '_blank';
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                }
-            });
-        } else {
-            sysAlert("Server rejected the transfer. Try again.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+        if (canShare) {
+            try {
+                await navigator.share({
+                    title: 'Solo Leveling Save',
+                    text: 'My save file',
+                    files: [file]
+                });
+                // Shared successfully — done!
+                return;
+            } catch (err) {
+                if (err.name === 'AbortError') return; // User cancelled — that's fine
+                // Share failed, fall through to method 2
+            }
         }
+    }
+
+    // --- METHOD 2: Direct download fallback (saves to Downloads folder) ---
+    try {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 2000);
+
+        sysAlert(`Save file ready!\n\nFilename: ${fileName}\n\nCheck your Downloads folder.`, { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
     } catch (err) {
-        sysAlert("Network error. Wi-Fi or Mobile Data required.", { title: 'CONNECTION FAILED', icon: '✖', color: 'red' });
+        // --- METHOD 3: Last resort — copy raw JSON to clipboard ---
+        try {
+            await navigator.clipboard.writeText(dataString);
+            sysAlert("File download not supported on this device.\n\nYour save data has been copied to clipboard instead. Paste it into a .json file on your PC.", { title: 'COPIED TO CLIPBOARD', icon: '📋', color: 'blue' });
+        } catch (clipErr) {
+            sysAlert("Export failed on this device. Try the Import/Export section from a browser instead.", { title: 'EXPORT FAILED', icon: '✖', color: 'red' });
+        }
     }
 }
 
