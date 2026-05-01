@@ -11,6 +11,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Generate One-Time Keystore
+        run: |
+    keytool -genkey -v -keystore temp.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-alias -storepass mypassword -keypass mypassword -dname "CN=MySelf, OU=Dev, O=MyOrg, L=MyCity, ST=MyState, C=US"
+    base64 temp.jks
+
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
