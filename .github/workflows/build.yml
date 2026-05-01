@@ -11,30 +11,35 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Generate One-Time Keystore
-        run: |
-    keytool -genkey -v -keystore temp.jks -keyalg RSA -keysize 2048 -validity 10000 -alias my-alias -storepass mypassword -keypass mypassword -dname "CN=MySelf, OU=Dev, O=MyOrg, L=MyCity, ST=MyState, C=US"
-    base64 temp.jks
-
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '22'
 
       - name: Install Dependencies
-        run: |
-          npm install
-          # Note: If the build fails on GitHub, you might need 'npm ci' instead
+        run: npm install
 
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
-          java-version: '21' # Updated for Capacitor 8 compatibility
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+
+      # --- START OF TEMPORARY STEP ---
+      # Run this ONCE to get your permanent key. 
+      # Then copy the output from the GitHub Actions log.
+      - name: GENERATE PERMANENT KEY (RUN ONCE)
+        run: |
+          keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
+            -alias my-alias -storepass mypassword123 -keypass mypassword123 \
+            -dname "CN=AriseSolo, OU=Dev, O=MyOrg, L=MyCity, S=MyState, C=US"
+          echo "--- COPY EVERYTHING BELOW THIS LINE ---"
+          base64 my-release-key.jks
+          echo "--- COPY EVERYTHING ABOVE THIS LINE ---"
+      # --- END OF TEMPORARY STEP ---
 
       - name: Add Android Platform
         run: npx cap add android
@@ -47,17 +52,12 @@ jobs:
 
       - name: Sync Version Number to Android
         run: |
-          # Grabs the version number (e.g., "1.2") directly from your package.json
           VERSION=$(node -p "require('./package.json').version")
-          echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}"
-          
-          # Magically injects it into Android's native build file without Android Studio!
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
 
       - name: Inject Exact Alarm Permissions
         run: |
-          # Magically injects the notification bypass permissions into the AndroidManifest before building!
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
 
       - name: Build APK
