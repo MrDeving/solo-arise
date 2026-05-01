@@ -49,28 +49,22 @@ jobs:
 
       - name: Build and Sign Release APK
         run: |
-          # 1. Generate a BRAND NEW key right here so we KNOW the password is correct
+          # 1. Generate the key (Same as before)
           keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 \
             -alias my-alias -storepass finalpassword123 -keypass finalpassword123 \
             -dname "CN=AriseSolo, OU=Dev, O=MyOrg, L=MyCity, S=MyState, C=US"
 
-          # 2. Build using that exact same password
-          npx cap build android \
-            --keystorepath $(pwd)/release.jks \
-            --keystorepass "finalpassword123" \
-            --keystorealias "my-alias" \
-            --keystorealiaspass "finalpassword123" \
-            --androidreleasetype APK
-
-          # 3. Print the Base64 of this NEW key so you can save it to Secrets LATER
-          echo "--- SAVE THIS NEW KEY TO YOUR ANDROID_KEYSTORE SECRET LATER ---"
-          base64 release.jks
-
+          # 2. Run the build through Gradle directly (more reliable for signing)
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=$(pwd)/../release.jks \
+            -Pandroid.injected.signing.store.password=finalpassword123 \
+            -Pandroid.injected.signing.key.alias=my-alias \
+            -Pandroid.injected.signing.key.password=finalpassword123
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Arisesolo-APK-Signed
-          # Using the wildcard *.apk ensures it finds the file even if the name varies
-          path: android/app/build/outputs/apk/release/*.apk
-
+          # Point to the specific release APK that Gradle generates
+          path: android/app/build/outputs/apk/release/app-release.apk
