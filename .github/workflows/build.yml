@@ -28,19 +28,6 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      # --- START OF TEMPORARY STEP ---
-      # Run this ONCE to get your permanent key. 
-      # Then copy the output from the GitHub Actions log.
-      - name: GENERATE PERMANENT KEY (RUN ONCE)
-        run: |
-          keytool -genkey -v -keystore my-release-key.jks -keyalg RSA -keysize 2048 -validity 10000 \
-            -alias my-alias -storepass mypassword123 -keypass mypassword123 \
-            -dname "CN=AriseSolo, OU=Dev, O=MyOrg, L=MyCity, S=MyState, C=US"
-          echo "--- COPY EVERYTHING BELOW THIS LINE ---"
-          base64 my-release-key.jks
-          echo "--- COPY EVERYTHING ABOVE THIS LINE ---"
-      # --- END OF TEMPORARY STEP ---
-
       - name: Add Android Platform
         run: npx cap add android
 
@@ -60,12 +47,23 @@ jobs:
         run: |
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
 
-      - name: Build APK
-        working-directory: ./android
-        run: ./gradlew assembleDebug
+      # --- SIGNING STEP ---
+      - name: Build and Sign Release APK
+        run: |
+          # 1. Decode the keystore file from your secret
+          echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > android/app/release.jks
+          
+          # 2. Build the release version using the key
+          cd android
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=release.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=my-alias \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Arisesolo-APK
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          name: Arisesolo-APK-Signed
+          # Path changes from 'debug' to 'release'
+          path: android/app/build/outputs/apk/release/app-release.apk
