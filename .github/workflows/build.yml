@@ -47,14 +47,12 @@ jobs:
         run: |
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
 
-      # --- SIGNING STEP ---
       - name: Build and Sign Release APK
         run: |
           # 1. Decode the keystore
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.jks
           
-          # 2. Build and sign using Capacitor CLI
-          # Removed the '--bundle' flag that was causing the error
+          # 2. Build and sign (Cleaned command with NO '--bundle' flag)
           npx cap build android \
             --keystorepath $(pwd)/release.jks \
             --keystorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
@@ -62,12 +60,8 @@ jobs:
             --keystorealiaspass "${{ secrets.KEY_PASSWORD }}" \
             --androidreleasetype APK
 
-
-
-
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Arisesolo-APK-Signed
           path: android/app/build/outputs/apk/release/app-release.apk
-
