@@ -1594,7 +1594,7 @@ function loadGameState() {
     }
 }
 
-// 7. Export Data (Secure Browser Link Transfer)
+// 7. Export Data (Direct Native File System Save)
 async function exportData() {
     // Step A: Gather the Data
     const masterSave = {
@@ -1608,51 +1608,79 @@ async function exportData() {
     const dataString = JSON.stringify(masterSave, null, 2);
     const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    // Build the file entirely in memory — zero internet needed
-    const blob = new Blob([dataString], { type: 'application/json' });
-
-    // --- METHOD 1: Web Share API (works on Android, shares via OS sheet) ---
-    if (navigator.share && navigator.canShare) {
-        const file = new File([blob], fileName, { type: 'application/json' });
-        const canShare = navigator.canShare({ files: [file] });
-
-        if (canShare) {
-            try {
-                await navigator.share({
-                    title: 'Solo Leveling Save',
-                    text: 'My save file',
-                    files: [file]
-                });
-                // Shared successfully — done!
-                return;
-            } catch (err) {
-                if (err.name === 'AbortError') return; // User cancelled — that's fine
-                // Share failed, fall through to method 2
-            }
-        }
-    }
-
-    // --- METHOD 2: Direct download fallback (saves to Downloads folder) ---
-    try {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 2000);
-
-        sysAlert(`Save file ready!\n\nFilename: ${fileName}\n\nCheck your Downloads folder.`, { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
-    } catch (err) {
-        // --- METHOD 3: Last resort — copy raw JSON to clipboard ---
+    // --- NATIVE ANDROID DIRECT SAVE ---
+    if (window.Capacitor && window.Capacitor.isNative) {
         try {
-            await navigator.clipboard.writeText(dataString);
-            sysAlert("File download not supported on this device.\n\nYour save data has been copied to clipboard instead. Paste it into a .json file on your PC.", { title: 'COPIED TO CLIPBOARD', icon: '📋', color: 'blue' });
-        } catch (clipErr) {
-            sysAlert("Export failed on this device. Try the Import/Export section from a browser instead.", { title: 'EXPORT FAILED', icon: '✖', color: 'red' });
+            const Filesystem = Capacitor.Plugins.Filesystem;
+            
+            if (!Filesystem) {
+                sysAlert("Filesystem plugin missing.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+                return;
+            }
+
+            // 1. Request Storage Permissions (Required for Android)
+            if (Filesystem.checkPermissions) {
+                let perm = await Filesystem.checkPermissions();
+                if (perm.publicStorage !== 'granted') {
+                    perm = await Filesystem.requestPermissions();
+                }
+                if (perm.publicStorage !== 'granted') {
+                    sysAlert("Storage permission is required to save your backup.", { title: 'PERMISSION DENIED', icon: '✖', color: 'red' });
+                    return;
+                }
+            }
+
+            // 2. Save directly to the public Documents folder
+            await Filesystem.writeFile({
+                path: `SoloLevelingBackups/${fileName}`, // Creates a dedicated folder!
+                data: dataString,
+                directory: 'DOCUMENTS', // Saves securely to the public Documents root
+                encoding: 'utf8',
+                recursive: true // Tells Android to create the folder if it doesn't exist
+            });
+
+            _sfx('success');
+            sysAlert(`Backup saved securely!\n\nOpen your phone's File Manager and look in:\nDocuments ➔ SoloLevelingBackups`, { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
+            return;
+
+        } catch (err) {
+            sysAlert("Failed to save file: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+            console.error(err);
+            return;
         }
     }
+
+    // --- WEB BROWSER FALLBACK (For testing on PC) ---
+    const dataBlob = new Blob([dataString], { type: 'application/json' });
+
+    if (window.showSaveFilePicker) {
+        try {
+            const handle = await window.showSaveFilePicker({
+                suggestedName: fileName,
+                types:[{ description: 'JSON File', accept: { 'application/json':['.json'] } }],
+            });
+            const writable = await handle.createWritable();
+            await writable.write(dataBlob);
+            await writable.close();
+            sysAlert("Data exported successfully!", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
+            return;
+        } catch (err) {
+            if (err.name !== 'AbortError') sysAlert("Export failed: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+            return;
+        }
+    }
+
+    // Old Browser Download Link
+    const url = URL.createObjectURL(dataBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    sysAlert("Download triggered. Check your downloads folder.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
 }
 
 // 8. Import Data (Unpacking everything)
