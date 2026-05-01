@@ -1,4 +1,60 @@
 // --- State Management ---
+// ====== CUSTOM SYSTEM DIALOG ENGINE ======
+function sysAlert(msg, { title = 'SYSTEM MESSAGE', icon = 'ℹ️', color = 'blue' } = {}) {
+    return new Promise(resolve => {
+        _openSysDialog({ title, msg, icon, color, buttons: [
+            { label: 'OK', cls: `sys-dialog-btn-confirm-${color}`, resolve: true }
+        ], resolve });
+    });
+}
+function sysConfirm(msg, { title = 'SYSTEM WARNING', icon = '⚠', color = 'red' } = {}) {
+    return new Promise(resolve => {
+        _openSysDialog({ title, msg, icon, color, buttons: [
+            { label: 'Cancel', cls: 'sys-dialog-btn-cancel', resolve: false },
+            { label: 'Confirm', cls: `sys-dialog-btn-confirm-${color}`, resolve: true }
+        ], resolve });
+    });
+}
+function _openSysDialog({ title, msg, icon, buttons, resolve }) {
+    const overlay = document.getElementById('sys-dialog-overlay');
+    const box = overlay.querySelector('.modal-content');
+    document.getElementById('sys-dialog-title').textContent = title;
+    document.getElementById('sys-dialog-msg').textContent = msg;
+    document.getElementById('sys-dialog-icon').textContent = icon;
+    const btnsEl = document.getElementById('sys-dialog-btns');
+    btnsEl.innerHTML = '';
+    buttons.forEach(b => {
+        const btn = document.createElement('button');
+        btn.textContent = b.label;
+        btn.className = b.cls;
+        btn.onclick = () => {
+            _sfx(b.resolve ? (b.cls.includes('red') ? 'delete' : 'tap') : 'close');
+            overlay.classList.add('hiding');
+            box.classList.add('hiding');
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                overlay.classList.remove('hiding');
+                box.classList.remove('hiding');
+                resolve(b.resolve);
+            }, 150);
+        };
+        btnsEl.appendChild(btn);
+    });
+    overlay.style.display = 'flex';
+    overlay.classList.remove('hiding');
+    box.classList.remove('hiding');
+    // Sound based on dialog type
+    if (icon === '✖' || icon === '⚠') _sfx('warn');
+    else if (icon === '✔') _sfx('success');
+    else if (icon === '🗑') _sfx('delete');
+    else _sfx('open');
+    popupSound.currentTime = 0;
+    popupSound.play().catch(e => console.log("Popup sound blocked"));
+
+}
+// ==========================================
+
+// ==========================================
 // We define how much XP it takes to gain 1 Level. (You can change this later!)
 const XP_PER_LEVEL = 500;
 
@@ -25,6 +81,117 @@ let currentActiveTab = 'home'; // Tracks which tab we are currently looking at
 
 // Initialize Audio (Ensure saved.mp3 is in the www folder)
 const levelUpSound = new Audio('saved.mp3');
+const popupSound = new Audio('solo_leveling_system.mp3');
+
+// ====== UI SOUND ENGINE (no extra files needed) ======
+const _sfxCtx = (() => {
+    try { return new (window.AudioContext || window.webkitAudioContext)(); } catch(e) { return null; }
+})();
+
+function _sfx(type) {
+    if (!_sfxCtx) return;
+    // Resume context if suspended (browser autoplay policy)
+    if (_sfxCtx.state === 'suspended') _sfxCtx.resume();
+
+    const g = _sfxCtx.createGain();
+    g.connect(_sfxCtx.destination);
+
+    const now = _sfxCtx.currentTime;
+
+    if (type === 'tap') {
+        // Soft click — generic button press
+        const o = _sfxCtx.createOscillator();
+        o.connect(g);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(880, now);
+        o.frequency.exponentialRampToValueAtTime(660, now + 0.06);
+        g.gain.setValueAtTime(0.08, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
+        o.start(now); o.stop(now + 0.08);
+
+    } else if (type === 'open') {
+        // Modal/popup opening — two-tone rise
+        [0, 0.07].forEach((t, i) => {
+            const o = _sfxCtx.createOscillator();
+            o.connect(g);
+            o.type = 'sine';
+            o.frequency.setValueAtTime(i === 0 ? 440 : 660, now + t);
+            g.gain.setValueAtTime(0.07, now + t);
+            g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.12);
+            o.start(now + t); o.stop(now + t + 0.12);
+        });
+
+    } else if (type === 'close') {
+        // Modal closing — descending tone
+        const o = _sfxCtx.createOscillator();
+        o.connect(g);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(660, now);
+        o.frequency.exponentialRampToValueAtTime(330, now + 0.1);
+        g.gain.setValueAtTime(0.06, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+        o.start(now); o.stop(now + 0.1);
+
+    } else if (type === 'error') {
+        // Error — harsh low buzz
+        const o = _sfxCtx.createOscillator();
+        o.connect(g);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(180, now);
+        o.frequency.exponentialRampToValueAtTime(120, now + 0.18);
+        g.gain.setValueAtTime(0.1, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        o.start(now); o.stop(now + 0.18);
+
+    } else if (type === 'success') {
+        // Success — quick upward chime
+        [0, 0.08, 0.16].forEach((t, i) => {
+            const o = _sfxCtx.createOscillator();
+            o.connect(g);
+            o.type = 'sine';
+            o.frequency.setValueAtTime([523, 659, 784][i], now + t);
+            g.gain.setValueAtTime(0.07, now + t);
+            g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.15);
+            o.start(now + t); o.stop(now + t + 0.15);
+        });
+
+    } else if (type === 'warn') {
+        // Warning — two low pulses
+        [0, 0.15].forEach(t => {
+            const o = _sfxCtx.createOscillator();
+            o.connect(g);
+            o.type = 'triangle';
+            o.frequency.setValueAtTime(260, now + t);
+            g.gain.setValueAtTime(0.1, now + t);
+            g.gain.exponentialRampToValueAtTime(0.001, now + t + 0.12);
+            o.start(now + t); o.stop(now + t + 0.12);
+        });
+
+    } else if (type === 'notify') {
+        // Notification pop — bright ping
+        const o = _sfxCtx.createOscillator();
+        o.connect(g);
+        o.type = 'sine';
+        o.frequency.setValueAtTime(1047, now);
+        o.frequency.exponentialRampToValueAtTime(880, now + 0.15);
+        g.gain.setValueAtTime(0.1, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+        o.start(now); o.stop(now + 0.2);
+
+    } else if (type === 'delete') {
+        // Delete — short descending thud
+        const o = _sfxCtx.createOscillator();
+        o.connect(g);
+        o.type = 'sawtooth';
+        o.frequency.setValueAtTime(300, now);
+        o.frequency.exponentialRampToValueAtTime(80, now + 0.15);
+        g.gain.setValueAtTime(0.12, now);
+        g.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+        o.start(now); o.stop(now + 0.15);
+    }
+}
+// ======================================================
+
 
 // --- Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
@@ -337,12 +504,13 @@ function renderQuests() {
 }
 
 function deleteQuest(id) {
-    if(confirm("SYSTEM WARNING: Delete this quest?")) {
-        cancelWorkManagerTasks(id); // Delete background tasks from OS!
+    sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: '🗑', color: 'red' }).then(ok => {
+        if (!ok) return;
+        cancelWorkManagerTasks(id);
         systemState.quests = systemState.quests.filter(q => q.id !== id);
         saveGameState();
         renderQuests();
-    }
+    });
 }
 
 function toggleQuest(id) {
@@ -371,6 +539,8 @@ function toggleQuest(id) {
                 if (streakDisplay && streakModal) {
                     streakDisplay.textContent = systemState.streak;
                     streakModal.style.display = 'flex';
+                    popupSound.currentTime = 0;
+                    popupSound.play().catch(e => console.log("Popup sound blocked"));
                 }
             } else {
                 // Only play normal sound if we aren't showing the popup
@@ -410,7 +580,7 @@ function updateStats() {
     systemState.level = Math.floor(systemState.totalXp / XP_PER_LEVEL);
     
     if (systemState.level > previousLevel) {
-        alert(`SYSTEM MESSAGE: You have leveled up to Level ${systemState.level}!`);
+        sysAlert(`You have leveled up to Level ${systemState.level}!`, { title: 'LEVEL UP', icon: '⬆', color: 'blue' });
     }
 
     // 2. Define Rank Logic (Every 10 levels is a new Rank)
@@ -507,6 +677,8 @@ function switchTab(tabId) {
     // Check if the user is registered. If not, block navigation and show warning.
     if (tabId !== 'profile' && !localStorage.getItem('hunterName')) {
         document.getElementById('registration-warning-modal').style.display = 'flex';
+        popupSound.currentTime = 0;
+        popupSound.play().catch(e => console.log("Popup sound blocked"));
         return; // Stop the function here so the tab doesn't change
     }
 
@@ -800,12 +972,13 @@ function loadEventToEdit(id) {
 }
 
 function deleteEvent(id) {
-    if(confirm("SYSTEM WARNING: Delete this event?")) {
+    sysConfirm("Delete this event? This cannot be undone.", { title: 'DELETE EVENT', icon: '🗑', color: 'red' }).then(ok => {
+        if (!ok) return;
         systemState.events = systemState.events.filter(e => e.id !== id);
         saveGameState();
         renderEthCalendar();
         renderEventList();
-    }
+    });
 }
 
 function resetCalForm() {
@@ -1304,7 +1477,7 @@ function saveQuest() {
     const notes = document.getElementById('new-quest-notes').value;
     
     if (!title) {
-        alert("SYSTEM ERROR: Please provide a Task Title.");
+        sysAlert("Please provide a Task Title before saving.", { title: 'MISSING FIELD', icon: '✖', color: 'red' });
         return;
     }
     
@@ -1366,8 +1539,15 @@ function requestDeleteQuest() {
 }
 
 function cancelDeleteQuest() {
-    // Hides the "Are you sure?" popup
-    document.getElementById('confirm-delete-modal').style.display = 'none';
+    const overlay = document.getElementById('confirm-delete-modal');
+    const box = overlay.querySelector('.modal-content');
+    overlay.classList.add('hiding');
+    if (box) box.classList.add('hiding');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.classList.remove('hiding');
+        if (box) box.classList.remove('hiding');
+    }, 300);
 }
 
 function confirmDeleteQuest() {
@@ -1385,7 +1565,15 @@ function confirmDeleteQuest() {
 }
 
 function closeWarningModal() {
-    document.getElementById('registration-warning-modal').style.display = 'none';
+    const overlay = document.getElementById('registration-warning-modal');
+    const box = overlay.querySelector('.modal-content');
+    overlay.classList.add('hiding');
+    if (box) box.classList.add('hiding');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.classList.remove('hiding');
+        if (box) box.classList.remove('hiding');
+    }, 300);
 }
 
 // ==========================================
@@ -1418,64 +1606,64 @@ async function exportData() {
     };
 
     const dataString = JSON.stringify(masterSave, null, 2);
-    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
+    
+    // CRITICAL FIX: Android Share Sheet hates .json files.
+    // Changing it to .txt forces Android to let you "Save to Drive" or "Save to Device"!
+    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.txt`;
 
-    // Step B & C: Native Mobile Export (The Capacitor Docs Way)
+    // Step B & C: Native Mobile Export
     if (window.Capacitor && window.Capacitor.isNative) {
         try {
             const Filesystem = Capacitor.Plugins.Filesystem;
             const Share = Capacitor.Plugins.Share;
 
             if (!Filesystem || !Share) {
-                alert("SYSTEM ERROR: Capacitor plugins missing from build.");
+                sysAlert("Plugins missing! Sync Capacitor with npx cap sync.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
                 return;
             }
 
-            // 1. Write the file to a Temporary File (Cache)
-            await Filesystem.writeFile({
+            // 1. Write the file to Cache
+            const writeResult = await Filesystem.writeFile({
                 path: fileName,
                 data: dataString,
                 directory: 'CACHE', 
                 encoding: 'utf8'    
             });
 
-            // 2. Get the URI of the file you just wrote
-            const uriResult = await Filesystem.getUri({
-                directory: 'CACHE',
-                path: fileName
-            });
-
-            // 3. Trigger the Native Share Sheet
+            // 2. Trigger the Native Share Sheet
             await Share.share({
                 title: 'Export My Data',
-                url: uriResult.uri, // This shares the actual file
-                dialogTitle: 'Where would you like to save your data?'
+                text: 'Here is your Solo Leveling backup data.',
+                url: writeResult.uri, // Use the exact local file URI
+                dialogTitle: 'Save your Backup'
             });
             
+            // 3. Let the user know the system didn't freeze
+            sysAlert("Share menu opened. Please choose a location to save your backup.", { title: 'EXPORT INITIATED', icon: '✔', color: 'blue' });
             return;
         } catch (err) {
-            alert("SYSTEM ERROR: Failed to export file natively. " + err.message);
+            sysAlert("Failed to export natively: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
             console.error(err);
             return;
         }
     }
 
     // --- Web Browser Fallback (If you run it in Chrome on a PC) ---
-    const dataBlob = new Blob([dataString], { type: 'application/json' });
+    const dataBlob = new Blob([dataString], { type: 'text/plain' });
 
     if (window.showSaveFilePicker) {
         try {
             const handle = await window.showSaveFilePicker({
                 suggestedName: fileName,
-                types: [{ description: 'JSON File', accept: { 'application/json':['.json'] } }],
+                types:[{ description: 'Backup File', accept: { 'text/plain':['.txt'] } }],
             });
             const writable = await handle.createWritable();
             await writable.write(dataBlob);
             await writable.close();
-            alert("SYSTEM MESSAGE: Data Exported Successfully!");
+            sysAlert("Data exported successfully!", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
             return;
         } catch (err) {
-            if (err.name !== 'AbortError') alert("Export failed: " + err.message);
+            if (err.name !== 'AbortError') sysAlert("Export failed: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
             return;
         }
     }
@@ -1490,7 +1678,7 @@ async function exportData() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     
-    alert("SYSTEM MESSAGE: Download triggered! Check your browser's downloads folder.");
+    sysAlert("Download triggered. Check your downloads folder.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
 }
 
 // 8. Import Data (Unpacking everything)
@@ -1520,9 +1708,9 @@ function importData(event) {
             // NEW: Automatically switch them out of "Setup Mode" and into the Dashboard
             toggleProfileMode('dashboard');
             
-            alert("SYSTEM MESSAGE: All Data Restored Successfully!");
+            sysAlert("All data restored successfully!", { title: 'IMPORT COMPLETE', icon: '✔', color: 'blue' });
         } catch (error) {
-            alert("SYSTEM ERROR: Corrupt Save File.");
+            sysAlert("Corrupt save file. Could not restore.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
         }
     };
     reader.readAsText(file); 
@@ -1534,11 +1722,11 @@ function reloadSaveFile() {
     const backupData = localStorage.getItem('quickLoadBackup');
     
     if (!backupData) {
-        alert("SYSTEM ERROR: No backup file found in memory. Please import a file normally first.");
+        sysAlert("No backup found in memory. Import a save file first.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
         return;
     }
 
-    if (confirm("SYSTEM WARNING: Re-load from your last imported save file? This will overwrite your current progress.")) {
+    sysConfirm("Reload from your last imported save? This will overwrite your current progress.", { title: 'QUICK LOAD', icon: '↺', color: 'blue' }).then(ok => { if (!ok) return;
         try {
             const loadedData = JSON.parse(backupData);
             
@@ -1568,9 +1756,9 @@ function reloadSaveFile() {
                 }, 400);
             }
         } catch (error) {
-            alert("SYSTEM ERROR: Backup data corrupted.");
+            sysAlert("Backup data corrupted.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
         }
-    }
+    });
 }
 
 // ==========================================
@@ -1700,6 +1888,7 @@ function showNotification(quest) {
     // Play sound when notification pops
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
+    _sfx('notify');
 
     // Auto-hide after 5 seconds
     if (notificationTimeout) clearTimeout(notificationTimeout);
@@ -1709,9 +1898,17 @@ function showNotification(quest) {
 }
 
 function closeNotification() {
-    document.getElementById('notification-toast').style.display = 'none';
+    const toast = document.getElementById('notification-toast');
+    if (!toast || toast.style.display === 'none') return;
+
+    toast.classList.add('hiding');
     activeNotificationQuestId = null;
     if (notificationTimeout) clearTimeout(notificationTimeout);
+
+    setTimeout(() => {
+        toast.style.display = 'none';
+        toast.classList.remove('hiding');
+    }, 350);
 }
 
 function completeFromNotification() {
@@ -1725,25 +1922,36 @@ function completeFromNotification() {
 // --- CLASSIC SOLO LEVELING POPUP LOGIC ---
 // ==========================================
 
+function closeSLModal(modalId, callback) {
+    const overlay = document.getElementById(modalId);
+    if (!overlay) return;
+    const box = overlay.querySelector('.sl-system-box');
+    _sfx('close');
+    overlay.classList.add('hiding');
+    if (box) box.classList.add('hiding');
+    setTimeout(() => {
+        overlay.style.display = 'none';
+        overlay.classList.remove('hiding');
+        if (box) box.classList.remove('hiding');
+        if (callback) callback();
+    }, 300);
+}
+
 function proceedStreakUp() {
-    document.getElementById('sl-streak-up-modal').style.display = 'none';
-    
-    // Play sound exactly when "PROCEED" is clicked
-    levelUpSound.currentTime = 0;
-    levelUpSound.play().catch(e => console.log("Audio blocked"));
+    closeSLModal('sl-streak-up-modal', () => {
+        levelUpSound.currentTime = 0;
+        levelUpSound.play().catch(e => console.log("Audio blocked"));
+    });
 }
 
 function proceedStreakLost() {
-    document.getElementById('sl-streak-lost-modal').style.display = 'none';
-    
-    // Play sound for the warning
-    levelUpSound.currentTime = 0;
-    levelUpSound.play().catch(e => console.log("Audio blocked"));
-    
-    // Immediately trigger step 2 (Level Penalty)
-    setTimeout(() => {
-        document.getElementById('sl-penalty-modal').style.display = 'flex';
-    }, 300); // 0.3s delay for dramatic effect
+    closeSLModal('sl-streak-lost-modal', () => {
+        levelUpSound.currentTime = 0;
+        levelUpSound.play().catch(e => console.log("Audio blocked"));
+        setTimeout(() => {
+            document.getElementById('sl-penalty-modal').style.display = 'flex';
+        }, 300);
+    });
 }
 
 function proceedPenalty() {

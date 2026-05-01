@@ -69,7 +69,7 @@
                             <line x1="10" y1="18" x2="14" y2="18"></line>
                         </svg>
                     </button>
-                    <button class="action-btn add-btn" onclick="openAddQuestModal('daily')">
+                    <button class="action-btn add-btn" onclick="_sfx('open');openAddQuestModal('daily')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         <span>Add Quest</span>
                     </button>
@@ -96,7 +96,7 @@
                             <line x1="10" y1="18" x2="14" y2="18"></line>
                         </svg>
                     </button>
-                    <button class="action-btn add-btn" onclick="openAddQuestModal('quest')">
+                    <button class="action-btn add-btn" onclick="_sfx('open');openAddQuestModal('quest')">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
                         <span>Add Quest</span>
                     </button>
@@ -182,7 +182,7 @@
                         <div class="color-opt" data-col="#ef4444" style="background:#ef4444" onclick="selectColor(this, '#ef4444')"></div>
                     </div>
                 </div>
-                <button class="action-btn" id="btn-save-evt" style="width:100%; justify-content:center; margin-top:10px;" onclick="addCalendarEvent()">SAVE EVENT</button>
+                <button class="action-btn" id="btn-save-evt" style="width:100%; justify-content:center; margin-top:10px;" onclick="_sfx('success');addCalendarEvent()">SAVE EVENT</button>
                 <div style="display:flex; gap:10px; margin-top:10px;">
                     <button class="action-btn" id="btn-cancel-evt" style="flex:1; justify-content:center; display:none; background:transparent; border-color:var(--text-muted); color:var(--text-muted);" onclick="resetCalForm()">CANCEL</button>
                     <button class="action-btn" id="btn-delete-evt" style="flex:1; justify-content:center; display:none; background:rgba(248, 113, 113, 0.1); border-color:var(--neon-red); color:var(--neon-red);" onclick="deleteEvent(currentEditEventId)">DELETE</button>
@@ -223,7 +223,7 @@
                     <input type="text" id="profile-name-input" class="sci-fi-input" placeholder="Enter Name..." oninput="tempChangeName(event)">
                 </div>
 
-                <button class="upload-btn save-btn" onclick="saveProfileData()">SAVE & INITIALIZE</button>
+                <button class="upload-btn save-btn" onclick="_sfx('success');saveProfileData()">SAVE & INITIALIZE</button>
                 
                 <!-- NEW: Import Data for Returning Hunters -->
                 <div class="divider" style="margin: 10px 0 0 0; opacity: 0.1;"></div>
@@ -232,7 +232,8 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                     IMPORT DATA
                 </button>
-                <input type="file" id="setup-import-file" accept=".json" style="display: none;" onchange="importData(event)">
+                <!-- Accepts .txt now so Android Share Sheet fixes work! -->
+                <input type="file" id="setup-import-file" accept=".json, .txt" style="display: none;" onchange="importData(event)">
             </div>
 
             <!-- 2. DASHBOARD MODE -->
@@ -312,7 +313,8 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         IMPORT DATA
                     </button>
-                    <input type="file" id="import-file" accept=".json" style="display: none;" onchange="importData(event)">
+                    <!-- Accepts .txt now so Android Share Sheet fixes work! -->
+                    <input type="file" id="import-file" accept=".json, .txt" style="display: none;" onchange="importData(event)">
                 </div>
 
             </div>
@@ -466,16 +468,28 @@
                 </div>
 
                 <!-- Padding at bottom so scroll doesn't get cut off behind the screen -->
-                <div style="height: 400px;"></div>
+        <div style="height: 400px;"></div>
+
+        </div>
+        </div>
+
+        <!-- ====== CUSTOM SYSTEM DIALOG (replaces all alert/confirm) ====== -->
+        <div id="sys-dialog-overlay" class="modal-overlay" style="display:none; z-index: 999999;">
+            <div class="modal-content sys-dialog-box">
+                <div class="sys-dialog-icon" id="sys-dialog-icon">⚠</div>
+                <div class="sys-dialog-title" id="sys-dialog-title">SYSTEM WARNING</div>
+                <div class="sys-dialog-msg" id="sys-dialog-msg"></div>
+                <div class="sys-dialog-btns" id="sys-dialog-btns"></div>
             </div>
         </div>
+
         <!-- REGISTRATION WARNING MODAL -->
         <div id="registration-warning-modal" class="modal-overlay" style="display: none; z-index: 2000;">
             <div class="system-panel modal-content" style="max-width: 320px; text-align: center; border-color: var(--neon-gold);">
                 <h3 style="color: var(--neon-gold); font-size: 18px; margin-bottom: 10px; letter-spacing: 2px;">ATTENTION</h3>
                 <p style="color: var(--text-main); font-size: 14px; margin-bottom: 20px; line-height: 1.5;">The Player must complete Profile Initialization before accessing other system features.</p>
                 <div class="data-management-card" style="margin-top: 0;">
-                    <button class="sci-fi-btn" style="background: rgba(251, 191, 36, 0.15); border-color: var(--neon-gold); color: var(--neon-gold); box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);" onclick="closeWarningModal()">ACKNOWLEDGE</button>
+                    <button class="sci-fi-btn" style="background: rgba(251, 191, 36, 0.85); border-color: var(--neon-gold); color: #020617; font-weight: 900; box-shadow: 0 0 20px rgba(251, 191, 36, 0.4);" onclick="_sfx('tap');closeWarningModal()">ACKNOWLEDGE</button>
                 </div>
             </div>
         </div>
