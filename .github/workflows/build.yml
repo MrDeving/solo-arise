@@ -50,16 +50,17 @@ jobs:
       # --- SIGNING STEP ---
       - name: Build and Sign Release APK
         run: |
-          # 1. Decode the keystore file from your secret
+          # 1. Decode the keystore file into the 'android/app' directory
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > android/app/release.jks
           
-          # 2. Build the release version using the key
+          # 2. Build using the absolute path to the keystore
           cd android
           ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=release.jks \
+            -Pandroid.injected.signing.store.file=$(pwd)/app/release.jks \
             -Pandroid.injected.signing.store.password=${{ secrets.KEYSTORE_PASSWORD }} \
             -Pandroid.injected.signing.key.alias=my-alias \
             -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
