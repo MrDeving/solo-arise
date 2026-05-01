@@ -29,6 +29,8 @@ function _openSysDialog({ title, msg, icon, buttons, resolve }) {
         btn.className = b.cls;
         btn.onclick = () => {
             _sfx(b.resolve ? (b.cls.includes('red') ? 'delete' : 'tap') : 'close');
+            levelUpSound.currentTime = 0;
+            levelUpSound.play().catch(e => console.log("Button sound blocked"));
             overlay.classList.add('hiding');
             box.classList.add('hiding');
             setTimeout(() => {
@@ -1596,7 +1598,6 @@ function loadGameState() {
 
 // 7. Export Data (Direct Native File System Save)
 async function exportData() {
-    // Step A: Gather the Data
     const masterSave = {
         system: systemState,
         hunterName: localStorage.getItem('hunterName') || '',
@@ -1606,81 +1607,14 @@ async function exportData() {
     };
 
     const dataString = JSON.stringify(masterSave, null, 2);
-    const fileName = `solo-leveling-save-${new Date().toISOString().split('T')[0]}.json`;
 
-    // --- NATIVE ANDROID DIRECT SAVE ---
-    if (window.Capacitor && window.Capacitor.isNative) {
-        try {
-            const Filesystem = Capacitor.Plugins.Filesystem;
-            
-            if (!Filesystem) {
-                sysAlert("Filesystem plugin missing.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-                return;
-            }
-
-            // 1. Request Storage Permissions (Required for Android)
-            if (Filesystem.checkPermissions) {
-                let perm = await Filesystem.checkPermissions();
-                if (perm.publicStorage !== 'granted') {
-                    perm = await Filesystem.requestPermissions();
-                }
-                if (perm.publicStorage !== 'granted') {
-                    sysAlert("Storage permission is required to save your backup.", { title: 'PERMISSION DENIED', icon: '✖', color: 'red' });
-                    return;
-                }
-            }
-
-            // 2. Save directly to the public Documents folder
-            await Filesystem.writeFile({
-                path: `SoloLevelingBackups/${fileName}`, // Creates a dedicated folder!
-                data: dataString,
-                directory: 'DOCUMENTS', // Saves securely to the public Documents root
-                encoding: 'utf8',
-                recursive: true // Tells Android to create the folder if it doesn't exist
-            });
-
-            _sfx('success');
-            sysAlert(`Backup saved securely!\n\nOpen your phone's File Manager and look in:\nDocuments ➔ SoloLevelingBackups`, { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
-            return;
-
-        } catch (err) {
-            sysAlert("Failed to save file: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-            console.error(err);
-            return;
-        }
+    try {
+        await navigator.clipboard.writeText(dataString);
+        _sfx('success');
+        sysAlert("Save data copied to clipboard!\n\nPaste it into any text editor and save as a .json file to keep it safe.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
+    } catch (err) {
+        sysAlert("Clipboard access was blocked. Please allow clipboard permissions and try again.", { title: 'COPY FAILED', icon: '✖', color: 'red' });
     }
-
-    // --- WEB BROWSER FALLBACK (For testing on PC) ---
-    const dataBlob = new Blob([dataString], { type: 'application/json' });
-
-    if (window.showSaveFilePicker) {
-        try {
-            const handle = await window.showSaveFilePicker({
-                suggestedName: fileName,
-                types:[{ description: 'JSON File', accept: { 'application/json':['.json'] } }],
-            });
-            const writable = await handle.createWritable();
-            await writable.write(dataBlob);
-            await writable.close();
-            sysAlert("Data exported successfully!", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
-            return;
-        } catch (err) {
-            if (err.name !== 'AbortError') sysAlert("Export failed: " + err.message, { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
-            return;
-        }
-    }
-
-    // Old Browser Download Link
-    const url = URL.createObjectURL(dataBlob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = fileName;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    sysAlert("Download triggered. Check your downloads folder.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
 }
 
 // 8. Import Data (Unpacking everything)
