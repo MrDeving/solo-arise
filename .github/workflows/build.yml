@@ -39,9 +39,21 @@ jobs:
 
       - name: Sync Version Number to Android
         run: |
+          # 1. Read the version from package.json (e.g., "2.3")
           VERSION=$(node -p "require('./package.json').version")
-          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
-          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
+          
+          # 2. Read the GitHub Build Number (e.g., 45) for the internal version code
+          BUILD_NUMBER=${{ github.run_number }}
+          
+          echo "Syncing Android app to Version: $VERSION (Build Code: $BUILD_NUMBER)"
+
+          # 3. Use a robust 'sed' command that replaces ANY existing version string
+          # This matches versionName followed by any quote type
+          sed -i "s/versionName .*/versionName \"$VERSION\"/" android/app/build.gradle
+          
+          # 4. Update the versionCode (Crucial for Play Store updates)
+          sed -i "s/versionCode .*/versionCode $BUILD_NUMBER/" android/app/build.gradle
+
 
       - name: Inject Exact Alarm Permissions
         run: |
