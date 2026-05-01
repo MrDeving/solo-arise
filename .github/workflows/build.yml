@@ -71,4 +71,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Arisesolo-APK-Signed
-          path: android/app/build/outputs/apk/release/app-release.apk
+          # Using the wildcard *.apk ensures it finds the file even if the name varies
+          path: android/app/build/outputs/apk/release/*.apk
+
