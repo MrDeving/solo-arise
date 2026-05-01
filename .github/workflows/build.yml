@@ -53,14 +53,15 @@ jobs:
           # 1. Decode the keystore
           echo "${{ secrets.ANDROID_KEYSTORE }}" | base64 -d > release.jks
           
-          # 2. Use Capacitor's official build command
-          # This handles the signing paths and passwords more cleanly for Android
-          npx cap build android --bundle \
+          # 2. Build and sign using Capacitor CLI
+          # Removed the '--bundle' flag that was causing the error
+          npx cap build android \
             --keystorepath $(pwd)/release.jks \
             --keystorepass "${{ secrets.KEYSTORE_PASSWORD }}" \
             --keystorealias "my-alias" \
             --keystorealiaspass "${{ secrets.KEY_PASSWORD }}" \
             --androidreleasetype APK
+
 
 
 
