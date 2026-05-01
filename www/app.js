@@ -211,6 +211,41 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 8. CRITICAL: Re-register native listeners on boot!
     requestNotificationPermission();
+
+    // 9. Android hardware back button — closes open modals/menus instead of exiting app
+    if (window.Capacitor && window.Capacitor.isNative) {
+        Capacitor.Plugins.App.addListener('backButton', () => {
+            // Priority order: close whichever modal is open, top to bottom
+            const modals = [
+                { id: 'add-quest-modal',           close: () => { document.getElementById('add-quest-modal').style.display = 'none'; } },
+                { id: 'filter-modal',              close: () => { document.getElementById('filter-modal').style.display = 'none'; } },
+                { id: 'sys-dialog-overlay',        close: () => { document.getElementById('sys-dialog-overlay').style.display = 'none'; } },
+                { id: 'registration-warning-modal',close: () => { document.getElementById('registration-warning-modal').style.display = 'none'; } },
+                { id: 'confirm-delete-modal',      close: () => { document.getElementById('confirm-delete-modal').style.display = 'none'; } },
+                { id: 'sl-streak-up-modal',        close: () => { document.getElementById('sl-streak-up-modal').style.display = 'none'; } },
+                { id: 'sl-streak-lost-modal',      close: () => { document.getElementById('sl-streak-lost-modal').style.display = 'none'; } },
+                { id: 'sl-penalty-modal',          close: () => { document.getElementById('sl-penalty-modal').style.display = 'none'; } },
+            ];
+
+            // Also check if profile edit mode is open
+            const setupView = document.getElementById('profile-setup-view');
+            if (setupView && setupView.style.display !== 'none' && localStorage.getItem('hunterName')) {
+                toggleProfileMode('dashboard');
+                return;
+            }
+
+            for (const m of modals) {
+                const el = document.getElementById(m.id);
+                if (el && el.style.display !== 'none') {
+                    m.close();
+                    return; // Stop — only close one thing per back press
+                }
+            }
+
+            // Nothing was open — let the OS handle it (exits the app)
+            Capacitor.Plugins.App.exitApp();
+        });
+    }
 });
 
 // --- Drag and Drop Feature ---
@@ -661,9 +696,35 @@ function updateStats() {
     if(rpcFill) rpcFill.style.width = `${rankProgressPercent}%`;
 
     // --- STREAK UPDATES ---
+    const claimedToday = systemState.streakIncrementedToday === true;
+
+    // Home header streak badge
+    const streakBadgeHome = document.querySelector('#shared-header .streak-badge');
+    if (streakBadgeHome) {
+        streakBadgeHome.style.background = claimedToday
+            ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
+            : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
+        streakBadgeHome.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
+        streakBadgeHome.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        streakBadgeHome.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
+        const svgStroke = streakBadgeHome.querySelector('svg');
+        if (svgStroke) svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#64748b';
+    }
     const streakCountHome = document.getElementById('streak-count');
     if (streakCountHome) streakCountHome.textContent = `${systemState.streak} Days`;
-    
+
+    // Profile dashboard streak badge
+    const streakBadgeDash = document.querySelector('.rank-progress-card .streak-badge');
+    if (streakBadgeDash) {
+        streakBadgeDash.style.background = claimedToday
+            ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
+            : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
+        streakBadgeDash.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
+        streakBadgeDash.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        streakBadgeDash.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
+        const svgFill = streakBadgeDash.querySelector('svg');
+        if (svgFill) svgFill.style.fill = claimedToday ? 'var(--neon-gold)' : '#64748b';
+    }
     const dashStreak = document.getElementById('dash-streak');
     if (dashStreak) dashStreak.textContent = `${systemState.streak} Days`;
 
@@ -1012,11 +1073,13 @@ function toggleProfileMode(mode) {
         setupView.style.display = 'flex';
         dashView.style.display = 'none';
         
-        // Only show the 'Close' button if they already have an active profile
-        if(localStorage.getItem('hunterName')) {
+        const saveBtn = document.getElementById('profile-save-btn');
+        if (localStorage.getItem('hunterName')) {
             closeBtn.style.display = 'block';
+            if (saveBtn) saveBtn.textContent = 'SAVE CHANGES';
         } else {
             closeBtn.style.display = 'none';
+            if (saveBtn) saveBtn.textContent = 'SAVE & INITIALIZE';
         }
     } else {
         setupView.style.display = 'none';
