@@ -1,86 +1,67 @@
 name: Build Android APK
 
-on:
-  push:
-    branches: [ main ]
+on: 
+  push: 
+    branches: [ main ] 
   workflow_dispatch:
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '21'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Add Android Platform
-        run: npx cap add android
-
-      - name: Generate App Icons and Splash Screens
-        run: npx @capacitor/assets generate --android
-
-      - name: Sync Capacitor
-        run: npx cap sync android
-
-      - name: Sync Version Number to Android
-        run: |
-          # 1. Get version from package.json
-          VERSION=$(node -p "require('./package.json').version")
-          BUILD_NUMBER=${{ github.run_number }}
+jobs: 
+  build: 
+    runs-on: ubuntu-latest 
+    
+    steps: 
+      - name: Checkout code
+        uses: actions/checkout@v4 
+        
+      - name: Setup Node.js 
+        uses: actions/setup-node@v4 
+        with: 
+          node-version: '22' 
           
-          echo "Updating to Version: $VERSION (Code: $BUILD_NUMBER)"
-
-          # 2. Update versionName (The one users see)
-          # This looks for 'versionName' and replaces the whole line
-          sed -i "s/versionName\s\+[\"'].*[\"']/versionName \"$VERSION\"/g" android/app/build.gradle
+      - name: Install Dependencies 
+        run: | 
+          npm install 
+          # Note: If the build fails on GitHub, you might need 'npm ci' instead 
           
-          # 3. Update versionCode (The internal one Android uses to detect updates)
-          # This looks for 'versionCode' and replaces the whole line
-          sed -i "s/versionCode\s\+[0-9]\+/versionCode $BUILD_NUMBER/g" android/app/build.gradle
-
-          # 4. Debug: Print the file to logs so we can verify it changed
-          echo "--- VERIFYING CHANGES IN GRADLE FILE ---"
-          grep -E "versionCode|versionName" android/app/build.gradle
-
-
-
-      - name: Inject Exact Alarm Permissions
-        run: |
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
-
-      - name: Build and Sign Release APK
-        run: |
-          # 1. Generate the key (Same as before)
-          keytool -genkey -v -keystore release.jks -keyalg RSA -keysize 2048 -validity 10000 \
-            -alias my-alias -storepass finalpassword123 -keypass finalpassword123 \
-            -dname "CN=AriseSolo, OU=Dev, O=MyOrg, L=MyCity, S=MyState, C=US"
-
-          # 2. Run the build through Gradle directly (more reliable for signing)
-          cd android
-          ./gradlew assembleRelease \
-            -Pandroid.injected.signing.store.file=$(pwd)/../release.jks \
-            -Pandroid.injected.signing.store.password=finalpassword123 \
-            -Pandroid.injected.signing.key.alias=my-alias \
-            -Pandroid.injected.signing.key.password=finalpassword123
-
-      - name: Upload APK Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: Arisesolo-APK-Signed
-          # Point to the specific release APK that Gradle generates
-          path: android/app/build/outputs/apk/release/app-release.apk
+      - name: Setup Java 
+        uses: actions/setup-java@v4 
+        with: 
+          distribution: 'zulu' 
+          java-version: '21' # Updated for Capacitor 8 compatibility 
+          
+      - name: Setup Android SDK 
+        uses: android-actions/setup-android@v3 
+        
+      - name: Add Android Platform 
+        run: npx cap add android 
+        
+      - name: Generate App Icons and Splash Screens 
+        run: npx @capacitor/assets generate --android 
+        
+      - name: Sync Capacitor 
+        run: npx cap sync android 
+        
+      - name: Sync Version Number to Android 
+        run: | 
+          # Grabs the version number (e.g., "1.2") directly from your package.json 
+          VERSION=$(node -p "require('./package.json').version") 
+          echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}" 
+          
+          # Magically injects it into Android's native build file without Android Studio! 
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle 
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle 
+          
+      - name: Inject Exact Alarm Permissions 
+        run: | 
+          # Magically injects the notification bypass permissions into the AndroidManifest before building! 
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml 
+          
+      - name: Build APK 
+        working-directory: ./android 
+        run: ./gradlew assembleDebug 
+        
+      - name: Upload APK Artifact 
+        uses: actions/upload-artifact@v4 
+        with: 
+          name: Arisesolo-APK 
+          path: android/app/build/outputs/apk/debug/app-debug.apk
