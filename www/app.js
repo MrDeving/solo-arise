@@ -276,49 +276,71 @@ document.addEventListener('DOMContentLoaded', () => {
     // 8. CRITICAL: Re-register native listeners on boot!
     requestNotificationPermission();
 
-    // 9. Android hardware back button — closes open modals/menus instead of exiting app
-    if (window.Capacitor && window.Capacitor.isNative) {
+    // 9. UNIVERSAL PHONE HARDWARE BACK BUTTON INTERCEPTOR
+    // This helper checks if anything is open and closes it. Returns true if something was closed.
+    const handlePhoneBackButton = () => {
+        const modals = [
+            { id: 'achievements-sheet-overlay', close: () => closeAchievementsSheet() },
+            { id: 'add-quest-modal',           close: () => closeQuestModal() },
+            { id: 'filter-modal',              close: () => closeFilterModal() },
+            { id: 'confirm-delete-modal',      close: () => cancelDeleteQuest() },
+            { id: 'registration-warning-modal',close: () => closeWarningModal() },
+            { id: 'sys-dialog-overlay',        close: () => { document.getElementById('sys-dialog-overlay').style.display = 'none'; } },
+            { id: 'sl-streak-up-modal',        close: () => closeSLModal('sl-streak-up-modal') },
+            { id: 'sl-streak-lost-modal',      close: () => closeSLModal('sl-streak-lost-modal') },
+            { id: 'sl-penalty-modal',          close: () => closeSLModal('sl-penalty-modal') }
+        ];
+
+        // A) Check Profile Edit Mode
+        const setupView = document.getElementById('profile-setup-view');
+        if (setupView && window.getComputedStyle(setupView).display !== 'none' && localStorage.getItem('hunterName')) {
+            toggleProfileMode('dashboard');
+            return true; 
+        }
+
+        // B) Check all Modals & Popups (like the Edit Quest menu & Achievements)
+        for (const m of modals) {
+            const el = document.getElementById(m.id);
+            if (el && window.getComputedStyle(el).display !== 'none') {
+                m.close();
+                return true; 
+            }
+        }
+
+        // C) Tab Logic: If we are not on the Home tab, go back to Home first
+        const homeView = document.getElementById('view-home');
+        if (homeView && !homeView.classList.contains('active')) {
+            switchTab('home');
+            return true; 
+        }
+
+        return false; // Nothing was open. Let the app exit.
+    };
+
+    // --- SETUP FOR MOBILE BROWSER & PWA INTERCEPTION ---
+    // Push a fake "history" state so the phone has something to go back to
+    history.pushState({ appState: 'running' }, "");
+    
+    window.addEventListener('popstate', (e) => {
+        // User swiped edge or pressed the phone's physical back button!
+        const didCloseSomething = handlePhoneBackButton();
+        
+        if (didCloseSomething) {
+            // We successfully closed a menu. 
+            // Re-push the fake history state so the NEXT time they press back, it doesn't instantly exit.
+            history.pushState({ appState: 'running' }, "");
+        } else {
+            // Nothing was open. The user actually wants to leave.
+            // Let the browser naturally exit the app.
+        }
+    });
+
+    // --- SETUP FOR NATIVE APPS (Capacitor/Cordova) ---
+    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
         Capacitor.Plugins.App.addListener('backButton', () => {
-            // Priority order: close whichever modal is open, top to bottom
-            // Now calling their actual closing functions so animations play properly!
-            const modals = [
-                { id: 'achievements-sheet-overlay',close: () => { closeAchievementsSheet(); } },
-                { id: 'add-quest-modal',           close: () => { closeQuestModal(); } },
-                { id: 'filter-modal',              close: () => { closeFilterModal(); } },
-                { id: 'confirm-delete-modal',      close: () => { cancelDeleteQuest(); } },
-                { id: 'registration-warning-modal',close: () => { closeWarningModal(); } },
-                { id: 'sys-dialog-overlay',        close: () => { document.getElementById('sys-dialog-overlay').style.display = 'none'; } },
-                { id: 'sl-streak-up-modal',        close: () => { closeSLModal('sl-streak-up-modal'); } },
-                { id: 'sl-streak-lost-modal',      close: () => { closeSLModal('sl-streak-lost-modal'); } },
-                { id: 'sl-penalty-modal',          close: () => { closeSLModal('sl-penalty-modal'); } },
-            ];
-
-            // 1. Check if Profile Edit Mode is open
-            const setupView = document.getElementById('profile-setup-view');
-            if (setupView && setupView.style.display !== 'none' && localStorage.getItem('hunterName')) {
-                toggleProfileMode('dashboard');
-                return;
+            if (!handlePhoneBackButton()) {
+                Capacitor.Plugins.App.exitApp();
             }
-
-            // 2. Check if any Modals/Popups are open
-            for (const m of modals) {
-                const el = document.getElementById(m.id);
-                if (el && el.style.display !== 'none') {
-                    m.close();
-                    return; // Stop — only close ONE thing per back press
-                }
-            }
-
-            // 3. If no menus are open, check if we are on a different tab.
-            // If we are on Profile, Calendar, or Quests, return to Home.
-            const homeView = document.getElementById('view-home');
-            if (homeView && !homeView.classList.contains('active')) {
-                switchTab('home');
-                return;
-            }
-
-            // 4. Nothing was open and we are already on Home — let the OS exit the app
-            Capacitor.Plugins.App.exitApp();
         });
     }
 });
@@ -1891,16 +1913,29 @@ function closeWarningModal() {
 const ACHIEVEMENTS = [
     { id: 'first_blood',   label: 'First Blood',      desc: 'Complete your first quest',            icon: '⚔️',  color: '#f87171', check: s => s.quests.some(q => q.completed) },
     { id: 'iron_will',     label: 'Iron Will',         desc: 'Reach a 7-day streak',                 icon: '🔥',  color: '#fb923c', check: s => s.streak >= 7 },
+    { id: 'disciplined',   label: 'Disciplined',       desc: 'Reach a 14-day streak',                icon: '⏳',  color: '#10b981', check: s => s.streak >= 14 },
     { id: 'unbroken',      label: 'Unbroken',          desc: 'Reach a 30-day streak',                icon: '💎',  color: '#38bdf8', check: s => s.streak >= 30 },
-    { id: 'shadow_monarch',label: 'Shadow Monarch',    desc: 'Reach S-Rank',                         icon: '👑',  color: '#fbbf24', check: s => s.level >= 50 },
-    { id: 'ascendant',     label: 'Ascendant',         desc: 'Reach Level 10',                       icon: '⬆️',  color: '#818cf8', check: s => s.level >= 10 },
-    { id: 'grinder',       label: 'The Grinder',       desc: 'Earn 5000 total XP',                   icon: '💪',  color: '#34d399', check: s => s.totalXp >= 5000 },
-    { id: 'centurion',     label: 'Centurion',         desc: 'Earn 10000 total XP',                  icon: '🏆',  color: '#fbbf24', check: s => s.totalXp >= 10000 },
-    { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           icon: '🎯',  color: '#f472b6', check: s => s.dailyBonusClaimed },
-    { id: 'quest_lord',    label: 'Quest Lord',        desc: 'Have 10 or more quests created',       icon: '📜',  color: '#a78bfa', check: s => s.quests.length >= 10 },
-    { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', icon: '✨',  color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
     { id: 'veteran',       label: 'Veteran Hunter',    desc: 'Reach a 100-day streak',               icon: '🌟',  color: '#fde68a', check: s => s.streak >= 100 },
+    { id: 'system_master', label: 'System Master',     desc: 'Reach a 180-day streak',               icon: '🌌',  color: '#c084fc', check: s => s.streak >= 180 },
+    { id: 'unstoppable',   label: 'Unstoppable',       desc: 'Reach a 365-day streak',               icon: '♾️',  color: '#f43f5e', check: s => s.streak >= 365 },
+
+    { id: 'ascendant',     label: 'Ascendant',         desc: 'Reach Level 10',                       icon: '⬆️',  color: '#818cf8', check: s => s.level >= 10 },
+    { id: 'rising_star',   label: 'Rising Star',       desc: 'Reach Level 15',                       icon: '🌠',  color: '#f472b6', check: s => s.level >= 15 },
     { id: 'overachiever',  label: 'Overachiever',      desc: 'Reach Level 25',                       icon: '🚀',  color: '#fb923c', check: s => s.level >= 25 },
+    { id: 'shadow_monarch',label: 'Shadow Monarch',    desc: 'Reach S-Rank (Level 50)',              icon: '👑',  color: '#fbbf24', check: s => s.level >= 50 },
+    { id: 'national_level',label: 'National Level',    desc: 'Reach Level 75',                       icon: '🌎',  color: '#3b82f6', check: s => s.level >= 75 },
+    { id: 'monarch',       label: 'Absolute Monarch',  desc: 'Reach Level 100',                      icon: '✨',  color: '#a855f7', check: s => s.level >= 100 },
+
+    { id: 'grinder',       label: 'The Grinder',       desc: 'Earn 5,000 total XP',                  icon: '💪',  color: '#34d399', check: s => s.totalXp >= 5000 },
+    { id: 'centurion',     label: 'Centurion',         desc: 'Earn 10,000 total XP',                 icon: '🏆',  color: '#fbbf24', check: s => s.totalXp >= 10000 },
+    { id: 'adept',         label: 'Adept',             desc: 'Earn 25,000 total XP',                 icon: '🎯',  color: '#2dd4bf', check: s => s.totalXp >= 25000 },
+    { id: 'legendary',     label: 'Legendary',         desc: 'Earn 100,000 total XP',                icon: '🔥',  color: '#ef4444', check: s => s.totalXp >= 100000 },
+    { id: 'mythic',        label: 'Mythic',            desc: 'Earn 500,000 total XP',                icon: '⚡',  color: '#ec4899', check: s => s.totalXp >= 500000 },
+
+    { id: 'quest_lord',    label: 'Quest Lord',        desc: 'Have 10 active/created quests',        icon: '📜',  color: '#a78bfa', check: s => s.quests.length >= 10 },
+    { id: 'strategist',    label: 'Strategist',        desc: 'Have 25 active/created quests',        icon: '🗺️',  color: '#6366f1', check: s => s.quests.length >= 25 },
+    { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           icon: '🎁',  color: '#f472b6', check: s => s.dailyBonusClaimed },
+    { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', icon: '💎',  color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
 ];
 
 // ==========================================
@@ -1956,11 +1991,17 @@ function showAchievementUnlockPopup(ach, done) {
 
 function renderAchievements() {
     const grid = document.getElementById('achievements-grid');
-    const countLabel = document.getElementById('ach-count-label');
+    // FIXED: Directly target the actual text element in the HTML
+    const sheetCount = document.getElementById('ach-sheet-count'); 
+    
     if (!grid) return;
     if (!systemState.achievements) systemState.achievements = [];
+    
     const unlocked = systemState.achievements;
-    if (countLabel) countLabel.textContent = `${unlocked.length} / ${ACHIEVEMENTS.length}`;
+    
+    // Updates instantly the millisecond an achievement is gained
+    if (sheetCount) sheetCount.textContent = `${unlocked.length} / ${ACHIEVEMENTS.length}`;
+    
     grid.innerHTML = ACHIEVEMENTS.map(ach => {
         const isUnlocked = unlocked.includes(ach.id);
         return `
@@ -2322,22 +2363,19 @@ function proceedPenalty() {
 }
 
 function openAchievementsSheet() {
-    // Sync count label
-    const countEl = document.getElementById('ach-count-label');
-    const sheetCount = document.getElementById('ach-sheet-count');
-    if (countEl && sheetCount) sheetCount.textContent = countEl.textContent;
-
+    // Render the grid & counter before opening so it's fresh!
+    if (typeof renderAchievements === 'function') renderAchievements();
+    
     const overlay = document.getElementById('achievements-sheet-overlay');
     const sheet = document.getElementById('achievements-sheet');
     overlay.style.display = 'block';
-    // Trigger animation on next frame
+    
+    // Trigger slide-up animation
     requestAnimationFrame(() => {
         requestAnimationFrame(() => {
             sheet.style.transform = 'translateY(0)';
         });
     });
-    // Re-render achievements into the sheet grid (the grid is now inside the sheet)
-    if (typeof renderAchievements === 'function') renderAchievements();
 }
 
 function closeAchievementsSheet(e) {
