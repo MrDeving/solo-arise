@@ -1,3 +1,50 @@
+// ====== GLOBAL POPUP QUEUE ENGINE (PRIORITY-SORTED) ======
+// Priority order (lower number = higher priority, fires first):
+// 9=sysDialog, 1=streakUp, 6=dailyBonus, 4=levelUp, 5=rankUp, 2=streakLost, 3=penalty, 7=achievement, 8=toast
+const POPUP_PRIORITY = {
+    sysDialog:   1,
+    streakUp:    2,
+    dailyBonus:  3,
+    levelUp:     4,
+    rankUp:      5,
+    streakLost:  6,
+    penalty:     7,
+    achievement: 8,
+    toast:       9,
+};
+
+const _popupQueue = [];
+let _popupBusy = false;
+
+function queuePopup(type, fn) {
+    const priority = POPUP_PRIORITY[type] ?? 99;
+    _popupQueue.push({ priority, fn });
+    // Sort ascending so lowest priority number (highest importance) is first
+    _popupQueue.sort((a, b) => a.priority - b.priority);
+    _drainPopupQueue();
+}
+
+function _drainPopupQueue() {
+    if (_popupBusy || _popupQueue.length === 0) return;
+    _popupBusy = true;
+    const next = _popupQueue.shift();
+    
+    // Failsafe: If a popup has an internal error, catch it so the queue doesn't freeze permanently!
+    try {
+        next.fn(_popupDone);
+    } catch (error) {
+        console.error("Popup Sequence Error:", error);
+        _popupDone(); 
+    }
+}
+
+function _popupDone() {
+    _popupBusy = false;
+    // Small gap between popups so the next one feels like a fresh entrance
+    setTimeout(_drainPopupQueue, 120);
+}
+// ==========================================================
+
 // --- State Management ---
 // ====== CUSTOM SYSTEM DIALOG ENGINE ======
 function sysAlert(msg, { title = 'SYSTEM MESSAGE', icon = 'ℹ️', color = 'blue' } = {}) {
@@ -15,44 +62,59 @@ function sysConfirm(msg, { title = 'SYSTEM WARNING', icon = '⚠', color = 'red'
         ], resolve });
     });
 }
-function _openSysDialog({ title, msg, icon, buttons, resolve }) {
+function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
     const overlay = document.getElementById('sys-dialog-overlay');
-    const box = overlay.querySelector('.modal-content');
-    document.getElementById('sys-dialog-title').textContent = title;
-    document.getElementById('sys-dialog-msg').textContent = msg;
-    document.getElementById('sys-dialog-icon').textContent = icon;
-    const btnsEl = document.getElementById('sys-dialog-btns');
-    btnsEl.innerHTML = '';
-    buttons.forEach(b => {
-        const btn = document.createElement('button');
-        btn.textContent = b.label;
-        btn.className = b.cls;
-        btn.onclick = () => {
-            _sfx(b.resolve ? (b.cls.includes('red') ? 'delete' : 'tap') : 'close');
+    const isRed = color === 'red';
+    
+    let svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M12 7v5" stroke-linecap="round"></path><circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"></circle></svg>`;
+    if (icon === '✖' || icon === '⚠') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
+    if (icon === '✔') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
+    if (icon === '🗑') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+
+    let btnsHtml = buttons.map(b => {
+        const isCancel = b.label.toLowerCase() === 'cancel';
+        return `<button class="sl-btn-new" style="${isCancel ? 'border-color: rgba(255,255,255,0.15); color: #94a3b8;' : ''}">${b.label.toUpperCase()}</button>`;
+    }).join('');
+
+    overlay.innerHTML = `
+        <div class="sl-system-box ${isRed ? 'border-red' : ''}">
+            <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
+            <div class="sl-header-container">
+                <div class="sl-icon">${svgIcon}</div>
+                <div class="sl-box-header">${title}</div>
+            </div>
+            <div class="sl-body-text">${msg.replace(/\n/g, '<br>')}</div>
+            <div class="sl-btn-row">${btnsHtml}</div>
+        </div>
+    `;
+
+    const btnElements = overlay.querySelectorAll('button');
+    buttons.forEach((b, i) => {
+        btnElements[i].onclick = () => {
+            _sfx(b.resolve ? (isRed ? 'delete' : 'tap') : 'close');
             levelUpSound.currentTime = 0;
             levelUpSound.play().catch(e => console.log("Button sound blocked"));
+            
+            const box = overlay.querySelector('.sl-system-box');
             overlay.classList.add('hiding');
-            box.classList.add('hiding');
+            if (box) box.classList.add('hiding');
+            
             setTimeout(() => {
                 overlay.style.display = 'none';
                 overlay.classList.remove('hiding');
-                box.classList.remove('hiding');
                 resolve(b.resolve);
-            }, 150);
+            }, 300);
         };
-        btnsEl.appendChild(btn);
     });
+
     overlay.style.display = 'flex';
-    overlay.classList.remove('hiding');
-    box.classList.remove('hiding');
-    // Sound based on dialog type
+    
     if (icon === '✖' || icon === '⚠') _sfx('warn');
     else if (icon === '✔') _sfx('success');
     else if (icon === '🗑') _sfx('delete');
     else _sfx('open');
     popupSound.currentTime = 0;
     popupSound.play().catch(e => console.log("Popup sound blocked"));
-
 }
 // ==========================================
 
@@ -71,7 +133,9 @@ let systemState = {
     streakIncrementedToday: false,
     lastCompletedDate: null, 
     weeklyHistory: [], 
-    events: [] // --- CALENDAR: Stores all scheduled events
+    events: [],
+    dailyBonus: null,           // { stat, multiplier, date }
+    dailyBonusClaimed: false    // true after reward given
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -216,33 +280,44 @@ document.addEventListener('DOMContentLoaded', () => {
     if (window.Capacitor && window.Capacitor.isNative) {
         Capacitor.Plugins.App.addListener('backButton', () => {
             // Priority order: close whichever modal is open, top to bottom
+            // Now calling their actual closing functions so animations play properly!
             const modals = [
-                { id: 'add-quest-modal',           close: () => { document.getElementById('add-quest-modal').style.display = 'none'; } },
-                { id: 'filter-modal',              close: () => { document.getElementById('filter-modal').style.display = 'none'; } },
+                { id: 'achievements-sheet-overlay',close: () => { closeAchievementsSheet(); } },
+                { id: 'add-quest-modal',           close: () => { closeQuestModal(); } },
+                { id: 'filter-modal',              close: () => { closeFilterModal(); } },
+                { id: 'confirm-delete-modal',      close: () => { cancelDeleteQuest(); } },
+                { id: 'registration-warning-modal',close: () => { closeWarningModal(); } },
                 { id: 'sys-dialog-overlay',        close: () => { document.getElementById('sys-dialog-overlay').style.display = 'none'; } },
-                { id: 'registration-warning-modal',close: () => { document.getElementById('registration-warning-modal').style.display = 'none'; } },
-                { id: 'confirm-delete-modal',      close: () => { document.getElementById('confirm-delete-modal').style.display = 'none'; } },
-                { id: 'sl-streak-up-modal',        close: () => { document.getElementById('sl-streak-up-modal').style.display = 'none'; } },
-                { id: 'sl-streak-lost-modal',      close: () => { document.getElementById('sl-streak-lost-modal').style.display = 'none'; } },
-                { id: 'sl-penalty-modal',          close: () => { document.getElementById('sl-penalty-modal').style.display = 'none'; } },
+                { id: 'sl-streak-up-modal',        close: () => { closeSLModal('sl-streak-up-modal'); } },
+                { id: 'sl-streak-lost-modal',      close: () => { closeSLModal('sl-streak-lost-modal'); } },
+                { id: 'sl-penalty-modal',          close: () => { closeSLModal('sl-penalty-modal'); } },
             ];
 
-            // Also check if profile edit mode is open
+            // 1. Check if Profile Edit Mode is open
             const setupView = document.getElementById('profile-setup-view');
             if (setupView && setupView.style.display !== 'none' && localStorage.getItem('hunterName')) {
                 toggleProfileMode('dashboard');
                 return;
             }
 
+            // 2. Check if any Modals/Popups are open
             for (const m of modals) {
                 const el = document.getElementById(m.id);
                 if (el && el.style.display !== 'none') {
                     m.close();
-                    return; // Stop — only close one thing per back press
+                    return; // Stop — only close ONE thing per back press
                 }
             }
 
-            // Nothing was open — let the OS handle it (exits the app)
+            // 3. If no menus are open, check if we are on a different tab.
+            // If we are on Profile, Calendar, or Quests, return to Home.
+            const homeView = document.getElementById('view-home');
+            if (homeView && !homeView.classList.contains('active')) {
+                switchTab('home');
+                return;
+            }
+
+            // 4. Nothing was open and we are already on Home — let the OS exit the app
             Capacitor.Plugins.App.exitApp();
         });
     }
@@ -575,9 +650,12 @@ function toggleQuest(id) {
                 
                 if (streakDisplay && streakModal) {
                     streakDisplay.textContent = systemState.streak;
-                    streakModal.style.display = 'flex';
-                    popupSound.currentTime = 0;
-                    popupSound.play().catch(e => console.log("Popup sound blocked"));
+                    queuePopup('streakUp', (done) => {
+                        window._currentPopupDone = done;
+                        streakModal.style.display = 'flex';
+                        popupSound.currentTime = 0;
+                        popupSound.play().catch(e => console.log("Popup sound blocked"));
+                    });
                 }
             } else {
                 // Only play normal sound if we aren't showing the popup
@@ -602,7 +680,119 @@ function toggleQuest(id) {
     
     updateStats();
     renderQuests();
-    saveGameState(); // Saves to the Magical Backpack instantly!
+    saveGameState();
+    checkAchievements();
+
+    // --- DAILY BONUS CHECK: Did completing this quest finish ALL daily quests? ---
+    if (!systemState.dailyBonusClaimed && systemState.dailyBonus) {
+        const dailyQuests = systemState.quests.filter(q => q.type === 'daily' || !q.type);
+        const today = new Date();
+        const dueDailies = dailyQuests.filter(q => isQuestActiveOnDate(q, today));
+        const allDone = dueDailies.length > 0 && dueDailies.every(q => q.completed);
+        if (allDone) {
+            systemState.dailyBonusClaimed = true;
+            const bonusXp = 150;
+            systemState.totalXp += bonusXp;
+            systemState.todayXp += bonusXp;
+            saveGameState();
+            checkAchievements();
+            queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
+        }
+    }
+}
+
+function showDailyBonusModal(xp, done) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sl-modal-overlay';
+    overlay.style.cssText = 'display:flex;';
+    
+    // Fixed: Safely checks if the stat actually exists before trying to capitalize it
+    const bonusStat = (systemState.dailyBonus && systemState.dailyBonus.stat) ? systemState.dailyBonus.stat.toUpperCase() : null;
+    
+    overlay.innerHTML = `
+        <div class="sl-system-box border-gold">
+            <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
+            <div class="sl-header-container">
+                <div class="sl-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    </svg>
+                </div>
+                <div class="sl-box-header">ALL QUESTS COMPLETE</div>
+            </div>
+            <div class="reward-xp-display">
+                <div class="reward-xp-label">BONUS XP GRANTED</div>
+                <div class="reward-xp-amount">+${xp}</div>
+                ${bonusStat ? `<div class="reward-stat-chip">⚡ ${bonusStat} BONUS ACTIVE</div>` : ''}
+            </div>
+            <div class="sl-body-text" style="font-size:12px;opacity:0.6;letter-spacing:1px;">Daily quest chain completed.<br>Reward has been added to your total XP.</div>
+            <div class="sl-btn-row">
+                <button class="sl-btn-new" onclick="const b=this.closest('.sl-system-box'); const o=this.closest('.sl-modal-overlay'); b.classList.add('hiding'); o.classList.add('hiding'); setTimeout(()=>{o.remove(); if(window._currentPopupDone){window._currentPopupDone();window._currentPopupDone=null;}}, 300); _sfx('close');">⭐ CLAIM REWARD</button>
+            </div>
+        </div>`;
+    window._currentPopupDone = done || null;
+    document.body.appendChild(overlay);
+    _sfx('success');
+    popupSound.currentTime = 0;
+    popupSound.play().catch(() => {});
+}
+
+function showRankUpCinematic(fromRank, toRank, color, letter, done) {
+    const existing = document.getElementById('rank-up-cinematic');
+    if (existing) existing.remove();
+    const overlay = document.createElement('div');
+    overlay.id = 'rank-up-cinematic';
+    overlay.style.cssText = `position:fixed;inset:0;background:#000;z-index:999999;display:flex;flex-direction:column;align-items:center;justify-content:center;overflow:hidden;`;
+    overlay.innerHTML = `
+        <style>
+            @keyframes ruFadeIn{from{opacity:0}to{opacity:1}}
+            @keyframes ruSlash{from{transform:scaleX(0);opacity:0}to{transform:scaleX(1);opacity:1}}
+            @keyframes ruHexPop{from{opacity:0;transform:scale(0.2) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(0deg)}}
+            @keyframes ruTextReveal{from{opacity:0;letter-spacing:20px}to{opacity:1;letter-spacing:4px}}
+            @keyframes ruPulseGlow{0%,100%{box-shadow:0 0 40px ${color}88}50%{box-shadow:0 0 80px ${color},0 0 120px ${color}66}}
+            @keyframes ruParticle{from{transform:translateY(0) scale(1);opacity:1}to{transform:translateY(-120px) scale(0);opacity:0}}
+            @keyframes ruScanline{from{top:-4px}to{top:100%}}
+        </style>
+        <div style="position:absolute;left:0;right:0;height:4px;background:linear-gradient(90deg,transparent,${color},transparent);animation:ruScanline 1.2s ease-in-out;z-index:1;pointer-events:none;"></div>
+        <div style="position:absolute;width:400px;height:400px;border-radius:50%;background:radial-gradient(circle,${color}22,transparent 70%);animation:ruFadeIn 0.8s ease;"></div>
+        <div style="position:absolute;width:100%;display:flex;flex-direction:column;gap:8px;top:35%;animation:ruSlash 0.5s 0.3s ease both;transform-origin:left;">
+            <div style="height:1px;background:linear-gradient(90deg,transparent,${color},transparent);opacity:0.6;"></div>
+            <div style="height:1px;background:linear-gradient(90deg,transparent,${color},transparent);opacity:0.3;margin-left:30px;"></div>
+        </div>
+        <div style="position:absolute;width:100%;display:flex;flex-direction:column;gap:8px;bottom:35%;animation:ruSlash 0.5s 0.4s ease both;transform-origin:right;">
+            <div style="height:1px;background:linear-gradient(90deg,transparent,${color},transparent);opacity:0.6;"></div>
+            <div style="height:1px;background:linear-gradient(90deg,transparent,${color},transparent);opacity:0.3;margin-right:30px;"></div>
+        </div>
+        <div style="position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;">
+            <div style="font-size:11px;letter-spacing:6px;color:${color};font-weight:700;animation:ruFadeIn 0.5s 0.2s ease both;opacity:0;">RANK UP</div>
+            <div style="width:100px;height:114px;position:relative;display:flex;align-items:center;justify-content:center;animation:ruHexPop 0.6s 0.5s cubic-bezier(0.34,1.56,0.64,1) both;opacity:0;animation-fill-mode:both;">
+                <svg width="100" height="114" viewBox="0 0 100 114" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;">
+                    <polygon points="50,4 96,28 96,86 50,110 4,86 4,28" fill="rgba(0,0,0,0.8)" stroke="${color}" stroke-width="2.5"/>
+                </svg>
+                <span style="font-size:42px;font-weight:900;color:${color};position:relative;z-index:1;text-shadow:0 0 20px ${color};">${letter}</span>
+            </div>
+            <div style="font-size:28px;font-weight:900;color:#f8fafc;animation:ruTextReveal 0.7s 0.9s ease both;opacity:0;letter-spacing:4px;">${toRank.toUpperCase()}</div>
+            <div style="font-size:12px;color:#64748b;letter-spacing:2px;animation:ruFadeIn 0.5s 1.2s ease both;opacity:0;">${fromRank} → ${toRank}</div>
+            <div style="position:absolute;width:200px;height:200px;pointer-events:none;">
+                ${Array.from({length:12}, (_,i) => {
+                    const angle = (i/12)*360;
+                    const dist = 60 + Math.random()*40;
+                    const x = Math.cos(angle*Math.PI/180)*dist;
+                    const y = Math.sin(angle*Math.PI/180)*dist;
+                    const delay = 0.8 + Math.random()*0.4;
+                    return `<div style="position:absolute;left:calc(50% + ${x}px);top:calc(50% + ${y}px);width:4px;height:4px;border-radius:50%;background:${color};animation:ruParticle 0.8s ${delay}s ease both;opacity:0;"></div>`;
+                }).join('')}
+            </div>
+            <button onclick="document.getElementById('rank-up-cinematic').style.animation='ruFadeIn 0.3s reverse';setTimeout(()=>{document.getElementById('rank-up-cinematic').remove();if(window._currentPopupDone){window._currentPopupDone();window._currentPopupDone=null;}},300);_sfx('close');"
+                style="margin-top:20px;background:${color};border:none;border-radius:8px;color:#020617;font-size:13px;font-weight:800;letter-spacing:3px;padding:13px 40px;cursor:pointer;animation:ruFadeIn 0.5s 1.5s ease both;opacity:0;">
+                PROCEED
+            </button>
+        </div>`;
+    window._currentPopupDone = done || null;
+    document.body.appendChild(overlay);
+    _sfx('success');
+    popupSound.currentTime = 0;
+    popupSound.play().catch(() => {});
 }
 
 function updateStats() {
@@ -617,7 +807,23 @@ function updateStats() {
     systemState.level = Math.floor(systemState.totalXp / XP_PER_LEVEL);
     
     if (systemState.level > previousLevel) {
-        sysAlert(`You have leveled up to Level ${systemState.level}!`, { title: 'LEVEL UP', icon: '⬆', color: 'blue' });
+        const prevRankIdx = Math.min(Math.floor(previousLevel / 10), 5);
+        const newRankIdx  = Math.min(Math.floor(systemState.level / 10), 5);
+        const rankNames   = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'];
+        const rankColors  = ['#94a3b8', '#34d399', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
+        const rankIcons   = ['E', 'D', 'C', 'B', 'A', 'S'];
+
+        if (newRankIdx > prevRankIdx) {
+            // RANK UP — full cinematic
+            queuePopup('rankUp', (done) => {
+                showRankUpCinematic(rankNames[prevRankIdx], rankNames[newRankIdx], rankColors[newRankIdx], rankIcons[newRankIdx], done);
+            });
+        } else {
+            // Just a level up within same rank — simple popup
+            queuePopup('levelUp', (done) => {
+                sysAlert(`You have leveled up to Level ${systemState.level}!`, { title: 'LEVEL UP', icon: '⬆', color: 'blue' }).then(done);
+            });
+        }
     }
 
     // 2. Define Rank Logic (Every 10 levels is a new Rank)
@@ -637,15 +843,16 @@ function updateStats() {
     const currentRank = ranks[currentRankIndex];
     const nextRank = currentRankIndex < 5 ? ranks[currentRankIndex + 1] : ranks[5];
 
-    // Calculate Rank Progress percentage
-    let levelsIntoRank = systemState.level % 10;
-    if (currentRankIndex === 5) levelsIntoRank = 10; // Maxed out
-    
+    // 3. Calculate Progress Metrics for BOTH Bars
     const xpIntoCurrentLevel = systemState.totalXp % XP_PER_LEVEL;
-    const rankProgressPercent = currentRankIndex === 5 ? 100 : 
-        Math.floor((((levelsIntoRank * XP_PER_LEVEL) + xpIntoCurrentLevel) / (10 * XP_PER_LEVEL)) * 100);
-        
-    const levelsToNext = currentRankIndex === 5 ? 0 : 10 - levelsIntoRank;
+    const expNeeded = XP_PER_LEVEL;
+    const expLeft = expNeeded - xpIntoCurrentLevel;
+    const levelProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((xpIntoCurrentLevel / expNeeded) * 100);
+
+    let levelsIntoRank = systemState.level % 10;
+    if (currentRankIndex >= 5) levelsIntoRank = 10; // Maxed out
+    const rankProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((((levelsIntoRank * XP_PER_LEVEL) + xpIntoCurrentLevel) / (10 * XP_PER_LEVEL)) * 100);
+    const levelsToNext = currentRankIndex >= 5 ? 0 : 10 - levelsIntoRank;
 
 // --- APPLY TO UI ---
     
@@ -666,34 +873,47 @@ function updateStats() {
     const qRank = document.getElementById('quests-rank-text');
     if (qRank) qRank.textContent = currentRank.letter;
 
-    // Dashboard Updates (Level/Rank Pill)
+    // Dashboard General Info
     const dashLevelElement = document.getElementById('dash-level');
     if(dashLevelElement) dashLevelElement.textContent = systemState.level;
     
     const dashMiniHex = document.getElementById('dash-mini-hex');
     if(dashMiniHex) dashMiniHex.textContent = currentRank.letter;
 
-    // Dashboard Updates (Progress Box)
     const rpcLevel = document.getElementById('dash-rpc-level');
     if(rpcLevel) rpcLevel.textContent = `Level ${systemState.level}`;
     
     const rpcRank = document.getElementById('dash-rpc-rank');
     if(rpcRank) rpcRank.textContent = currentRank.name;
 
+    // --- APPLY TO RANK MODULE ---
     const rpcPillCurr = document.getElementById('dash-pill-current');
     if(rpcPillCurr) rpcPillCurr.textContent = currentRank.name;
     
     const rpcPillNext = document.getElementById('dash-pill-next');
-    if(rpcPillNext) rpcPillNext.textContent = currentRankIndex === 5 ? 'MAX' : nextRank.name;
+    if(rpcPillNext) rpcPillNext.textContent = currentRankIndex >= 5 ? 'MAX' : nextRank.name;
 
-    const rpcProgText = document.getElementById('dash-progress-text');
-    if(rpcProgText) rpcProgText.textContent = `${rankProgressPercent}% in ${currentRank.name}`;
+    const rankText = document.getElementById('dash-rank-text');
+    if(rankText) rankText.textContent = `${rankProgressPercent}% Completed`;
     
-    const rpcLevelsLeft = document.getElementById('dash-levels-left');
-    if(rpcLevelsLeft) rpcLevelsLeft.textContent = currentRankIndex === 5 ? 'Max Rank Reached' : `${levelsToNext} levels to next rank`;
+    const levelsLeft = document.getElementById('dash-levels-left');
+    if(levelsLeft) levelsLeft.textContent = currentRankIndex >= 5 ? 'Max Rank Reached' : `${levelsToNext} Levels to Promotion`;
 
-    const rpcFill = document.getElementById('dash-progress-fill');
-    if(rpcFill) rpcFill.style.width = `${rankProgressPercent}%`;
+    const rankFill = document.getElementById('dash-rank-fill');
+    if(rankFill) rankFill.style.width = `${rankProgressPercent}%`;
+
+    // --- APPLY TO LEVEL MODULE ---
+    const levelTarget = document.getElementById('dash-level-target');
+    if(levelTarget) levelTarget.innerHTML = currentRankIndex >= 5 ? `MAX LEVEL` : `LEVEL ${systemState.level} &rarr; ${systemState.level + 1}`;
+
+    const levelText = document.getElementById('dash-level-text');
+    if(levelText) levelText.textContent = currentRankIndex >= 5 ? `MAX EXP` : `${xpIntoCurrentLevel} / ${expNeeded} EXP`;
+
+    const expLeftEl = document.getElementById('dash-exp-left');
+    if(expLeftEl) expLeftEl.textContent = currentRankIndex >= 5 ? `-` : `${expLeft} EXP Needed`;
+
+    const levelFill = document.getElementById('dash-level-fill');
+    if(levelFill) levelFill.style.width = `${levelProgressPercent}%`;
 
     // --- STREAK UPDATES ---
     const claimedToday = systemState.streakIncrementedToday === true;
@@ -710,6 +930,24 @@ function updateStats() {
         const svgStroke = streakBadgeHome.querySelector('svg');
         if (svgStroke) svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#64748b';
     }
+    const bonusBanner = document.getElementById('daily-bonus-banner');
+    const bonusStatLabel = document.getElementById('bonus-stat-label');
+    const bonusEmojiEl = document.getElementById('bonus-emoji');
+    if (bonusBanner) {
+        if (systemState.dailyBonusClaimed) {
+            if (bonusStatLabel) { bonusStatLabel.textContent = '+150 XP Bonus'; bonusStatLabel.style.color = '#fbbf24'; }
+            if (bonusEmojiEl) bonusEmojiEl.textContent = '🎁';
+            bonusBanner.style.borderColor = 'rgba(52,211,153,0.4)';
+            bonusBanner.querySelector('div:last-child').innerHTML = '<span style="color:#34d399;font-weight:800;">✔ CLAIMED</span>';
+        } else {
+            if (bonusStatLabel) { bonusStatLabel.textContent = '???'; bonusStatLabel.style.color = 'var(--text-muted)'; }
+            if (bonusEmojiEl) bonusEmojiEl.textContent = '🔒';
+            bonusBanner.style.borderColor = 'rgba(56,189,248,0.2)';
+            bonusBanner.querySelector('div:last-child').innerHTML = '<span style="font-size:11px;color:var(--text-muted);">Complete all<br>dailies to claim</span>';
+        }
+    }
+
+    // --- STREAK UPDATES ---
     const streakCountHome = document.getElementById('streak-count');
     if (streakCountHome) streakCountHome.textContent = `${systemState.streak} Days`;
 
@@ -737,6 +975,7 @@ function updateStats() {
 const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
 
 function switchTab(tabId) {
+    if (tabId === 'profile') { renderAchievements(); }
     // Check if the user is registered. If not, block navigation and show warning.
     if (tabId !== 'profile' && !localStorage.getItem('hunterName')) {
         document.getElementById('registration-warning-modal').style.display = 'flex';
@@ -1645,6 +1884,95 @@ function closeWarningModal() {
 // --- SAVE & LOAD SYSTEM (The Backpack) ---
 // ==========================================
 
+// ==========================================
+// --- ACHIEVEMENTS ENGINE ---
+// ==========================================
+
+const ACHIEVEMENTS = [
+    { id: 'first_blood',   label: 'First Blood',      desc: 'Complete your first quest',            icon: '⚔️',  color: '#f87171', check: s => s.quests.some(q => q.completed) },
+    { id: 'iron_will',     label: 'Iron Will',         desc: 'Reach a 7-day streak',                 icon: '🔥',  color: '#fb923c', check: s => s.streak >= 7 },
+    { id: 'unbroken',      label: 'Unbroken',          desc: 'Reach a 30-day streak',                icon: '💎',  color: '#38bdf8', check: s => s.streak >= 30 },
+    { id: 'shadow_monarch',label: 'Shadow Monarch',    desc: 'Reach S-Rank',                         icon: '👑',  color: '#fbbf24', check: s => s.level >= 50 },
+    { id: 'ascendant',     label: 'Ascendant',         desc: 'Reach Level 10',                       icon: '⬆️',  color: '#818cf8', check: s => s.level >= 10 },
+    { id: 'grinder',       label: 'The Grinder',       desc: 'Earn 5000 total XP',                   icon: '💪',  color: '#34d399', check: s => s.totalXp >= 5000 },
+    { id: 'centurion',     label: 'Centurion',         desc: 'Earn 10000 total XP',                  icon: '🏆',  color: '#fbbf24', check: s => s.totalXp >= 10000 },
+    { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           icon: '🎯',  color: '#f472b6', check: s => s.dailyBonusClaimed },
+    { id: 'quest_lord',    label: 'Quest Lord',        desc: 'Have 10 or more quests created',       icon: '📜',  color: '#a78bfa', check: s => s.quests.length >= 10 },
+    { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', icon: '✨',  color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
+    { id: 'veteran',       label: 'Veteran Hunter',    desc: 'Reach a 100-day streak',               icon: '🌟',  color: '#fde68a', check: s => s.streak >= 100 },
+    { id: 'overachiever',  label: 'Overachiever',      desc: 'Reach Level 25',                       icon: '🚀',  color: '#fb923c', check: s => s.level >= 25 },
+];
+
+// ==========================================
+// --- SAVE & LOAD SYSTEM (The Backpack) ---
+// ==========================================
+
+function checkAchievements() {
+    if (!systemState.achievements) systemState.achievements = [];
+    let newlyUnlocked = [];
+    ACHIEVEMENTS.forEach(ach => {
+        if (!systemState.achievements.includes(ach.id)) {
+            try { if (ach.check(systemState)) { systemState.achievements.push(ach.id); newlyUnlocked.push(ach); } } catch(e) {}
+        }
+    });
+    if (newlyUnlocked.length > 0) {
+        saveGameState();
+        renderAchievements();
+        newlyUnlocked.forEach(ach => {
+            queuePopup('achievement', (done) => { showAchievementUnlockPopup(ach, done); });
+        });
+    }
+}
+
+function showAchievementUnlockPopup(ach, done) {
+    const overlay = document.createElement('div');
+    overlay.className = 'sl-modal-overlay';
+    overlay.style.cssText = 'display:flex;';
+    const color = ach.color || 'var(--neon-blue)';
+    const glow = ach.color ? ach.color + '55' : 'rgba(56,189,248,0.33)';
+    const bg = ach.color ? ach.color + '18' : 'rgba(56,189,248,0.1)';
+    overlay.innerHTML = `
+        <div class="sl-system-box border-ach" style="--ach-color:${color};--ach-glow:${glow};--ach-bg:${bg};">
+            <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
+            <div class="sl-header-container" style="gap:6px;">
+                <div class="ach-popup-badge">✦ ACHIEVEMENT UNLOCKED</div>
+                <div class="sl-box-header" style="letter-spacing:3px;font-size:13px;">NEW ACHIEVEMENT</div>
+            </div>
+            <div class="ach-popup-icon-ring">
+                <div class="ach-popup-icon-inner">${ach.icon}</div>
+            </div>
+            <div class="ach-popup-label">${ach.label}</div>
+            <div class="ach-popup-desc">${ach.desc}</div>
+            <div class="sl-btn-row">
+                <button class="sl-btn-new" onclick="const b=this.closest('.sl-system-box'); const o=this.closest('.sl-modal-overlay'); b.classList.add('hiding'); o.classList.add('hiding'); setTimeout(()=>{o.remove(); if(window._currentPopupDone){window._currentPopupDone();window._currentPopupDone=null;}}, 300); _sfx('close');">PROCEED</button>
+            </div>
+        </div>`;
+    window._currentPopupDone = done || null;
+    document.body.appendChild(overlay);
+    _sfx('success');
+    popupSound.currentTime = 0;
+    popupSound.play().catch(() => {});
+}
+
+function renderAchievements() {
+    const grid = document.getElementById('achievements-grid');
+    const countLabel = document.getElementById('ach-count-label');
+    if (!grid) return;
+    if (!systemState.achievements) systemState.achievements = [];
+    const unlocked = systemState.achievements;
+    if (countLabel) countLabel.textContent = `${unlocked.length} / ${ACHIEVEMENTS.length}`;
+    grid.innerHTML = ACHIEVEMENTS.map(ach => {
+        const isUnlocked = unlocked.includes(ach.id);
+        return `
+        <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98))` : 'rgba(15,23,42,0.85)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.15)'};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;${isUnlocked ? `box-shadow:0 0 12px ${ach.color}33;` : 'filter:grayscale(1);opacity:0.7;'}">
+            <div style="font-size:22px;">${ach.icon}</div>
+            <div style="font-size:12px;font-weight:800;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.2;">${ach.label}</div>
+            <div style="font-size:10px;color:${isUnlocked ? '#94a3b8' : '#475569'};line-height:1.3;">${ach.desc}</div>
+            ${isUnlocked ? `<div style="font-size:9px;letter-spacing:1px;color:${ach.color};font-weight:700;margin-top:2px;">✔ UNLOCKED</div>` : ''}
+        </div>`;
+    }).join('');
+}
+
 function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
 }
@@ -1656,6 +1984,9 @@ function loadGameState() {
         // SAFETY CATCH: Ensures older save files get the new features without crashing!
         if (!systemState.events) systemState.events = [];
         if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
+        if (!systemState.dailyBonus) systemState.dailyBonus = null;
+        if (systemState.dailyBonusClaimed === undefined) systemState.dailyBonusClaimed = false;
+        if (!systemState.achievements) systemState.achievements = [];
     }
 }
 
@@ -1771,6 +2102,12 @@ function checkDailyReset() {
     const lastLogin = localStorage.getItem('lastLoginDate');
 
     // If the last login isn't today, a new day has started!
+    if (!systemState.dailyBonus || systemState.dailyBonus.date !== today) {
+        systemState.dailyBonus = { date: today };
+        saveGameState();
+    }
+
+    // If the last login isn't today, a new day has started!
     if (lastLogin !== today) {
         
         if (lastLogin) {
@@ -1795,7 +2132,10 @@ function checkDailyReset() {
         }
 
         if (window.showPenaltySequence) {
-            document.getElementById('sl-streak-lost-modal').style.display = 'flex';
+            queuePopup('streakLost', (done) => {
+                window._currentPopupDone = done;
+                document.getElementById('sl-streak-lost-modal').style.display = 'flex';
+            });
         }
 
         // RESET ONLY DAILY QUESTS & TODAY'S XP
@@ -1819,7 +2159,9 @@ function checkDailyReset() {
         }
 
         systemState.todayXp = 0;
-        systemState.streakIncrementedToday = false; // Reset the daily streak tracker
+        systemState.streakIncrementedToday = false;
+        systemState.dailyBonusClaimed = false;
+        systemState.dailyBonus = { date: today };
 
         // Save the new "last login" date to the backpack
         localStorage.setItem('lastLoginDate', today);
@@ -1940,6 +2282,7 @@ function proceedStreakUp() {
     closeSLModal('sl-streak-up-modal', () => {
         levelUpSound.currentTime = 0;
         levelUpSound.play().catch(e => console.log("Audio blocked"));
+        if (window._currentPopupDone) { window._currentPopupDone(); window._currentPopupDone = null; }
     });
 }
 
@@ -1947,15 +2290,19 @@ function proceedStreakLost() {
     closeSLModal('sl-streak-lost-modal', () => {
         levelUpSound.currentTime = 0;
         levelUpSound.play().catch(e => console.log("Audio blocked"));
-        setTimeout(() => {
+        if (window._currentPopupDone) { window._currentPopupDone(); window._currentPopupDone = null; }
+        // Penalty is always the direct follow-up to streak lost — inject it next at top priority
+        queuePopup('penalty', (done) => {
+            window._currentPopupDone = done;
             document.getElementById('sl-penalty-modal').style.display = 'flex';
-        }, 300);
+        });
     });
 }
 
 function proceedPenalty() {
     document.getElementById('sl-penalty-modal').style.display = 'none';
-    
+    if (window._currentPopupDone) { window._currentPopupDone(); window._currentPopupDone = null; }
+
     // Play sound for acceptance
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
@@ -1972,4 +2319,31 @@ function proceedPenalty() {
     // Immediately force the UI to update your Level/Rank on the screen to reflect the loss
     updateStats();
     saveGameState();
+}
+
+function openAchievementsSheet() {
+    // Sync count label
+    const countEl = document.getElementById('ach-count-label');
+    const sheetCount = document.getElementById('ach-sheet-count');
+    if (countEl && sheetCount) sheetCount.textContent = countEl.textContent;
+
+    const overlay = document.getElementById('achievements-sheet-overlay');
+    const sheet = document.getElementById('achievements-sheet');
+    overlay.style.display = 'block';
+    // Trigger animation on next frame
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+            sheet.style.transform = 'translateY(0)';
+        });
+    });
+    // Re-render achievements into the sheet grid (the grid is now inside the sheet)
+    if (typeof renderAchievements === 'function') renderAchievements();
+}
+
+function closeAchievementsSheet(e) {
+    if (e && e.target !== document.getElementById('achievements-sheet-overlay')) return;
+    const overlay = document.getElementById('achievements-sheet-overlay');
+    const sheet = document.getElementById('achievements-sheet');
+    sheet.style.transform = 'translateY(100%)';
+    setTimeout(() => { overlay.style.display = 'none'; }, 350);
 }
