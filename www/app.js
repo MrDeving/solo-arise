@@ -618,11 +618,7 @@ function renderQuests() {
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
             
-            <!-- Rewards & Colored Difficulty -->
-            <div class="quest-rewards">
-                <div class="quest-xp">+${quest.xp} XP</div>
-                <div style="color: ${diffColor}; font-size: 10px; font-weight: 800; margin-top: 4px;">${diffLabel}</div>
-            </div>
+            <!-- Rewards removed to save space -->
         `;
         
         wrapperEl.appendChild(deleteBg);
@@ -2007,8 +2003,8 @@ function renderAchievements() {
         return `
         <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98))` : 'rgba(15,23,42,0.85)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.15)'};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;${isUnlocked ? `box-shadow:0 0 12px ${ach.color}33;` : 'filter:grayscale(1);opacity:0.7;'}">
             <div style="font-size:22px;">${ach.icon}</div>
-            <div style="font-size:12px;font-weight:800;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.2;">${ach.label}</div>
-            <div style="font-size:10px;color:${isUnlocked ? '#94a3b8' : '#475569'};line-height:1.3;">${ach.desc}</div>
+            <div style="font-size:12px;font-weight:800;color:${isUnlocked ? ach.color : '#94a3b8'};line-height:1.2;">${ach.label}</div>
+            <div style="font-size:10px;color:${isUnlocked ? '#cbd5e1' : '#94a3b8'};line-height:1.3;">${ach.desc}</div>
             ${isUnlocked ? `<div style="font-size:9px;letter-spacing:1px;color:${ach.color};font-weight:700;margin-top:2px;">✔ UNLOCKED</div>` : ''}
         </div>`;
     }).join('');
@@ -2018,16 +2014,28 @@ function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
 }
 
+// Universal Data Patcher (Ensures old saves NEVER break new versions)
+function sanitizeSystemState(loadedState) {
+    if (!loadedState) return loadedState;
+    
+    // 1. Define the absolute baseline for a new account (Including Achievements!)
+    const defaults = {
+        level: 0, totalXp: 0, todayXp: 0, streak: 0,
+        quests: [], streakIncrementedToday: false,
+        lastCompletedDate: null, weeklyHistory: [],
+        events: [], dailyBonus: null, dailyBonusClaimed: false,
+        achievements: []
+    };
+
+    // 2. Merge them. The loaded save will overwrite the defaults, 
+    // but any missing fields will safely fall back to the defaults!
+    return Object.assign({}, defaults, loadedState);
+}
+
 function loadGameState() {
     const savedState = localStorage.getItem('systemState');
     if (savedState) {
-        systemState = JSON.parse(savedState);
-        // SAFETY CATCH: Ensures older save files get the new features without crashing!
-        if (!systemState.events) systemState.events = [];
-        if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
-        if (!systemState.dailyBonus) systemState.dailyBonus = null;
-        if (systemState.dailyBonusClaimed === undefined) systemState.dailyBonusClaimed = false;
-        if (!systemState.achievements) systemState.achievements = [];
+        systemState = sanitizeSystemState(JSON.parse(savedState));
     }
 }
 
@@ -2065,7 +2073,7 @@ function importData(event) {
             // ---> NEW: Create a hidden "Quick Load" backup of this exact file in memory
             localStorage.setItem('quickLoadBackup', e.target.result);
 
-            if (loadedData.system) systemState = loadedData.system;
+            if (loadedData.system) systemState = sanitizeSystemState(loadedData.system);
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
@@ -2075,6 +2083,8 @@ function importData(event) {
             renderQuests();
             updateStats();
             applySavedDataToUI(); 
+            renderEthCalendar();
+            renderEventList();
             
             // NEW: Automatically switch them out of "Setup Mode" and into the Dashboard
             toggleProfileMode('dashboard');
@@ -2102,7 +2112,7 @@ function reloadSaveFile() {
             const loadedData = JSON.parse(backupData);
             
             // Re-apply all data from the backup
-            if (loadedData.system) systemState = loadedData.system;
+            if (loadedData.system) systemState = sanitizeSystemState(loadedData.system);
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
