@@ -58,15 +58,11 @@ jobs:
           
       - name: Decode Keystore
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/my-release-key.jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
 
       - name: Build APK
         working-directory: ./android
-        run: ./gradlew assembleRelease
-          -Pandroid.injected.signing.store.file=app/my-release-key.jks
-          -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }}
-          -Pandroid.injected.signing.key.alias=my-key-alias
-          -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ github.workspace }}/my-release-key.jks -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} -Pandroid.injected.signing.key.alias=my-key-alias -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
         
       - name: Upload APK Artifact 
         uses: actions/upload-artifact@v4 
