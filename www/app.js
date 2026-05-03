@@ -120,7 +120,19 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
 
 // ==========================================
 // We define how much XP it takes to gain 1 Level. (You can change this later!)
-const XP_PER_LEVEL = 500;
+const XP_PER_LEVEL = 500; // Legacy fallback, do not remove
+const RANK_XP = [300, 500, 800, 1200, 1800, 2500]; // XP per level inside each rank (E,D,C,B,A,S)
+
+function getXpForLevel(level) {
+    const rankIdx = Math.min(Math.floor(level / 10), 5);
+    return RANK_XP[rankIdx];
+}
+
+function getTotalXpForLevel(level) {
+    let total = 0;
+    for (let i = 0; i < level; i++) total += getXpForLevel(i);
+    return total;
+}
 
 let triggeredReminders = new Set(); // Remembers which notifications have popped up so they don't spam
 
@@ -280,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // This helper checks if anything is open and closes it. Returns true if something was closed.
     const handlePhoneBackButton = () => {
         const modals = [
-            { id: 'achievements-sheet-overlay', close: () => closeAchievementsSheet() },
+            { id: 'achievements-sheet-overlay', close: () => { const s=document.getElementById('achievements-sheet'); if(s) s.style.transform='translateY(100%)'; setTimeout(()=>{ document.getElementById('achievements-sheet-overlay').style.display='none'; },350); } },
             { id: 'add-quest-modal',           close: () => closeQuestModal() },
             { id: 'filter-modal',              close: () => closeFilterModal() },
             { id: 'confirm-delete-modal',      close: () => cancelDeleteQuest() },
@@ -713,6 +725,7 @@ function toggleQuest(id) {
             systemState.totalXp += bonusXp;
             systemState.todayXp += bonusXp;
             saveGameState();
+            updateStats();
             checkAchievements();
             queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
         }
@@ -822,7 +835,9 @@ function updateStats() {
     
     // 1. Calculate Level based on Total XP
     const previousLevel = systemState.level;
-    systemState.level = Math.floor(systemState.totalXp / XP_PER_LEVEL);
+    let lvl = 0;
+    while (getTotalXpForLevel(lvl + 1) <= systemState.totalXp) lvl++;
+    systemState.level = lvl;
     
     if (systemState.level > previousLevel) {
         const prevRankIdx = Math.min(Math.floor(previousLevel / 10), 5);
@@ -862,14 +877,18 @@ function updateStats() {
     const nextRank = currentRankIndex < 5 ? ranks[currentRankIndex + 1] : ranks[5];
 
     // 3. Calculate Progress Metrics for BOTH Bars
-    const xpIntoCurrentLevel = systemState.totalXp % XP_PER_LEVEL;
-    const expNeeded = XP_PER_LEVEL;
+    const xpAtCurrentLevel = getTotalXpForLevel(systemState.level);
+    const xpAtNextLevel = getTotalXpForLevel(systemState.level + 1);
+    const expNeeded = xpAtNextLevel - xpAtCurrentLevel;
+    const xpIntoCurrentLevel = systemState.totalXp - xpAtCurrentLevel;
     const expLeft = expNeeded - xpIntoCurrentLevel;
     const levelProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((xpIntoCurrentLevel / expNeeded) * 100);
 
     let levelsIntoRank = systemState.level % 10;
-    if (currentRankIndex >= 5) levelsIntoRank = 10; // Maxed out
-    const rankProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((((levelsIntoRank * XP_PER_LEVEL) + xpIntoCurrentLevel) / (10 * XP_PER_LEVEL)) * 100);
+    if (currentRankIndex >= 5) levelsIntoRank = 10;
+    const xpAtRankStart = getTotalXpForLevel(currentRankIndex * 10);
+    const xpAtRankEnd = getTotalXpForLevel(Math.min((currentRankIndex + 1) * 10, 60));
+    const rankProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor(((systemState.totalXp - xpAtRankStart) / (xpAtRankEnd - xpAtRankStart)) * 100);
     const levelsToNext = currentRankIndex >= 5 ? 0 : 10 - levelsIntoRank;
 
 // --- APPLY TO UI ---
@@ -1803,11 +1822,8 @@ function saveQuest() {
         return;
     }
     
-    let xpPercent = 0.04; 
-    if (currentDifficulty === 'trivial') xpPercent = 0.01;
-    if (currentDifficulty === 'medium') xpPercent = 0.07;
-    if (currentDifficulty === 'hard') xpPercent = 0.10;
-    const xpReward = Math.max(1, Math.round(XP_PER_LEVEL * xpPercent));
+    const xpMap = { trivial: 5, easy: 15, medium: 25, hard: 40 };
+    const xpReward = xpMap[currentDifficulty] || 15;
     
     if (editingQuestId !== null) {
         const quest = systemState.quests.find(q => q.id === editingQuestId);
@@ -2001,11 +2017,11 @@ function renderAchievements() {
     grid.innerHTML = ACHIEVEMENTS.map(ach => {
         const isUnlocked = unlocked.includes(ach.id);
         return `
-        <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98))` : 'rgba(15,23,42,0.85)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.15)'};border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:6px;${isUnlocked ? `box-shadow:0 0 12px ${ach.color}33;` : 'filter:grayscale(1);opacity:0.7;'}">
-            <div style="font-size:22px;">${ach.icon}</div>
-            <div style="font-size:12px;font-weight:800;color:${isUnlocked ? ach.color : '#94a3b8'};line-height:1.2;">${ach.label}</div>
-            <div style="font-size:10px;color:${isUnlocked ? '#cbd5e1' : '#94a3b8'};line-height:1.3;">${ach.desc}</div>
-            ${isUnlocked ? `<div style="font-size:9px;letter-spacing:1px;color:${ach.color};font-weight:700;margin-top:2px;">✔ UNLOCKED</div>` : ''}
+        <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98))` : 'rgba(20,28,48,0.95)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.25)'};border-radius:14px;padding:16px 14px;display:flex;flex-direction:column;gap:8px;${isUnlocked ? `box-shadow:0 0 14px ${ach.color}33;` : ''}">
+            <div style="font-size:28px;line-height:1;${isUnlocked ? '' : 'filter:grayscale(1);opacity:0.4;'}">${ach.icon}</div>
+            <div style="font-size:13px;font-weight:800;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.3;">${ach.label}</div>
+            <div style="font-size:11px;color:${isUnlocked ? '#cbd5e1' : '#64748b'};line-height:1.5;">${ach.desc}</div>
+            ${isUnlocked ? `<div style="font-size:10px;letter-spacing:1px;color:${ach.color};font-weight:700;margin-top:2px;">✔ UNLOCKED</div>` : ''}
         </div>`;
     }).join('');
 }
@@ -2042,6 +2058,7 @@ function loadGameState() {
 // 7. Export Data (Direct Native File System Save)
 async function exportData() {
     const masterSave = {
+        _v: 1,
         system: systemState,
         hunterName: localStorage.getItem('hunterName') || '',
         hunterAvatar: localStorage.getItem('hunterAvatar') || '',
@@ -2073,6 +2090,7 @@ function importData(event) {
             // ---> NEW: Create a hidden "Quick Load" backup of this exact file in memory
             localStorage.setItem('quickLoadBackup', e.target.result);
 
+            if (!loadedData.system || !loadedData.system.quests) throw new Error("Missing system data");
             if (loadedData.system) systemState = sanitizeSystemState(loadedData.system);
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
@@ -2155,6 +2173,7 @@ function checkDailyReset() {
     // If the last login isn't today, a new day has started!
     if (!systemState.dailyBonus || systemState.dailyBonus.date !== today) {
         systemState.dailyBonus = { date: today };
+        systemState.dailyBonusClaimed = false;
         saveGameState();
     }
 
