@@ -745,8 +745,8 @@ function showDailyBonusModal(xp, done) {
             <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
             <div class="sl-header-container">
                 <div class="sl-icon">
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-                        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 2l2.5 6.5H21l-5.5 4 2 6.5L12 15l-5.5 4 2-6.5L3 8.5h6.5z"/>
                     </svg>
                 </div>
                 <div class="sl-box-header">ALL QUESTS COMPLETE</div>
@@ -972,15 +972,19 @@ function updateStats() {
     const bonusEmojiEl = document.getElementById('bonus-emoji');
     if (bonusBanner) {
         if (systemState.dailyBonusClaimed) {
-            if (bonusStatLabel) { bonusStatLabel.textContent = '+150 XP Bonus'; bonusStatLabel.style.color = '#fbbf24'; }
-            if (bonusEmojiEl) bonusEmojiEl.textContent = '🎁';
+            if (bonusStatLabel) { bonusStatLabel.textContent = '+150 XP Claimed'; bonusStatLabel.style.color = '#34d399'; }
+            if (bonusEmojiEl) bonusEmojiEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
             bonusBanner.style.borderColor = 'rgba(52,211,153,0.4)';
-            bonusBanner.querySelector('div:last-child').innerHTML = '<span style="color:#34d399;font-weight:800;">✔ CLAIMED</span>';
+            bonusBanner.style.background = 'rgba(52,211,153,0.06)';
+            const hint = document.getElementById('bonus-claim-hint');
+            if (hint) { hint.innerHTML = '<span style="color:#34d399;font-weight:800;font-size:13px;letter-spacing:1px;">CLAIMED</span>'; }
         } else {
             if (bonusStatLabel) { bonusStatLabel.textContent = '???'; bonusStatLabel.style.color = 'var(--text-muted)'; }
-            if (bonusEmojiEl) bonusEmojiEl.textContent = '🔒';
+            if (bonusEmojiEl) bonusEmojiEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
             bonusBanner.style.borderColor = 'rgba(56,189,248,0.2)';
-            bonusBanner.querySelector('div:last-child').innerHTML = '<span style="font-size:11px;color:var(--text-muted);">Complete all<br>dailies to claim</span>';
+            bonusBanner.style.background = 'rgba(15,23,42,0.6)';
+            const hint = document.getElementById('bonus-claim-hint');
+            if (hint) { hint.innerHTML = '<span style="font-size:11px;color:var(--text-muted);">Complete all<br>dailies to claim</span>'; }
         }
     }
 
@@ -1922,32 +1926,57 @@ function closeWarningModal() {
 // --- ACHIEVEMENTS ENGINE ---
 // ==========================================
 
+const ACH_ICONS = {
+    first_blood:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2.5c0 1.5-1.5 5-1.5 5h-2S9.5 4 9.5 2.5a2.5 2.5 0 0 1 5 0z"/><path d="M12 7.5V21"/><path d="M9 21h6"/><path d="M9 17h6"/></svg>`,
+    iron_will:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>`,
+    disciplined:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    unbroken:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12l4 6-10 13L2 9z"/><path d="M11 3 8 9l4 13 4-13-3-6"/><path d="M2 9h20"/></svg>`,
+    veteran:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+    system_master: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>`,
+    unstoppable:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>`,
+    ascendant:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5M5 12l7-7 7 7"/></svg>`,
+    rising_star:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 9H2l6 4.5-2.5 7.5L12 17l6.5 4-2.5-7.5L22 9h-7z"/></svg>`,
+    overachiever:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>`,
+    shadow_monarch:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7z"/></svg>`,
+    national_level:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>`,
+    monarch:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5L12 15.5l-4.9 2.7.9-5.5L4 8.8l5.5-.8z"/><path d="M12 3v12.5"/></svg>`,
+    grinder:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>`,
+    centurion:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>`,
+    adept:         `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="22" y1="12" x2="18" y2="12"/><line x1="6" y1="12" x2="2" y2="12"/><line x1="12" y1="6" x2="12" y2="2"/><line x1="12" y1="22" x2="12" y2="18"/><circle cx="12" cy="12" r="4"/></svg>`,
+    legendary:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>`,
+    mythic:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M10 14l-7 7"/><path d="M21 14v6h-6M3 10V4h6M3 14l7-7M14 10l7 7"/></svg>`,
+    quest_lord:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>`,
+    strategist:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`,
+    bonus_hunter:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`,
+    perfectionist: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+};
+
 const ACHIEVEMENTS = [
-    { id: 'first_blood',   label: 'First Blood',      desc: 'Complete your first quest',            icon: '⚔️',  color: '#f87171', check: s => s.quests.some(q => q.completed) },
-    { id: 'iron_will',     label: 'Iron Will',         desc: 'Reach a 7-day streak',                 icon: '🔥',  color: '#fb923c', check: s => s.streak >= 7 },
-    { id: 'disciplined',   label: 'Disciplined',       desc: 'Reach a 14-day streak',                icon: '⏳',  color: '#10b981', check: s => s.streak >= 14 },
-    { id: 'unbroken',      label: 'Unbroken',          desc: 'Reach a 30-day streak',                icon: '💎',  color: '#38bdf8', check: s => s.streak >= 30 },
-    { id: 'veteran',       label: 'Veteran Hunter',    desc: 'Reach a 100-day streak',               icon: '🌟',  color: '#fde68a', check: s => s.streak >= 100 },
-    { id: 'system_master', label: 'System Master',     desc: 'Reach a 180-day streak',               icon: '🌌',  color: '#c084fc', check: s => s.streak >= 180 },
-    { id: 'unstoppable',   label: 'Unstoppable',       desc: 'Reach a 365-day streak',               icon: '♾️',  color: '#f43f5e', check: s => s.streak >= 365 },
+    { id: 'first_blood',   label: 'First Blood',      desc: 'Complete your first quest',            color: '#f87171', check: s => s.quests.some(q => q.completed) },
+    { id: 'iron_will',     label: 'Iron Will',         desc: 'Reach a 7-day streak',                 color: '#fb923c', check: s => s.streak >= 7 },
+    { id: 'disciplined',   label: 'Disciplined',       desc: 'Reach a 14-day streak',                color: '#10b981', check: s => s.streak >= 14 },
+    { id: 'unbroken',      label: 'Unbroken',          desc: 'Reach a 30-day streak',                color: '#38bdf8', check: s => s.streak >= 30 },
+    { id: 'veteran',       label: 'Veteran Hunter',    desc: 'Reach a 100-day streak',               color: '#fde68a', check: s => s.streak >= 100 },
+    { id: 'system_master', label: 'System Master',     desc: 'Reach a 180-day streak',               color: '#c084fc', check: s => s.streak >= 180 },
+    { id: 'unstoppable',   label: 'Unstoppable',       desc: 'Reach a 365-day streak',               color: '#f43f5e', check: s => s.streak >= 365 },
 
-    { id: 'ascendant',     label: 'Ascendant',         desc: 'Reach Level 10',                       icon: '⬆️',  color: '#818cf8', check: s => s.level >= 10 },
-    { id: 'rising_star',   label: 'Rising Star',       desc: 'Reach Level 15',                       icon: '🌠',  color: '#f472b6', check: s => s.level >= 15 },
-    { id: 'overachiever',  label: 'Overachiever',      desc: 'Reach Level 25',                       icon: '🚀',  color: '#fb923c', check: s => s.level >= 25 },
-    { id: 'shadow_monarch',label: 'Shadow Monarch',    desc: 'Reach S-Rank (Level 50)',              icon: '👑',  color: '#fbbf24', check: s => s.level >= 50 },
-    { id: 'national_level',label: 'National Level',    desc: 'Reach Level 75',                       icon: '🌎',  color: '#3b82f6', check: s => s.level >= 75 },
-    { id: 'monarch',       label: 'Absolute Monarch',  desc: 'Reach Level 100',                      icon: '✨',  color: '#a855f7', check: s => s.level >= 100 },
+    { id: 'ascendant',     label: 'Ascendant',         desc: 'Reach Level 10',                       color: '#818cf8', check: s => s.level >= 10 },
+    { id: 'rising_star',   label: 'Rising Star',       desc: 'Reach Level 15',                       color: '#f472b6', check: s => s.level >= 15 },
+    { id: 'overachiever',  label: 'Overachiever',      desc: 'Reach Level 25',                       color: '#fb923c', check: s => s.level >= 25 },
+    { id: 'shadow_monarch',label: 'Shadow Monarch',    desc: 'Reach S-Rank (Level 50)',              color: '#fbbf24', check: s => s.level >= 50 },
+    { id: 'national_level',label: 'National Level',    desc: 'Reach Level 75',                       color: '#3b82f6', check: s => s.level >= 75 },
+    { id: 'monarch',       label: 'Absolute Monarch',  desc: 'Reach Level 100',                      color: '#a855f7', check: s => s.level >= 100 },
 
-    { id: 'grinder',       label: 'The Grinder',       desc: 'Earn 5,000 total XP',                  icon: '💪',  color: '#34d399', check: s => s.totalXp >= 5000 },
-    { id: 'centurion',     label: 'Centurion',         desc: 'Earn 10,000 total XP',                 icon: '🏆',  color: '#fbbf24', check: s => s.totalXp >= 10000 },
-    { id: 'adept',         label: 'Adept',             desc: 'Earn 25,000 total XP',                 icon: '🎯',  color: '#2dd4bf', check: s => s.totalXp >= 25000 },
-    { id: 'legendary',     label: 'Legendary',         desc: 'Earn 100,000 total XP',                icon: '🔥',  color: '#ef4444', check: s => s.totalXp >= 100000 },
-    { id: 'mythic',        label: 'Mythic',            desc: 'Earn 500,000 total XP',                icon: '⚡',  color: '#ec4899', check: s => s.totalXp >= 500000 },
+    { id: 'grinder',       label: 'The Grinder',       desc: 'Earn 5,000 total XP',                  color: '#34d399', check: s => s.totalXp >= 5000 },
+    { id: 'centurion',     label: 'Centurion',         desc: 'Earn 10,000 total XP',                 color: '#fbbf24', check: s => s.totalXp >= 10000 },
+    { id: 'adept',         label: 'Adept',             desc: 'Earn 25,000 total XP',                 color: '#2dd4bf', check: s => s.totalXp >= 25000 },
+    { id: 'legendary',     label: 'Legendary',         desc: 'Earn 100,000 total XP',                color: '#ef4444', check: s => s.totalXp >= 100000 },
+    { id: 'mythic',        label: 'Mythic',            desc: 'Earn 500,000 total XP',                color: '#ec4899', check: s => s.totalXp >= 500000 },
 
-    { id: 'quest_lord',    label: 'Quest Lord',        desc: 'Have 10 active/created quests',        icon: '📜',  color: '#a78bfa', check: s => s.quests.length >= 10 },
-    { id: 'strategist',    label: 'Strategist',        desc: 'Have 25 active/created quests',        icon: '🗺️',  color: '#6366f1', check: s => s.quests.length >= 25 },
-    { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           icon: '🎁',  color: '#f472b6', check: s => s.dailyBonusClaimed },
-    { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', icon: '💎',  color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
+    { id: 'quest_lord',    label: 'Quest Lord',        desc: 'Have 10 active/created quests',        color: '#a78bfa', check: s => s.quests.length >= 10 },
+    { id: 'strategist',    label: 'Strategist',        desc: 'Have 25 active/created quests',        color: '#6366f1', check: s => s.quests.length >= 25 },
+    { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           color: '#f472b6', check: s => s.dailyBonusClaimed },
+    { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
 ];
 
 // ==========================================
@@ -1986,7 +2015,7 @@ function showAchievementUnlockPopup(ach, done) {
                 <div class="sl-box-header" style="letter-spacing:3px;font-size:13px;">NEW ACHIEVEMENT</div>
             </div>
             <div class="ach-popup-icon-ring">
-                <div class="ach-popup-icon-inner">${ach.icon}</div>
+                <div class="ach-popup-icon-inner" style="color:${ach.color};">${ACH_ICONS[ach.id] ? ACH_ICONS[ach.id].replace('<svg ', '<svg width="36" height="36" ') : ''}</div>
             </div>
             <div class="ach-popup-label">${ach.label}</div>
             <div class="ach-popup-desc">${ach.desc}</div>
@@ -2017,11 +2046,11 @@ function renderAchievements() {
     grid.innerHTML = ACHIEVEMENTS.map(ach => {
         const isUnlocked = unlocked.includes(ach.id);
         return `
-        <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.98))` : 'rgba(20,28,48,0.95)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.25)'};border-radius:14px;padding:16px 14px;display:flex;flex-direction:column;gap:8px;${isUnlocked ? `box-shadow:0 0 14px ${ach.color}33;` : ''}">
-            <div style="font-size:28px;line-height:1;${isUnlocked ? '' : 'filter:grayscale(1);opacity:0.4;'}">${ach.icon}</div>
-            <div style="font-size:13px;font-weight:800;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.3;">${ach.label}</div>
-            <div style="font-size:11px;color:${isUnlocked ? '#cbd5e1' : '#64748b'};line-height:1.5;">${ach.desc}</div>
-            ${isUnlocked ? `<div style="font-size:10px;letter-spacing:1px;color:${ach.color};font-weight:700;margin-top:2px;">✔ UNLOCKED</div>` : ''}
+        <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.9))` : 'rgba(22,30,52,0.88)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.08)'};border-radius:16px;padding:18px 14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;${isUnlocked ? `box-shadow:0 0 18px ${ach.color}44,inset 0 0 20px ${ach.color}0a;` : 'box-shadow:0 4px 12px rgba(0,0,0,0.4);'}">
+            <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.1)'};background:${isUnlocked ? `${ach.color}18` : 'rgba(15,23,42,0.6)'};box-shadow:${isUnlocked ? `0 0 16px ${ach.color}44` : 'none'};flex-shrink:0;">${isUnlocked ? `<div style="width:30px;height:30px;color:${ach.color};">${ACH_ICONS[ach.id] || ''}</div>` : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#707070" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`}</div>
+            <div style="font-size:16px;font-weight:900;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.25;letter-spacing:0.3px;">${isUnlocked ? ach.label : '<span style="color:#7a8a9a;">???</span>'}</div>
+            <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : 'Keep playing to unlock'}</div>
+            ${isUnlocked ? `<div style="font-size:10px;letter-spacing:2px;color:${ach.color};font-weight:800;background:${ach.color}18;border:1px solid ${ach.color}44;padding:3px 10px;border-radius:20px;margin-top:2px;">✔ UNLOCKED</div>` : `<div style="font-size:10px;letter-spacing:2px;color:#7a8a9a;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(120,138,154,0.25);">LOCKED</div>`}
         </div>`;
     }).join('');
 }
