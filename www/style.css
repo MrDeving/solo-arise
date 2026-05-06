@@ -105,7 +105,7 @@ body {
 
 /* Push content down ONLY on tabs that share the static header */
 #view-home, #view-quests {
-    padding-top: 226px !important; 
+    padding-top: 200px !important; 
 }
 
 /* Adjust the distance from the top of the screen for the Calendar */
@@ -233,6 +233,20 @@ body {
     letter-spacing: 1px;
     margin-bottom: 6px;
     text-shadow: 0 0 10px rgba(255,255,255,0.3);
+}
+.flame-icon {
+    flex-shrink: 0;
+    fill: var(--neon-gold);
+    color: var(--neon-gold);
+}
+@keyframes iconFlameBob {
+    0%,100% { transform: scaleY(1)    translateY(0);    }
+    40%     { transform: scaleY(1.12) translateY(-1px); }
+    70%     { transform: scaleY(0.94) translateY(1px);  }
+}
+.flame-icon.burning {
+    transform-origin: center bottom;
+    animation: iconFlameBob 1s ease-in-out infinite;
 }
 .streak-badge {
     display: inline-flex;

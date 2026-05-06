@@ -159,7 +159,9 @@ let currentActiveTab = 'home'; // Tracks which tab we are currently looking at
 
 // Initialize Audio (Ensure saved.mp3 is in the www folder)
 const levelUpSound = new Audio('saved.mp3');
+levelUpSound.volume = 1.0;
 const popupSound = new Audio('solo_leveling_system.mp3');
+popupSound.volume = 1.0;
 
 // ====== UI SOUND ENGINE (no extra files needed) ======
 const _sfxCtx = (() => {
@@ -427,13 +429,19 @@ function initDates() {
 const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
     const dayStr = now.toLocaleDateString('en-US', optionsDay).toUpperCase();
     
-    document.getElementById('current-date').textContent = dateStr;
-    document.getElementById('current-day').textContent = dayStr;
+    const hDate = document.getElementById('current-date');
+    const hDay = document.getElementById('current-day');
+    if (hDate) hDate.textContent = dateStr;
+    if (hDay) hDay.textContent = dayStr;
     
     const qDate = document.getElementById('quests-current-date');
     const qDay = document.getElementById('quests-current-day');
     if (qDate) qDate.textContent = dateStr;
     if (qDay) qDay.textContent = dayStr;
+    const pDate = document.getElementById('profile-current-date');
+    const pDay = document.getElementById('profile-current-day');
+    if (pDate) pDate.textContent = dateStr;
+    if (pDay) pDay.textContent = dayStr;
     
     // Simple Timer Mock (Counts down to midnight)
     setInterval(() => {
@@ -443,10 +451,13 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         const s = 59 - d.getSeconds();
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
         
-        document.getElementById('reset-timer').textContent = timeStr;
+        const hTimer = document.getElementById('reset-timer');
+        if (hTimer) hTimer.textContent = timeStr;
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
+        const pTimer = document.getElementById('profile-reset-timer');
+        if (pTimer) pTimer.textContent = timeStr;
         // --- SYSTEM STREAK WARNING ---
         // Triggers at exactly 18:00 (6 PM) if you have an active streak but haven't done anything today.
         const todayStr = d.toDateString();
@@ -550,10 +561,10 @@ function renderQuests() {
         // 2. "Due" Filter (Dailies): Hides anything that IS completed.
         if (activeFilter === 'due' && quest.completed) return;
         
-        // 3. "Scheduled" Filter (Main Quests): Hides completed, and hides ones missing a due date.
+        // 3. "Scheduled" Filter (Main Quests): Hides completed, and hides ones missing both a due date AND reminders.
         if (activeFilter === 'scheduled') {
-            if (quest.completed) return; 
-            if (!quest.dueDate) return;  
+            if (quest.completed) return;
+            if (!quest.dueDate && (!quest.reminders || quest.reminders.length === 0)) return;
         }
 
         // 4. "All" Filter (Main Quests): Hides completed quests. 
@@ -952,20 +963,33 @@ function updateStats() {
     const levelFill = document.getElementById('dash-level-fill');
     if(levelFill) levelFill.style.width = `${levelProgressPercent}%`;
 
+    // Shared header level meter
+    const headerFill = document.getElementById('header-level-fill');
+    if(headerFill) headerFill.style.width = `${levelProgressPercent}%`;
+
+    const headerTarget = document.getElementById('header-level-target');
+    if(headerTarget) headerTarget.innerHTML = currentRankIndex >= 5 ? `MAX LEVEL` : `LEVEL ${systemState.level} &rarr; ${systemState.level + 1}`;
+
+    const headerExpLabel = document.getElementById('header-exp-label');
+    if(headerExpLabel) headerExpLabel.textContent = currentRankIndex >= 5 ? `MAX EXP` : `${xpIntoCurrentLevel} / ${expNeeded} EXP`;
+
     // --- STREAK UPDATES ---
     const claimedToday = systemState.streakIncrementedToday === true;
-
+    const hasStreak = systemState.streak > 0;
     // Home header streak badge
     const streakBadgeHome = document.querySelector('#shared-header .streak-badge');
     if (streakBadgeHome) {
         streakBadgeHome.style.background = claimedToday
             ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
             : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
-        streakBadgeHome.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
-        streakBadgeHome.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        streakBadgeHome.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(63,68,79,0.6)';
+        streakBadgeHome.style.color = claimedToday ? 'var(--neon-gold)' : '#3f444f';
         streakBadgeHome.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
         const svgStroke = streakBadgeHome.querySelector('svg');
-        if (svgStroke) svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        if (svgStroke) {
+            svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#3f444f';
+            svgStroke.classList.toggle('burning', claimedToday);
+        }
     }
     const bonusBanner = document.getElementById('daily-bonus-banner');
     const bonusStatLabel = document.getElementById('bonus-stat-label');
@@ -997,12 +1021,15 @@ function updateStats() {
     if (streakBadgeDash) {
         streakBadgeDash.style.background = claimedToday
             ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
-            : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
-        streakBadgeDash.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
-        streakBadgeDash.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+            : 'linear-gradient(90deg, rgba(63,68,79,0.15), rgba(63,68,79,0.05))';
+        streakBadgeDash.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(63,68,79,0.6)';
+        streakBadgeDash.style.color = claimedToday ? 'var(--neon-gold)' : '#3f444f';
         streakBadgeDash.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
         const svgFill = streakBadgeDash.querySelector('svg');
-        if (svgFill) svgFill.style.fill = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        if (svgFill) {
+            svgFill.style.fill = claimedToday ? 'var(--neon-gold)' : '#3f444f';
+            svgFill.classList.toggle('burning', claimedToday);
+        }
     }
     const dashStreak = document.getElementById('dash-streak');
     if (dashStreak) dashStreak.textContent = `${systemState.streak} Days`;
@@ -1039,6 +1066,7 @@ function switchTab(tabId) {
             sharedHeader.classList.add('hidden');
         }
     }
+    
 
     const targetIndex = tabsOrder.indexOf(tabId);
 
@@ -1429,9 +1457,10 @@ async function requestNotificationPermission() {
                 id: 'system_alerts',
                 name: 'System Alerts',
                 description: 'Time-sensitive Quest Notifications',
-                importance: 5, 
-                visibility: 1, 
-                vibration: true
+                importance: 5,
+                visibility: 1,
+                vibration: true,
+                sound: null
             });
 
             await Capacitor.Plugins.LocalNotifications.registerActionTypes({
@@ -2049,7 +2078,7 @@ function renderAchievements() {
         <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.9))` : 'rgba(22,30,52,0.88)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.08)'};border-radius:16px;padding:18px 14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;${isUnlocked ? `box-shadow:0 0 18px ${ach.color}44,inset 0 0 20px ${ach.color}0a;` : 'box-shadow:0 4px 12px rgba(0,0,0,0.4);'}">
             <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.1)'};background:${isUnlocked ? `${ach.color}18` : 'rgba(15,23,42,0.6)'};box-shadow:${isUnlocked ? `0 0 16px ${ach.color}44` : 'none'};flex-shrink:0;">${isUnlocked ? `<div style="width:30px;height:30px;color:${ach.color};">${ACH_ICONS[ach.id] || ''}</div>` : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#707070" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`}</div>
             <div style="font-size:16px;font-weight:900;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.25;letter-spacing:0.3px;">${isUnlocked ? ach.label : '<span style="color:#7a8a9a;">???</span>'}</div>
-            <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : 'Keep playing to unlock'}</div>
+            <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : ach.desc}</div>
             ${isUnlocked ? `<div style="font-size:10px;letter-spacing:2px;color:${ach.color};font-weight:800;background:${ach.color}18;border:1px solid ${ach.color}44;padding:3px 10px;border-radius:20px;margin-top:2px;">✔ UNLOCKED</div>` : `<div style="font-size:10px;letter-spacing:2px;color:#7a8a9a;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(120,138,154,0.25);">LOCKED</div>`}
         </div>`;
     }).join('');
