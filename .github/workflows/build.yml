@@ -51,6 +51,11 @@ jobs:
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle 
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle 
           
+      - name: Copy Custom Notification Sounds
+        run: |
+          mkdir -p android/app/src/main/res/raw
+          cp assets/raw/mysound.mp3 android/app/src/main/res/raw/mysound.mp3
+
       - name: Inject Exact Alarm Permissions 
         run: | 
           # Magically injects the notification bypass permissions into the AndroidManifest before building! 
