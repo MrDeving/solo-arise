@@ -435,7 +435,23 @@ button.sci-fi-btn.filter-opt.active {
     margin-right: 12px;
     opacity: 0.4;
 }
-
+.quest-age-slab {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 52px;
+    border-radius: 10px 0 0 10px;
+    pointer-events: none;
+    z-index: 0;
+}
+.quest-checkbox {
+    position: relative;
+    z-index: 1;
+    background: rgba(0, 0, 0, 0.35) !important;
+    border: none !important;
+    border-radius: 50%;
+}
 .quest-checkbox {
     width: 22px;
     height: 22px;
@@ -523,7 +539,23 @@ button.sci-fi-btn.filter-opt.active {
     background: rgba(15, 23, 42, 1) !important; /* Solid background so it pops */
     opacity: 1 !important;
 }
-
+.quest-streak-badge {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #7a8a9a;
+    opacity: 1;
+    align-self: flex-end;
+    padding-bottom: 2px;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+.streak-chevrons {
+    font-size: 9px;
+    color: #5a6a7a;
+    letter-spacing: -1px;
+    margin-right: 2px;
+}
 .quest-details { flex: 1; }
 .quest-title {
     font-size: 16px;
@@ -889,6 +921,7 @@ button.sci-fi-btn.filter-opt.active {
 
 /* --- QUEST EDIT --- */
 .quest-details { 
+    padding-left: 10px;
     flex: 1; 
     cursor: pointer; /* Shows the user they can click it to edit */
 }

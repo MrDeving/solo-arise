@@ -3,6 +3,11 @@
   "appName": "Arise solo",
   "webDir": "www",
   "bundledWebRuntime": false,
+  "plugins": {
+    "LocalNotifications": {
+      "sound": "mysound"
+    }
+  },
   "server": {
     "androidScheme": "https"
   }

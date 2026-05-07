@@ -120,6 +120,7 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
 
 // ==========================================
 // We define how much XP it takes to gain 1 Level. (You can change this later!)
+const DONE_QUEST_LIMIT = 30; // Max completed normal quests stored at once
 const XP_PER_LEVEL = 500; // Legacy fallback, do not remove
 const RANK_XP = [300, 500, 800, 1200, 1800, 2500]; // XP per level inside each rank (E,D,C,B,A,S)
 
@@ -536,7 +537,38 @@ function isQuestActiveOnDate(quest, dateObj) {
     }
     return true;
 }
-
+function getDailyStreakColor(streak) {
+    // 0 streak = yellow, builds to cyan at 14+
+    const t = Math.min((streak || 0) / 14, 1);
+    // Interpolate: yellow (#fbbf24) → green (#34d399) → cyan (#0ea5e9)
+    if (t < 0.5) {
+        const p = t / 0.5;
+        const r = Math.round(251 + (52  - 251) * p);
+        const g = Math.round(191 + (211 - 191) * p);
+        const b = Math.round(36  + (153 - 36)  * p);
+        return `rgb(${r},${g},${b})`;
+    } else {
+        const p = (t - 0.5) / 0.5;
+        const r = Math.round(52  + (14  - 52)  * p);
+        const g = Math.round(211 + (165 - 211) * p);
+        const b = Math.round(153 + (233 - 153) * p);
+        return `rgb(${r},${g},${b})`;
+    }
+}
+    function getQuestAgeColor(quest) {
+    if (!quest.createdAt) return null;
+    const days = Math.floor((Date.now() - quest.createdAt) / 86400000);
+    const colors = [
+        '#0ea5e9',  // Day 0 — electric sky blue
+        '#6366f1',  // Day 1 — vivid indigo
+        '#a855f7',  // Day 2 — neon purple
+        '#ec4899',  // Day 3 — hot pink
+        '#f97316',  // Day 4 — blazing orange
+        '#eab308',  // Day 5 — golden yellow
+        '#ef4444',  // Day 6+ — danger red
+    ];
+    return colors[Math.min(days, 6)];
+}
 function renderQuests() {
     const homeContainer = document.getElementById('quest-container');
     const mainContainer = document.getElementById('main-quest-container');
@@ -631,7 +663,18 @@ function renderQuests() {
         // Text Label
         let diffLabel = quest.difficulty ? quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1) : 'Easy';
 
+        const slabColor = isDaily
+            ? getDailyStreakColor(quest.dailyStreak ?? 0)
+            : (!quest.completed ? getQuestAgeColor(quest) : null);
+        const ageSlab = slabColor ? `<div class="quest-age-slab" style="background:${slabColor};"></div>` : '';
+
+        const streak = (isDaily && (quest.dailyStreak ?? 0) > 0)
+            ? `<div class="quest-streak-badge"><span class="streak-chevrons">&#9658;&#9658;</span> ${quest.dailyStreak}</div>`
+            : '';
+
         questEl.innerHTML = `
+            <!-- Age Color Slab -->
+            ${ageSlab}
             <!-- Checkbox -->
             <div class="quest-checkbox" onclick="toggleQuest(${quest.id})"></div>
             
@@ -640,6 +683,7 @@ function renderQuests() {
                 <div class="quest-title">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
+            ${streak}
             
             <!-- Rewards removed to save space -->
         `;
@@ -675,9 +719,25 @@ function toggleQuest(id) {
         quest.completed = true;
         systemState.todayXp += quest.xp;
         systemState.totalXp += quest.xp;
-        
+
         // --- STREAK LOGIC: The Trigger ---
         const isDaily = quest.type === 'daily' || !quest.type;
+
+        // --- DAILY STREAK LOGIC ---
+        if (isDaily) {
+            const todayStr = new Date().toDateString();
+            const last = quest.lastStreakDate;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toDateString();
+            if (last === yesterdayStr || last === null || last === undefined) {
+                quest.dailyStreak = (quest.dailyStreak ?? 0) + 1;
+            } else if (last !== todayStr) {
+                quest.dailyStreak = 1; // missed a day, reset
+            }
+            quest.lastStreakDate = todayStr;
+        }
+        
         if (isDaily) {
             systemState.lastCompletedDate = new Date().toDateString(); // Register that work was done today
             
@@ -707,6 +767,14 @@ function toggleQuest(id) {
             // Play normal sound for non-dailies
             levelUpSound.currentTime = 0;
             levelUpSound.play().catch(e => console.log("Audio blocked"));
+
+            // --- DONE QUEST CAP: Enforce 30-task limit for completed normal quests ---
+            const doneNormalQuests = systemState.quests.filter(q => q.type === 'normal' && q.completed);
+            if (doneNormalQuests.length > DONE_QUEST_LIMIT) {
+                // Find the oldest completed normal quest (lowest id = oldest)
+                const oldest = doneNormalQuests.reduce((a, b) => a.id < b.id ? a : b);
+                systemState.quests = systemState.quests.filter(q => q.id !== oldest.id);
+            }
         }
     } else {
         // Unchecking the quest
@@ -1453,6 +1521,8 @@ async function requestNotificationPermission() {
 
         // 2. If granted, set up the Native Channels & Listeners
         if (permStatus.display === 'granted') {
+            // Delete first so Android is forced to re-read the sound on every install
+            await Capacitor.Plugins.LocalNotifications.deleteChannel({ id: 'system_alerts' }).catch(() => {});
             await Capacitor.Plugins.LocalNotifications.createChannel({
                 id: 'system_alerts',
                 name: 'System Alerts',
@@ -1460,7 +1530,7 @@ async function requestNotificationPermission() {
                 importance: 5,
                 visibility: 1,
                 vibration: true,
-                sound: null
+                sound: 'mysound' // No .mp3 extension — Android requires this
             });
 
             await Capacitor.Plugins.LocalNotifications.registerActionTypes({
@@ -1886,7 +1956,10 @@ function saveQuest() {
             type: currentQuestType,
             schedule: scheduleObj,
             dueDate: document.getElementById('quest-due-date').value,
-            reminders: tempReminders.filter(r => r !== '')
+            reminders: tempReminders.filter(r => r !== ''),
+            createdAt: Date.now(),
+            dailyStreak: 0,
+            lastStreakDate: null
         });
     }
     
@@ -2269,6 +2342,14 @@ function checkDailyReset() {
         // RESET ONLY DAILY QUESTS & TODAY'S XP
         systemState.quests.forEach(q => {
             if (q.type === 'daily' || !q.type) {
+                // If it was due yesterday and wasn't completed, reset streak
+                if (!q.completed) {
+                    const wasActive = isQuestActiveOnDate(q, new Date(Date.now() - 86400000));
+                    if (wasActive) {
+                        q.dailyStreak = 0;
+                        q.lastStreakDate = null;
+                    }
+                }
                 q.completed = false;
             }
         });
