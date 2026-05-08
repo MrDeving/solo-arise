@@ -201,6 +201,9 @@ jobs:
                   }
               }
               public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
+                  updateWidgetWithLayout(ctx, mgr, widgetId, R.layout.widget_medium);
+              }
+              public static void updateWidgetWithLayout(Context ctx, AppWidgetManager mgr, int widgetId, int layoutId) {
                   SharedPreferences prefs = ctx.getSharedPreferences("CAPStorage", Context.MODE_PRIVATE);
                   String raw = prefs.getString("widget_data", null);
                   int todayD = 1, todayM = 1, todayY = 2018;
@@ -215,8 +218,6 @@ jobs:
                           if (arr != null) events = arr;
                       } catch (Exception ignored) {}
                   }
-                  android.appwidget.AppWidgetProviderInfo info = mgr.getAppWidgetInfo(widgetId);
-                  int layoutId = (info != null) ? info.initialLayout : R.layout.widget_medium;
                   RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
                   views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
                   for (int i = 0; i < 14; i++) {
@@ -276,7 +277,7 @@ jobs:
           import android.content.Intent;
           public class CalendarWidgetMedium extends AppWidgetProvider {
               @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) CalendarWidget.updateWidget(ctx, mgr, id);
+                  for (int id : ids) CalendarWidget.updateWidgetWithLayout(ctx, mgr, id, com.hunter.arisesolo.R.layout.widget_medium);
               }
               @Override public void onReceive(Context ctx, Intent intent) {
                   super.onReceive(ctx, intent);
@@ -293,7 +294,7 @@ jobs:
           import android.content.Intent;
           public class CalendarWidgetLarge extends AppWidgetProvider {
               @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) CalendarWidget.updateWidget(ctx, mgr, id);
+                  for (int id : ids) CalendarWidget.updateWidgetWithLayout(ctx, mgr, id, com.hunter.arisesolo.R.layout.widget_large);
               }
               @Override public void onReceive(Context ctx, Intent intent) {
                   super.onReceive(ctx, intent);
