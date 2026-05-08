@@ -412,7 +412,7 @@ button.sci-fi-btn.filter-opt.active {
 /* HUD Quest List */
 .quest-item {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     padding: 18px 16px;
     margin-bottom: 12px;
     position: relative;
@@ -451,6 +451,7 @@ button.sci-fi-btn.filter-opt.active {
     background: rgba(0, 0, 0, 0.35) !important;
     border: none !important;
     border-radius: 50%;
+    align-self: center;
 }
 .quest-checkbox {
     width: 22px;

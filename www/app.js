@@ -138,7 +138,7 @@ function getTotalXpForLevel(level) {
 let triggeredReminders = new Set(); // Remembers which notifications have popped up so they don't spam
 
 let systemState = {
-    level: 0,
+    level: 1,
     totalXp: 0,
     todayXp: 0,
     streak: 0,
@@ -672,6 +672,11 @@ function renderQuests() {
             ? `<div class="quest-streak-badge"><span class="streak-chevrons">&#9658;&#9658;</span> ${quest.dailyStreak}</div>`
             : '';
 
+        const hasReminder = quest.reminders && quest.reminders.length > 0;
+        const reminderIcon = hasReminder
+            ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.45;flex-shrink:0;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6M22 6l-3-3"/></svg>`
+            : '';
+
         questEl.innerHTML = `
             <!-- Age Color Slab -->
             ${ageSlab}
@@ -683,7 +688,10 @@ function renderQuests() {
                 <div class="quest-title">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
-            ${streak}
+            <div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:6px;flex-shrink:0;align-self:flex-end;padding-bottom:2px;">
+                ${streak}
+                ${reminderIcon}
+            </div>
             
             <!-- Rewards removed to save space -->
         `;
@@ -2159,7 +2167,30 @@ function renderAchievements() {
 
 function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
+    syncWidgetData();
 }
+
+function syncWidgetData() {
+    try {
+        if (!window.Capacitor || !Capacitor.Plugins.Preferences) return;
+        const today = getLiveEthDate(); // reuse your existing Ethiopian date function
+        const payload = JSON.stringify({
+            todayEthDay:   today.day,
+            todayEthMonth: today.month,
+            todayEthYear:  today.year,
+            events: (systemState.events || []).map(e => ({
+                day: e.day,
+                month: e.month,
+                year: e.year || 0,
+                title: e.title,
+                color: e.color || '#8b5cf6',
+                recurrence: e.recurrence || 'yearly'
+            }))
+        });
+        Capacitor.Plugins.Preferences.set({ key: 'widget_data', value: payload });
+    } catch(e) { /* browser or plugin missing, skip silently */ }
+}
+
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
@@ -2167,7 +2198,7 @@ function sanitizeSystemState(loadedState) {
     
     // 1. Define the absolute baseline for a new account (Including Achievements!)
     const defaults = {
-        level: 0, totalXp: 0, todayXp: 0, streak: 0,
+        level: 1, totalXp: 0, todayXp: 0, streak: 0,
         quests: [], streakIncrementedToday: false,
         lastCompletedDate: null, weeklyHistory: [],
         events: [], dailyBonus: null, dailyBonusClaimed: false,
