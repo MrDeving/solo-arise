@@ -1,50 +1,50 @@
 name: Build Android APK
 
-on: 
-  push: 
-    branches: [ main ] 
+on:
+  push:
+    branches: [ main ]
   workflow_dispatch:
 
-jobs: 
-  build: 
-    runs-on: ubuntu-latest 
-    
-    steps: 
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
       - name: Checkout code
-        uses: actions/checkout@v4 
-        
-      - name: Setup Node.js 
-        uses: actions/setup-node@v4 
-        with: 
-          node-version: '22' 
-          
-      - name: Install Dependencies 
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies
         run: npm install
-          
-      - name: Setup Java 
-        uses: actions/setup-java@v4 
-        with: 
-          distribution: 'zulu' 
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
           java-version: '21'
-          
-      - name: Setup Android SDK 
-        uses: android-actions/setup-android@v3 
-        
-      - name: Add Android Platform 
-        run: npx cap add android 
-        
-      - name: Generate App Icons and Splash Screens 
-        run: npx @capacitor/assets generate --android 
-        
-      - name: Sync Capacitor 
-        run: npx cap sync android 
-        
-      - name: Sync Version Number to Android 
-        run: | 
-          VERSION=$(node -p "require('./package.json').version") 
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Add Android Platform
+        run: npx cap add android
+
+      - name: Generate App Icons and Splash Screens
+        run: npx @capacitor/assets generate --android
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Sync Version Number to Android
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
           echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}"
-          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle 
-          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle 
+          sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle
+          sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle
 
       - name: Copy Custom Notification Sounds
         run: |
@@ -81,30 +81,30 @@ jobs:
           </shape>
           EOF
 
-      - name: Create widget layouts (3 sizes) via Python
+      - name: Create widget layouts via Python
         run: |
           python3 << 'PYEOF'
           import os
           os.makedirs("android/app/src/main/res/layout", exist_ok=True)
 
-          def make_layout(filename, text_size, padding, row_height, show_header_row):
+          def make_layout(filename, text_size, padding, show_header_row):
               lines = []
               lines.append('<?xml version="1.0" encoding="utf-8"?>')
-              lines.append(f'<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
-              lines.append(f'    android:layout_width="match_parent" android:layout_height="match_parent"')
+              lines.append('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
+              lines.append('    android:layout_width="match_parent" android:layout_height="match_parent"')
               lines.append(f'    android:orientation="vertical" android:background="#EE0D1117" android:padding="{padding}dp">')
-              lines.append(f'    <TextView android:id="@+id/w_month_label"')
-              lines.append(f'        android:layout_width="match_parent" android:layout_height="wrap_content"')
+              lines.append('    <TextView android:id="@+id/w_month_label"')
+              lines.append('        android:layout_width="match_parent" android:layout_height="wrap_content"')
               lines.append(f'        android:textColor="#0EA5E9" android:textSize="{text_size - 1}sp"')
-              lines.append(f'        android:textStyle="bold" android:gravity="center"')
-              lines.append(f'        android:paddingBottom="4dp" android:fontFamily="monospace"/>')
+              lines.append('        android:textStyle="bold" android:gravity="center"')
+              lines.append('        android:paddingBottom="4dp" android:fontFamily="monospace"/>')
               if show_header_row:
                   lines.append('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="2dp">')
                   for d in ['1','2','3','4','5','6','7']:
                       lines.append(f'        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="#44667788" android:textSize="8sp" android:text="{d}"/>')
                   lines.append('    </LinearLayout>')
               for row in range(2):
-                  lines.append(f'    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">')
+                  lines.append('    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">')
                   for col in range(7):
                       i = row * 7 + col
                       lines.append(f'        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp">')
@@ -118,19 +118,18 @@ jobs:
                       lines.append(f'                android:layout_marginBottom="2dp"')
                       lines.append(f'                android:background="#8B5CF6" android:visibility="gone"/>')
                       lines.append(f'        </FrameLayout>')
-                  lines.append(f'    </LinearLayout>')
+                  lines.append('    </LinearLayout>')
               lines.append('</LinearLayout>')
               with open(f"android/app/src/main/res/layout/{filename}", "w") as f:
                   f.write('\n'.join(lines))
               print(f"Created {filename}")
 
-          # Small (2x2 cells), Medium (3x2 cells), Large (4x2 cells with day number header)
-          make_layout("widget_small.xml",  text_size=9,  padding=5,  row_height=36, show_header_row=False)
-          make_layout("widget_medium.xml", text_size=11, padding=7,  row_height=40, show_header_row=False)
-          make_layout("widget_large.xml",  text_size=12, padding=9,  row_height=44, show_header_row=True)
+          make_layout("widget_small.xml",  text_size=9,  padding=5,  show_header_row=False)
+          make_layout("widget_medium.xml", text_size=11, padding=7,  show_header_row=False)
+          make_layout("widget_large.xml",  text_size=12, padding=9,  show_header_row=True)
           PYEOF
 
-      - name: Create widget info XMLs (3 sizes)
+      - name: Create widget info XMLs
         run: |
           mkdir -p android/app/src/main/res/xml
 
@@ -171,7 +170,6 @@ jobs:
         run: |
           mkdir -p android/app/src/main/java/com/hunter/arisesolo/widget
 
-          # --- Main widget provider (all 3 sizes share this logic) ---
           cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidget.java << 'JAVAEOF'
           package com.hunter.arisesolo.widget;
           import android.app.PendingIntent;
@@ -185,16 +183,13 @@ jobs:
           import com.hunter.arisesolo.R;
           import org.json.JSONArray;
           import org.json.JSONObject;
-
           public class CalendarWidget extends AppWidgetProvider {
               public static final String ACTION_DAY_CLICK = "com.hunter.arisesolo.WIDGET_DAY_CLICK";
               static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
-
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
                   for (int id : ids) updateWidget(ctx, mgr, id);
               }
-
               @Override
               public void onReceive(Context ctx, Intent intent) {
                   super.onReceive(ctx, intent);
@@ -205,7 +200,6 @@ jobs:
                       android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show();
                   }
               }
-
               public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
                   SharedPreferences prefs = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
                   String raw = prefs.getString("widget_data", null);
@@ -221,28 +215,21 @@ jobs:
                           if (arr != null) events = arr;
                       } catch (Exception ignored) {}
                   }
-
                   android.appwidget.AppWidgetProviderInfo info = mgr.getAppWidgetInfo(widgetId);
                   int layoutId = (info != null) ? info.initialLayout : R.layout.widget_medium;
                   RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
                   views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
-
                   for (int i = 0; i < 14; i++) {
                       int cellId = ctx.getResources().getIdentifier("cell_" + i, "id", ctx.getPackageName());
                       int dotId  = ctx.getResources().getIdentifier("dot_"  + i, "id", ctx.getPackageName());
                       if (cellId == 0) continue;
-
-                      // Calculate Ethiopian date for this cell
                       int d = todayD + i, m = todayM, y = todayY;
                       while (true) {
                           int dim = (m == 13) ? (y % 4 == 3 ? 6 : 5) : 30;
                           if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } } else break;
                       }
-
                       views.setTextViewText(cellId, String.valueOf(d));
                       views.setInt(cellId, "setBackgroundResource", i == 0 ? R.drawable.widget_today_bg : R.drawable.widget_day_bg);
-
-                      // Check events
                       String titles = "";
                       String dotColor = null;
                       for (int e = 0; e < events.length(); e++) {
@@ -259,7 +246,6 @@ jobs:
                               }
                           } catch (Exception ignored) {}
                       }
-
                       if (dotId != 0) {
                           if (!titles.isEmpty()) {
                               views.setViewVisibility(dotId, android.view.View.VISIBLE);
@@ -269,8 +255,6 @@ jobs:
                               views.setViewVisibility(dotId, android.view.View.GONE);
                           }
                       }
-
-                      // Click intent
                       Intent click = new Intent(ctx, CalendarWidget.class);
                       click.setAction(ACTION_DAY_CLICK);
                       click.putExtra("event_titles", titles);
@@ -284,7 +268,6 @@ jobs:
           }
           JAVAEOF
 
-          # --- Medium subclass ---
           cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetMedium.java << 'EOF'
           package com.hunter.arisesolo.widget;
           import android.appwidget.AppWidgetManager;
@@ -302,7 +285,6 @@ jobs:
           }
           EOF
 
-          # --- Large subclass ---
           cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetLarge.java << 'EOF'
           package com.hunter.arisesolo.widget;
           import android.appwidget.AppWidgetManager;
@@ -324,14 +306,25 @@ jobs:
         run: |
           sed -i 's|</application>|    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidget" android:exported="true" android:label="Arise 2x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetMedium" android:exported="true" android:label="Arise 3x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_medium_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetLarge" android:exported="true" android:label="Arise 4x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large_info"/></receiver>\n</application>|' android/app/src/main/AndroidManifest.xml
 
-      - name: Inject Exact Alarm Permissions 
-        run: | 
-          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml 
-          
+      - name: Inject Exact Alarm Permissions
+        run: |
+          sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml
+
       - name: Decode Keystore
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ github.workspace }}/my-release-key.jks
 
       - name: Build APK
         working-directory: ./android
-        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ github.workspace }}/my-release-key.jks -Pandroi
+        run: |
+          ./gradlew assembleRelease \
+            -Pandroid.injected.signing.store.file=${{ github.workspace }}/my-release-key.jks \
+            -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} \
+            -Pandroid.injected.signing.key.alias=my-key-alias \
+            -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Arisesolo-APK
+          path: android/app/build/outputs/apk/release/app-release.apk
