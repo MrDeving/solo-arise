@@ -201,7 +201,7 @@ jobs:
                   }
               }
               public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
-                  SharedPreferences prefs = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                  SharedPreferences prefs = ctx.getSharedPreferences("CAPStorage", Context.MODE_PRIVATE);
                   String raw = prefs.getString("widget_data", null);
                   int todayD = 1, todayM = 1, todayY = 2018;
                   JSONArray events = new JSONArray();
