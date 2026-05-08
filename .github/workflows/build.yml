@@ -19,15 +19,13 @@ jobs:
           node-version: '22' 
           
       - name: Install Dependencies 
-        run: | 
-          npm install 
-          # Note: If the build fails on GitHub, you might need 'npm ci' instead 
+        run: npm install
           
       - name: Setup Java 
         uses: actions/setup-java@v4 
         with: 
           distribution: 'zulu' 
-          java-version: '21' # Updated for Capacitor 8 compatibility 
+          java-version: '21'
           
       - name: Setup Android SDK 
         uses: android-actions/setup-android@v3 
@@ -43,22 +41,291 @@ jobs:
         
       - name: Sync Version Number to Android 
         run: | 
-          # Grabs the version number (e.g., "1.2") directly from your package.json 
           VERSION=$(node -p "require('./package.json').version") 
-          echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}" 
-          
-          # Magically injects it into Android's native build file without Android Studio! 
+          echo "Setting Android version to $VERSION and build number to ${{ github.run_number }}"
           sed -i "s/versionName \".*\"/versionName \"$VERSION\"/" android/app/build.gradle 
           sed -i "s/versionCode .*/versionCode ${{ github.run_number }}/" android/app/build.gradle 
-          
+
       - name: Copy Custom Notification Sounds
         run: |
           mkdir -p android/app/src/main/res/raw
           cp assets/raw/mysound.mp3 android/app/src/main/res/raw/mysound.mp3
 
+      - name: Create widget drawables
+        run: |
+          mkdir -p android/app/src/main/res/drawable
+
+          cat > android/app/src/main/res/drawable/widget_day_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#1A1E2E"/>
+              <corners android:radius="5dp"/>
+          </shape>
+          EOF
+
+          cat > android/app/src/main/res/drawable/widget_today_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#0D2A3F"/>
+              <corners android:radius="5dp"/>
+              <stroke android:width="1dp" android:color="#0EA5E9"/>
+          </shape>
+          EOF
+
+          cat > android/app/src/main/res/drawable/widget_event_bg.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#1A0D2E"/>
+              <corners android:radius="5dp"/>
+              <stroke android:width="1dp" android:color="#8B5CF6"/>
+          </shape>
+          EOF
+
+      - name: Create widget layouts (3 sizes) via Python
+        run: |
+          python3 << 'PYEOF'
+          import os
+          os.makedirs("android/app/src/main/res/layout", exist_ok=True)
+
+          def make_layout(filename, text_size, padding, row_height, show_header_row):
+              lines = []
+              lines.append('<?xml version="1.0" encoding="utf-8"?>')
+              lines.append(f'<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
+              lines.append(f'    android:layout_width="match_parent" android:layout_height="match_parent"')
+              lines.append(f'    android:orientation="vertical" android:background="#EE0D1117" android:padding="{padding}dp">')
+              lines.append(f'    <TextView android:id="@+id/w_month_label"')
+              lines.append(f'        android:layout_width="match_parent" android:layout_height="wrap_content"')
+              lines.append(f'        android:textColor="#0EA5E9" android:textSize="{text_size - 1}sp"')
+              lines.append(f'        android:textStyle="bold" android:gravity="center"')
+              lines.append(f'        android:paddingBottom="4dp" android:fontFamily="monospace"/>')
+              if show_header_row:
+                  lines.append('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="2dp">')
+                  for d in ['1','2','3','4','5','6','7']:
+                      lines.append(f'        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="#44667788" android:textSize="8sp" android:text="{d}"/>')
+                  lines.append('    </LinearLayout>')
+              for row in range(2):
+                  lines.append(f'    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">')
+                  for col in range(7):
+                      i = row * 7 + col
+                      lines.append(f'        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp">')
+                      lines.append(f'            <TextView android:id="@+id/cell_{i}"')
+                      lines.append(f'                android:layout_width="match_parent" android:layout_height="match_parent"')
+                      lines.append(f'                android:gravity="center" android:textColor="#CCFFFFFF"')
+                      lines.append(f'                android:textSize="{text_size}sp" android:background="@drawable/widget_day_bg"/>')
+                      lines.append(f'            <View android:id="@+id/dot_{i}"')
+                      lines.append(f'                android:layout_width="4dp" android:layout_height="4dp"')
+                      lines.append(f'                android:layout_gravity="bottom|center_horizontal"')
+                      lines.append(f'                android:layout_marginBottom="2dp"')
+                      lines.append(f'                android:background="#8B5CF6" android:visibility="gone"/>')
+                      lines.append(f'        </FrameLayout>')
+                  lines.append(f'    </LinearLayout>')
+              lines.append('</LinearLayout>')
+              with open(f"android/app/src/main/res/layout/{filename}", "w") as f:
+                  f.write('\n'.join(lines))
+              print(f"Created {filename}")
+
+          # Small (2x2 cells), Medium (3x2 cells), Large (4x2 cells with day number header)
+          make_layout("widget_small.xml",  text_size=9,  padding=5,  row_height=36, show_header_row=False)
+          make_layout("widget_medium.xml", text_size=11, padding=7,  row_height=40, show_header_row=False)
+          make_layout("widget_large.xml",  text_size=12, padding=9,  row_height=44, show_header_row=True)
+          PYEOF
+
+      - name: Create widget info XMLs (3 sizes)
+        run: |
+          mkdir -p android/app/src/main/res/xml
+
+          cat > android/app/src/main/res/xml/widget_small_info.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="110dp" android:minHeight="110dp"
+              android:targetCellWidth="2" android:targetCellHeight="2"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_small"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          EOF
+
+          cat > android/app/src/main/res/xml/widget_medium_info.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="180dp" android:minHeight="110dp"
+              android:targetCellWidth="3" android:targetCellHeight="2"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_medium"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          EOF
+
+          cat > android/app/src/main/res/xml/widget_large_info.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="250dp" android:minHeight="110dp"
+              android:targetCellWidth="4" android:targetCellHeight="2"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_large"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          EOF
+
+      - name: Create widget Java files
+        run: |
+          mkdir -p android/app/src/main/java/com/hunter/arisesolo/widget
+
+          # --- Main widget provider (all 3 sizes share this logic) ---
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidget.java << 'JAVAEOF'
+          package com.hunter.arisesolo.widget;
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.widget.RemoteViews;
+          import com.hunter.arisesolo.R;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          public class CalendarWidget extends AppWidgetProvider {
+              public static final String ACTION_DAY_CLICK = "com.hunter.arisesolo.WIDGET_DAY_CLICK";
+              static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
+
+              @Override
+              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) updateWidget(ctx, mgr, id);
+              }
+
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  super.onReceive(ctx, intent);
+                  if (ACTION_DAY_CLICK.equals(intent.getAction())) {
+                      String titles = intent.getStringExtra("event_titles");
+                      String dayLabel = intent.getStringExtra("day_label");
+                      String msg = (titles != null && !titles.isEmpty()) ? dayLabel + "\n" + titles : dayLabel + " — No events";
+                      android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show();
+                  }
+              }
+
+              public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
+                  SharedPreferences prefs = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                  String raw = prefs.getString("widget_data", null);
+                  int todayD = 1, todayM = 1, todayY = 2018;
+                  JSONArray events = new JSONArray();
+                  if (raw != null) {
+                      try {
+                          JSONObject data = new JSONObject(raw);
+                          todayD = data.optInt("todayEthDay", 1);
+                          todayM = data.optInt("todayEthMonth", 1);
+                          todayY = data.optInt("todayEthYear", 2018);
+                          JSONArray arr = data.optJSONArray("events");
+                          if (arr != null) events = arr;
+                      } catch (Exception ignored) {}
+                  }
+
+                  android.appwidget.AppWidgetProviderInfo info = mgr.getAppWidgetInfo(widgetId);
+                  int layoutId = (info != null) ? info.initialLayout : R.layout.widget_medium;
+                  RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
+                  views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
+
+                  for (int i = 0; i < 14; i++) {
+                      int cellId = ctx.getResources().getIdentifier("cell_" + i, "id", ctx.getPackageName());
+                      int dotId  = ctx.getResources().getIdentifier("dot_"  + i, "id", ctx.getPackageName());
+                      if (cellId == 0) continue;
+
+                      // Calculate Ethiopian date for this cell
+                      int d = todayD + i, m = todayM, y = todayY;
+                      while (true) {
+                          int dim = (m == 13) ? (y % 4 == 3 ? 6 : 5) : 30;
+                          if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } } else break;
+                      }
+
+                      views.setTextViewText(cellId, String.valueOf(d));
+                      views.setInt(cellId, "setBackgroundResource", i == 0 ? R.drawable.widget_today_bg : R.drawable.widget_day_bg);
+
+                      // Check events
+                      String titles = "";
+                      String dotColor = null;
+                      for (int e = 0; e < events.length(); e++) {
+                          try {
+                              JSONObject ev = events.getJSONObject(e);
+                              String rec = ev.optString("recurrence", "yearly");
+                              boolean hit = false;
+                              if (rec.equals("monthly")) hit = ev.optInt("day") == d;
+                              else if (rec.equals("yearly")) hit = ev.optInt("day") == d && ev.optInt("month") == m;
+                              else if (rec.equals("once")) hit = ev.optInt("day") == d && ev.optInt("month") == m && ev.optInt("year",0) == y;
+                              if (hit) {
+                                  titles += (titles.isEmpty() ? "" : "\n") + "• " + ev.optString("title");
+                                  if (dotColor == null) dotColor = ev.optString("color", "#8B5CF6");
+                              }
+                          } catch (Exception ignored) {}
+                      }
+
+                      if (dotId != 0) {
+                          if (!titles.isEmpty()) {
+                              views.setViewVisibility(dotId, android.view.View.VISIBLE);
+                              try { views.setInt(dotId, "setBackgroundColor", Color.parseColor(dotColor)); } catch (Exception ignored) {}
+                              views.setInt(cellId, "setBackgroundResource", R.drawable.widget_event_bg);
+                          } else {
+                              views.setViewVisibility(dotId, android.view.View.GONE);
+                          }
+                      }
+
+                      // Click intent
+                      Intent click = new Intent(ctx, CalendarWidget.class);
+                      click.setAction(ACTION_DAY_CLICK);
+                      click.putExtra("event_titles", titles);
+                      click.putExtra("day_label", ETH_MONTHS[m] + " " + d + ", " + y);
+                      PendingIntent pi = PendingIntent.getBroadcast(ctx, widgetId * 100 + i, click,
+                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                      views.setOnClickPendingIntent(cellId, pi);
+                  }
+                  mgr.updateAppWidget(widgetId, views);
+              }
+          }
+          JAVAEOF
+
+          # --- Medium subclass ---
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetMedium.java << 'EOF'
+          package com.hunter.arisesolo.widget;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+          import android.content.Intent;
+          public class CalendarWidgetMedium extends AppWidgetProvider {
+              @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) CalendarWidget.updateWidget(ctx, mgr, id);
+              }
+              @Override public void onReceive(Context ctx, Intent intent) {
+                  super.onReceive(ctx, intent);
+                  if (CalendarWidget.ACTION_DAY_CLICK.equals(intent.getAction())) new CalendarWidget().onReceive(ctx, intent);
+              }
+          }
+          EOF
+
+          # --- Large subclass ---
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetLarge.java << 'EOF'
+          package com.hunter.arisesolo.widget;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+          import android.content.Intent;
+          public class CalendarWidgetLarge extends AppWidgetProvider {
+              @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) CalendarWidget.updateWidget(ctx, mgr, id);
+              }
+              @Override public void onReceive(Context ctx, Intent intent) {
+                  super.onReceive(ctx, intent);
+                  if (CalendarWidget.ACTION_DAY_CLICK.equals(intent.getAction())) new CalendarWidget().onReceive(ctx, intent);
+              }
+          }
+          EOF
+
+      - name: Register widgets in AndroidManifest
+        run: |
+          sed -i 's|</application>|    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidget" android:exported="true" android:label="Arise 2x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetMedium" android:exported="true" android:label="Arise 3x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_medium_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetLarge" android:exported="true" android:label="Arise 4x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large_info"/></receiver>\n</application>|' android/app/src/main/AndroidManifest.xml
+
       - name: Inject Exact Alarm Permissions 
         run: | 
-          # Magically injects the notification bypass permissions into the AndroidManifest before building! 
           sed -i '/<\/manifest>/i \    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />\n    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />' android/app/src/main/AndroidManifest.xml 
           
       - name: Decode Keystore
@@ -67,10 +334,4 @@ jobs:
 
       - name: Build APK
         working-directory: ./android
-        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ github.workspace }}/my-release-key.jks -Pandroid.injected.signing.store.password=${{ secrets.KEY_STORE_PASSWORD }} -Pandroid.injected.signing.key.alias=my-key-alias -Pandroid.injected.signing.key.password=${{ secrets.KEY_PASSWORD }}
-        
-      - name: Upload APK Artifact 
-        uses: actions/upload-artifact@v4 
-        with: 
-          name: Arisesolo-APK 
-          path: android/app/build/outputs/apk/release/app-release.apk
+        run: ./gradlew assembleRelease -Pandroid.injected.signing.store.file=${{ github.workspace }}/my-release-key.jks -Pandroi
