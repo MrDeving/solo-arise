@@ -141,7 +141,8 @@ jobs:
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_small"
               android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
+              android:widgetCategory="home_screen"
+              android:description="@string/app_name"/>
           EOF
 
           cat > android/app/src/main/res/xml/widget_medium_info.xml << 'EOF'
@@ -152,7 +153,8 @@ jobs:
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_medium"
               android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
+              android:widgetCategory="home_screen"
+              android:description="@string/app_name"/>
           EOF
 
           cat > android/app/src/main/res/xml/widget_large_info.xml << 'EOF'
@@ -163,7 +165,8 @@ jobs:
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_large"
               android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
+              android:widgetCategory="home_screen"
+              android:description="@string/app_name"/>
           EOF
 
       - name: Create widget Java files
@@ -188,7 +191,7 @@ jobs:
               static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) updateWidget(ctx, mgr, id);
+                  for (int id : ids) updateWidgetWithLayout(ctx, mgr, id, R.layout.widget_small);
               }
               @Override
               public void onReceive(Context ctx, Intent intent) {
@@ -196,75 +199,83 @@ jobs:
                   if (ACTION_DAY_CLICK.equals(intent.getAction())) {
                       String titles = intent.getStringExtra("event_titles");
                       String dayLabel = intent.getStringExtra("day_label");
-                      String msg = (titles != null && !titles.isEmpty()) ? dayLabel + "\n" + titles : dayLabel + " — No events";
+                      String msg = (titles != null && !titles.isEmpty()) ? dayLabel + "\n" + titles : dayLabel + " - No events";
                       android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show();
                   }
               }
               public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
-                  updateWidgetWithLayout(ctx, mgr, widgetId, R.layout.widget_medium);
+                  updateWidgetWithLayout(ctx, mgr, widgetId, R.layout.widget_small);
               }
               public static void updateWidgetWithLayout(Context ctx, AppWidgetManager mgr, int widgetId, int layoutId) {
-                  SharedPreferences prefs = ctx.getSharedPreferences("CAPStorage", Context.MODE_PRIVATE);
-                  String raw = prefs.getString("widget_data", null);
-                  int todayD = 1, todayM = 1, todayY = 2018;
-                  JSONArray events = new JSONArray();
-                  if (raw != null) {
-                      try {
-                          JSONObject data = new JSONObject(raw);
-                          todayD = data.optInt("todayEthDay", 1);
-                          todayM = data.optInt("todayEthMonth", 1);
-                          todayY = data.optInt("todayEthYear", 2018);
-                          JSONArray arr = data.optJSONArray("events");
-                          if (arr != null) events = arr;
-                      } catch (Exception ignored) {}
-                  }
-                  RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
-                  views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
-                  for (int i = 0; i < 14; i++) {
-                      int cellId = ctx.getResources().getIdentifier("cell_" + i, "id", ctx.getPackageName());
-                      int dotId  = ctx.getResources().getIdentifier("dot_"  + i, "id", ctx.getPackageName());
-                      if (cellId == 0) continue;
-                      int d = todayD + i, m = todayM, y = todayY;
-                      while (true) {
-                          int dim = (m == 13) ? (y % 4 == 3 ? 6 : 5) : 30;
-                          if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } } else break;
+                  try {
+                      SharedPreferences prefs = ctx.getSharedPreferences("CAPStorage", Context.MODE_PRIVATE);
+                      String raw = prefs.getString("widget_data", null);
+                      if (raw == null) {
+                          prefs = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                          raw = prefs.getString("widget_data", null);
                       }
-                      views.setTextViewText(cellId, String.valueOf(d));
-                      views.setInt(cellId, "setBackgroundResource", i == 0 ? R.drawable.widget_today_bg : R.drawable.widget_day_bg);
-                      String titles = "";
-                      String dotColor = null;
-                      for (int e = 0; e < events.length(); e++) {
+                      int todayD = 1, todayM = 1, todayY = 2018;
+                      JSONArray events = new JSONArray();
+                      if (raw != null) {
                           try {
-                              JSONObject ev = events.getJSONObject(e);
-                              String rec = ev.optString("recurrence", "yearly");
-                              boolean hit = false;
-                              if (rec.equals("monthly")) hit = ev.optInt("day") == d;
-                              else if (rec.equals("yearly")) hit = ev.optInt("day") == d && ev.optInt("month") == m;
-                              else if (rec.equals("once")) hit = ev.optInt("day") == d && ev.optInt("month") == m && ev.optInt("year",0) == y;
-                              if (hit) {
-                                  titles += (titles.isEmpty() ? "" : "\n") + "• " + ev.optString("title");
-                                  if (dotColor == null) dotColor = ev.optString("color", "#8B5CF6");
-                              }
+                              JSONObject data = new JSONObject(raw);
+                              todayD = data.optInt("todayEthDay", 1);
+                              todayM = data.optInt("todayEthMonth", 1);
+                              todayY = data.optInt("todayEthYear", 2018);
+                              JSONArray arr = data.optJSONArray("events");
+                              if (arr != null) events = arr;
                           } catch (Exception ignored) {}
                       }
-                      if (dotId != 0) {
-                          if (!titles.isEmpty()) {
-                              views.setViewVisibility(dotId, android.view.View.VISIBLE);
-                              try { views.setInt(dotId, "setBackgroundColor", Color.parseColor(dotColor)); } catch (Exception ignored) {}
-                              views.setInt(cellId, "setBackgroundResource", R.drawable.widget_event_bg);
-                          } else {
-                              views.setViewVisibility(dotId, android.view.View.GONE);
+                      RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
+                      views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
+                      for (int i = 0; i < 14; i++) {
+                          int cellId = ctx.getResources().getIdentifier("cell_" + i, "id", ctx.getPackageName());
+                          int dotId  = ctx.getResources().getIdentifier("dot_"  + i, "id", ctx.getPackageName());
+                          if (cellId == 0) continue;
+                          int d = todayD + i, m = todayM, y = todayY;
+                          while (true) {
+                              int dim = (m == 13) ? (y % 4 == 3 ? 6 : 5) : 30;
+                              if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } } else break;
                           }
+                          views.setTextViewText(cellId, String.valueOf(d));
+                          views.setInt(cellId, "setBackgroundResource", i == 0 ? R.drawable.widget_today_bg : R.drawable.widget_day_bg);
+                          String titles = "";
+                          String dotColor = null;
+                          for (int e = 0; e < events.length(); e++) {
+                              try {
+                                  JSONObject ev = events.getJSONObject(e);
+                                  String rec = ev.optString("recurrence", "yearly");
+                                  boolean hit = false;
+                                  if (rec.equals("monthly")) hit = ev.optInt("day") == d;
+                                  else if (rec.equals("yearly")) hit = ev.optInt("day") == d && ev.optInt("month") == m;
+                                  else if (rec.equals("once")) hit = ev.optInt("day") == d && ev.optInt("month") == m && ev.optInt("year",0) == y;
+                                  if (hit) {
+                                      titles += (titles.isEmpty() ? "" : "\n") + "- " + ev.optString("title");
+                                      if (dotColor == null) dotColor = ev.optString("color", "#8B5CF6");
+                                  }
+                              } catch (Exception ignored) {}
+                          }
+                          if (dotId != 0) {
+                              if (!titles.isEmpty()) {
+                                  views.setViewVisibility(dotId, android.view.View.VISIBLE);
+                                  try { views.setInt(dotId, "setBackgroundColor", Color.parseColor(dotColor)); } catch (Exception ignored) {}
+                                  views.setInt(cellId, "setBackgroundResource", R.drawable.widget_event_bg);
+                              } else {
+                                  views.setViewVisibility(dotId, android.view.View.GONE);
+                              }
+                          }
+                          Intent click = new Intent(ctx, CalendarWidget.class);
+                          click.setAction(ACTION_DAY_CLICK);
+                          click.putExtra("event_titles", titles);
+                          click.putExtra("day_label", ETH_MONTHS[m] + " " + d + ", " + y);
+                          PendingIntent pi = PendingIntent.getBroadcast(ctx, widgetId * 100 + i, click,
+                              PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                          views.setOnClickPendingIntent(cellId, pi);
                       }
-                      Intent click = new Intent(ctx, CalendarWidget.class);
-                      click.setAction(ACTION_DAY_CLICK);
-                      click.putExtra("event_titles", titles);
-                      click.putExtra("day_label", ETH_MONTHS[m] + " " + d + ", " + y);
-                      PendingIntent pi = PendingIntent.getBroadcast(ctx, widgetId * 100 + i, click,
-                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                      views.setOnClickPendingIntent(cellId, pi);
+                      mgr.updateAppWidget(widgetId, views);
+                  } catch (Exception e) {
+                      e.printStackTrace();
                   }
-                  mgr.updateAppWidget(widgetId, views);
               }
           }
           JAVAEOF
