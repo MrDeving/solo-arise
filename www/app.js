@@ -538,22 +538,14 @@ function isQuestActiveOnDate(quest, dateObj) {
     return true;
 }
 function getDailyStreakColor(streak) {
-    // 0 streak = yellow, builds to cyan at 14+
-    const t = Math.min((streak || 0) / 14, 1);
-    // Interpolate: yellow (#fbbf24) → green (#34d399) → cyan (#0ea5e9)
-    if (t < 0.5) {
-        const p = t / 0.5;
-        const r = Math.round(251 + (52  - 251) * p);
-        const g = Math.round(191 + (211 - 191) * p);
-        const b = Math.round(36  + (153 - 36)  * p);
-        return `rgb(${r},${g},${b})`;
-    } else {
-        const p = (t - 0.5) / 0.5;
-        const r = Math.round(52  + (14  - 52)  * p);
-        const g = Math.round(211 + (165 - 211) * p);
-        const b = Math.round(153 + (233 - 153) * p);
-        return `rgb(${r},${g},${b})`;
-    }
+    const s = streak || 0;
+    if (s === 0)        return '#F7CF1D';
+    if (s <= 2)         return '#F7E51E';
+    if (s <= 4)         return '#87F71E';
+    if (s <= 6)         return '#54F71E';
+    if (s <= 9)         return '#1EF783';
+    if (s <= 12)        return '#1EF7C1';
+    return '#1EF7E2'; // 13+ locked
 }
     function getQuestAgeColor(quest) {
     if (!quest.createdAt) return null;
@@ -669,7 +661,7 @@ function renderQuests() {
         const ageSlab = slabColor ? `<div class="quest-age-slab" style="background:${slabColor};"></div>` : '';
 
         const streak = (isDaily && (quest.dailyStreak ?? 0) > 0)
-            ? `<div class="quest-streak-badge"><span class="streak-chevrons">&#9658;&#9658;</span> ${quest.dailyStreak}</div>`
+            ? `<div class="quest-streak-badge"><span class="streak-chevrons">▶▶</span>${quest.dailyStreak}</div>`
             : '';
 
         const hasReminder = quest.reminders && quest.reminders.length > 0;
