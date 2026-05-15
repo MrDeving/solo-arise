@@ -692,12 +692,6 @@ function renderQuests() {
                 <!-- 3-dot menu -->
                 <div style="position:relative;">
                     <div class="quest-three-dot" onclick="event.stopPropagation();toggleQuestMenu(${quest.id}, this)">⋮</div>
-                    <div class="quest-dropdown" id="quest-menu-${quest.id}">
-                        <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${quest.id})">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
-                            ${quest.pinned ? 'Unpin' : 'Pin'}
-                        </div>
-                    </div>
                 </div>
                 <!-- Bottom icons -->
                 <div style="display:flex;align-items:center;gap:6px;">
@@ -720,16 +714,40 @@ function renderQuests() {
     });
 }
 function toggleQuestMenu(id, btn) {
-    const menu = document.getElementById(`quest-menu-${id}`);
-    if (!menu) return;
-    const isOpen = menu.classList.contains('open');
-    // Close all open menus first
-    document.querySelectorAll('.quest-dropdown.open').forEach(m => m.classList.remove('open'));
-    if (!isOpen) menu.classList.add('open');
+    // Remove any existing floating dropdown
+    const existing = document.getElementById('floating-quest-menu');
+    if (existing) {
+        existing.remove();
+        if (existing.dataset.questId == id) return; // clicking same dot closes it
+    }
+
+    const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return;
+
+    const menu = document.createElement('div');
+    menu.id = 'floating-quest-menu';
+    menu.dataset.questId = id;
+    menu.className = 'quest-dropdown open';
+    menu.innerHTML = `
+        <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${id});document.getElementById('floating-quest-menu')?.remove();">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+            ${quest.pinned ? 'Unpin' : 'Pin'}
+        </div>
+    `;
+
+    // Position it relative to the button
+    const rect = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${rect.left - 100}px`;
+    menu.style.zIndex = '9999';
+
+    document.body.appendChild(menu);
 }
-// Close menus when tapping elsewhere
+
+// Close floating menu when tapping elsewhere
 document.addEventListener('click', () => {
-    document.querySelectorAll('.quest-dropdown.open').forEach(m => m.classList.remove('open'));
+    document.getElementById('floating-quest-menu')?.remove();
 });
 function togglePinQuest(id) {
     const quest = systemState.quests.find(q => q.id === id);
