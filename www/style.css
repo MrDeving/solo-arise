@@ -475,7 +475,47 @@ button.sci-fi-btn.filter-opt.active {
     color: #020617; /* Dark check */
     font-weight: 900;
 }
+/* --- 3-DOT QUEST MENU --- */
+.quest-three-dot {
+    font-size: 18px;
+    color: rgba(148, 163, 184, 0.45);
+    cursor: pointer;
+    padding: 0 4px;
+    line-height: 1;
+    user-select: none;
+}
+.quest-three-dot:active { color: var(--text-main); }
 
+.quest-dropdown {
+    display: none;
+    position: absolute;
+    top: 20px;
+    right: 0;
+    background: #0f172a;
+    border: 1px solid rgba(56, 189, 248, 0.25);
+    border-radius: 8px;
+    overflow: hidden;
+    z-index: 100;
+    min-width: 130px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+.quest-dropdown.open { display: block; }
+
+.quest-dropdown-item {
+    padding: 10px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+.quest-dropdown-item:active { background: rgba(56, 189, 248, 0.08); color: var(--text-main); }
+.quest-dropdown-delete { color: rgba(248, 113, 113, 0.7); }
+.quest-dropdown-delete:active { background: rgba(248, 113, 113, 0.08); color: var(--neon-red); }
 /* --- FEATURE 3: SWIPE TO DELETE --- */
 .quest-swipe-wrapper {
     position: relative;

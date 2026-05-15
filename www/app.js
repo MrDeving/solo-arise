@@ -381,6 +381,17 @@ function initSortable() {
         
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
+        onMove: function (evt) {
+            const draggedId = parseInt(evt.dragged.getAttribute('data-id'));
+            const relatedId = parseInt(evt.related.getAttribute('data-id'));
+            const draggedQuest = systemState.quests.find(q => q.id === draggedId);
+            const relatedQuest = systemState.quests.find(q => q.id === relatedId);
+            if (!draggedQuest || !relatedQuest) return true;
+            // Block pinned dragging into unpinned zone and vice versa
+            if (draggedQuest.pinned && !relatedQuest.pinned) return false;
+            if (!draggedQuest.pinned && relatedQuest.pinned) return false;
+            return true;
+        },
         onEnd: function (evt) {
             const itemEl = evt.item;
             const movedId = parseInt(itemEl.getAttribute('data-id'));
@@ -394,9 +405,12 @@ function initSortable() {
             if (movedQuestIndex === -1) return;
             const movedQuest = systemState.quests.splice(movedQuestIndex, 1)[0];
 
-            // 2. Figure out where to put it back based on its new siblings
-            // This safely bypasses hidden/filtered quests without losing data!
-            if (nextEl) {
+            // 2. If pinned, snap back to top zone; if unpinned, stay below all pinned
+            if (movedQuest.pinned) {
+                const firstUnpinnedIndex = systemState.quests.findIndex(q => !q.pinned);
+                const insertAt = firstUnpinnedIndex === -1 ? systemState.quests.length : firstUnpinnedIndex;
+                systemState.quests.splice(insertAt, 0, movedQuest);
+            } else if (nextEl) {
                 const nextId = parseInt(nextEl.getAttribute('data-id'));
                 const nextQuestIndex = systemState.quests.findIndex(q => q.id === nextId);
                 systemState.quests.splice(nextQuestIndex, 0, movedQuest);
@@ -405,7 +419,6 @@ function initSortable() {
                 const prevQuestIndex = systemState.quests.findIndex(q => q.id === prevId);
                 systemState.quests.splice(prevQuestIndex + 1, 0, movedQuest);
             } else {
-                // Failsafe: Put it at the end
                 systemState.quests.push(movedQuest);
             }
 
@@ -539,27 +552,18 @@ function isQuestActiveOnDate(quest, dateObj) {
 }
 function getDailyStreakColor(streak) {
     const s = streak || 0;
-    if (s === 0)        return '#F7CF1D';
-    if (s <= 2)         return '#F7E51E';
-    if (s <= 4)         return '#87F71E';
-    if (s <= 6)         return '#54F71E';
-    if (s <= 9)         return '#1EF783';
-    if (s <= 12)        return '#1EF7C1';
-    return '#1EF7E2'; // 13+ locked
+    if (s <= 3)  return '#fbbf24';
+    if (s <= 6)  return '#34d399';
+    if (s <= 9)  return '#22d3ee';
+    return '#38bdf8';
 }
     function getQuestAgeColor(quest) {
     if (!quest.createdAt) return null;
     const days = Math.floor((Date.now() - quest.createdAt) / 86400000);
-    const colors = [
-        '#0ea5e9',  // Day 0 — electric sky blue
-        '#6366f1',  // Day 1 — vivid indigo
-        '#a855f7',  // Day 2 — neon purple
-        '#ec4899',  // Day 3 — hot pink
-        '#f97316',  // Day 4 — blazing orange
-        '#eab308',  // Day 5 — golden yellow
-        '#ef4444',  // Day 6+ — danger red
-    ];
-    return colors[Math.min(days, 6)];
+    if (days < 2)  return '#38bdf8';
+    if (days < 5)  return '#34d399';
+    if (days < 9)  return '#fb923c';
+    return '#f87171';
 }
 function renderQuests() {
     const homeContainer = document.getElementById('quest-container');
@@ -669,6 +673,10 @@ function renderQuests() {
             ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.45;flex-shrink:0;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6M22 6l-3-3"/></svg>`
             : '';
 
+        const pinIcon = quest.pinned
+            ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="opacity:0.45;flex-shrink:0;"><path d="M16 3a1 1 0 0 1 .707 1.707L15 6.414V10l3 3v1H6v-1l3-3V6.414L7.293 4.707A1 1 0 0 1 8 3h8zM11 18h2v3h-2z"/></svg>`
+            : '';
+
         questEl.innerHTML = `
             <!-- Age Color Slab -->
             ${ageSlab}
@@ -680,12 +688,24 @@ function renderQuests() {
                 <div class="quest-title">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
-            <div style="display:flex;align-items:flex-end;justify-content:flex-end;gap:6px;flex-shrink:0;align-self:flex-end;padding-bottom:2px;">
-                ${streak}
-                ${reminderIcon}
+            <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;flex-shrink:0;align-self:stretch;padding-bottom:2px;gap:4px;">
+                <!-- 3-dot menu -->
+                <div style="position:relative;">
+                    <div class="quest-three-dot" onclick="event.stopPropagation();toggleQuestMenu(${quest.id}, this)">⋮</div>
+                    <div class="quest-dropdown" id="quest-menu-${quest.id}">
+                        <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${quest.id})">
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+                            ${quest.pinned ? 'Unpin' : 'Pin'}
+                        </div>
+                    </div>
+                </div>
+                <!-- Bottom icons -->
+                <div style="display:flex;align-items:center;gap:6px;">
+                    ${streak}
+                    ${reminderIcon}
+                    ${pinIcon}
+                </div>
             </div>
-            
-            <!-- Rewards removed to save space -->
         `;
         
         wrapperEl.appendChild(deleteBg);
@@ -699,7 +719,27 @@ function renderQuests() {
         }
     });
 }
-
+function toggleQuestMenu(id, btn) {
+    const menu = document.getElementById(`quest-menu-${id}`);
+    if (!menu) return;
+    const isOpen = menu.classList.contains('open');
+    // Close all open menus first
+    document.querySelectorAll('.quest-dropdown.open').forEach(m => m.classList.remove('open'));
+    if (!isOpen) menu.classList.add('open');
+}
+// Close menus when tapping elsewhere
+document.addEventListener('click', () => {
+    document.querySelectorAll('.quest-dropdown.open').forEach(m => m.classList.remove('open'));
+});
+function togglePinQuest(id) {
+    const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return;
+    quest.pinned = !quest.pinned;
+    // Move pinned to top, unpinned fall below all pinned
+    systemState.quests.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    saveGameState();
+    renderQuests();
+}
 function deleteQuest(id) {
     sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: '🗑', color: 'red' }).then(ok => {
         if (!ok) return;
@@ -1946,7 +1986,8 @@ function saveQuest() {
             days: [...selectedScheduleDays]
         } : null;
 
-        systemState.quests.unshift({
+        const pinnedCount = systemState.quests.filter(q => q.pinned).length;
+        systemState.quests.splice(pinnedCount, 0, {
             id: newId,
             title: title,
             notes: notes,
@@ -1959,7 +2000,8 @@ function saveQuest() {
             reminders: tempReminders.filter(r => r !== ''),
             createdAt: Date.now(),
             dailyStreak: 0,
-            lastStreakDate: null
+            lastStreakDate: null,
+            pinned: false
         });
     }
     
