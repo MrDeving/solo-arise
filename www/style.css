@@ -161,9 +161,20 @@ body {
 /* Profile Card */
 .profile-card {
     display: flex;
+    flex-direction: column;
+    padding: 16px 20px 14px 20px;
+    gap: 8px;
+}
+.profile-top-row {
+    display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px;
+}
+.profile-xp-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0;
 }
 .profile-left {
     display: flex;

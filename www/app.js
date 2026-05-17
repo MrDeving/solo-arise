@@ -604,51 +604,8 @@ function renderQuests() {
         wrapperEl.className = 'quest-swipe-wrapper';
         wrapperEl.setAttribute('data-id', quest.id); // Sortable needs this on the wrapper now
 
-        // Delete Background
-        const deleteBg = document.createElement('div');
-        deleteBg.className = 'quest-delete-action';
-        deleteBg.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-        deleteBg.onclick = () => deleteQuest(quest.id);
-
         const questEl = document.createElement('div');
         questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
-        
-        // Swipe Touch Logic
-        let startX = 0; let currentX = 0; let startY = 0; let isSwiping = false;
-        
-        questEl.addEventListener('touchstart', e => {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
-            isSwiping = false;
-        }, {passive: true});
-        
-        questEl.addEventListener('touchmove', e => {
-            currentX = e.touches[0].clientX;
-            const diffX = currentX - startX;
-            const diffY = e.touches[0].clientY - startY;
-            
-            // Trigger swipe only if moving left horizontally (avoid SortableJS/Scroll conflict)
-            if (Math.abs(diffX) > Math.abs(diffY) && diffX < 0) {
-                isSwiping = true;
-                wrapperEl.classList.add('is-swiping'); // Reveal the delete button only during a real swipe
-                questEl.style.transform = `translateX(${Math.max(diffX, -80)}px)`;
-            }
-        }, {passive: true});
-        
-        questEl.addEventListener('touchend', () => {
-            if (!isSwiping) return;
-            const diffX = currentX - startX;
-            if (diffX < -40) {
-                questEl.style.transform = `translateX(-80px)`; // Lock open
-                setTimeout(() => {
-                    questEl.style.transform = `translateX(0px)`;
-                    wrapperEl.classList.remove('is-swiping'); // Hide the button again once it snaps back
-                }, 1500); // Auto-close after 3s
-            } else {
-                questEl.style.transform = `translateX(0px)`; // Snap back
-                wrapperEl.classList.remove('is-swiping');
-            }
-        });
 
         // Map Colors (Trivial=Blue, Easy=Green, Medium=Yellow, Hard=Red)
         let diffColor = 'var(--neon-blue)';
@@ -702,7 +659,6 @@ function renderQuests() {
             </div>
         `;
         
-        wrapperEl.appendChild(deleteBg);
         wrapperEl.appendChild(questEl);
 
         // Append to the correct tab based on type
@@ -732,6 +688,10 @@ function toggleQuestMenu(id, btn) {
         <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${id});document.getElementById('floating-quest-menu')?.remove();">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
             ${quest.pinned ? 'Unpin' : 'Pin'}
+        </div>
+        <div class="quest-dropdown-item" style="color:var(--neon-red);" onclick="event.stopPropagation();document.getElementById('floating-quest-menu')?.remove();deleteQuest(${id});">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Delete
         </div>
     `;
 
@@ -1094,7 +1054,7 @@ function updateStats() {
     if(headerFill) headerFill.style.width = `${levelProgressPercent}%`;
 
     const headerTarget = document.getElementById('header-level-target');
-    if(headerTarget) headerTarget.innerHTML = currentRankIndex >= 5 ? `MAX LEVEL` : `LEVEL ${systemState.level} &rarr; ${systemState.level + 1}`;
+    if(headerTarget) headerTarget.innerHTML = currentRankIndex >= 5 ? `MAX LEVEL` : `LEVEL ${systemState.level}`;
 
     const headerExpLabel = document.getElementById('header-exp-label');
     if(headerExpLabel) headerExpLabel.textContent = currentRankIndex >= 5 ? `MAX EXP` : `${xpIntoCurrentLevel} / ${expNeeded} EXP`;

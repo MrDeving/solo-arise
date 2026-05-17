@@ -18,34 +18,33 @@
 
         <!-- SHARED STATIC HEADER -->
         <div id="shared-header" class="shared-header">
-            <!-- Profile Card -->
+            <!-- Profile Card (unified with XP bar) -->
             <div class="system-panel profile-card">
-                <div class="profile-left">
-                    <div class="avatar-container">
-                        <div class="hud-ring ring-1"></div>
-                        <div class="hud-ring ring-2"></div>
-                        <div id="home-avatar" class="avatar"></div>
+                <div class="profile-top-row">
+                    <div class="profile-left">
+                        <div class="avatar-container">
+                            <div class="hud-ring ring-1"></div>
+                            <div class="hud-ring ring-2"></div>
+                            <div id="home-avatar" class="avatar"></div>
+                        </div>
+                        <div class="profile-info">
+                            <h2 class="glitch-text" data-text="Jinwoo" id="home-username">Hunter</h2>
+                            <div class="streak-badge">
+                                <svg class="flame-icon" width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                                <span id="streak-count">87 Days</span>
+                            </div>
+                        </div>
                     </div>
-                    <div class="profile-info">
-                        <h2 class="glitch-text" data-text="Jinwoo" id="home-username">Hunter</h2>
-                        <div class="streak-badge">
-                            <svg class="flame-icon" width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-                            <span id="streak-count">87 Days</span>
+                    <div class="profile-right">
+                        <div class="rank-hexagon">
+                            <span class="rank-text" id="home-rank-text">E</span>
                         </div>
                     </div>
                 </div>
-                <div class="profile-right">
-                    <div class="rank-hexagon">
-                        <span class="rank-text" id="home-rank-text">E</span>
-                    </div>
-                    <div class="level-text">LEVEL <span id="player-level" class="neon-text">0</span></div>
-                </div>
-            </div>
-            <!-- Level Progress Meter (shared header card) -->
-            <div class="system-panel" style="margin: 0 0 10px 0; padding: 12px 16px;">
-                <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text-muted);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:6px;">
-                    <span id="header-level-target" style="color:var(--neon-blue);">LEVEL 0 → 1</span>
-                    <span id="header-exp-label">0 / 500 EXP</span>
+                <!-- XP Bar -->
+                <div class="profile-xp-row">
+                    <span id="header-exp-label" style="color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:1px;">0 / 500 EXP</span>
+                    <span id="header-level-target" style="color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">LEVEL <span id="player-level" class="neon-text">0</span></span>
                 </div>
                 <div style="width:100%;height:5px;background:rgba(0,0,0,0.5);border-radius:4px;overflow:hidden;">
                     <div id="header-level-fill" style="height:100%;width:0%;background:var(--neon-blue);box-shadow:0 0 8px var(--neon-blue-glow);border-radius:4px;transition:width 0.4s ease;"></div>
