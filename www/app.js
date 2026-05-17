@@ -125,8 +125,7 @@ const XP_PER_LEVEL = 500; // Legacy fallback, do not remove
 const RANK_XP = [300, 500, 800, 1200, 1800, 2500]; // XP per level inside each rank (E,D,C,B,A,S)
 
 function getXpForLevel(level) {
-    const rankIdx = Math.min(Math.floor(level / 10), 5);
-    return RANK_XP[rankIdx];
+    return 100 + (level - 1) * 20 + Math.floor(level / 5) * 50;
 }
 
 function getTotalXpForLevel(level) {
@@ -282,6 +281,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderQuests();     // 3. Draw the quests (Filters are applied automatically now)
     updateStats();      // 4. Update the math (Level, Rank, Streak, XP)
     loadSavedProfile(); // 5. Load the Profile image & name
+    // Load saved reset time into settings input
+    const rtInput = document.getElementById('reset-time-input');
+    if (rtInput) rtInput.value = localStorage.getItem('resetTime') || '00:00';
     initSortable();     // 6. Initialize drag-and-drop reordering
     
     // 7. Render Calendar (No Lucide required anymore!)
@@ -457,13 +459,18 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
     if (pDate) pDate.textContent = dateStr;
     if (pDay) pDay.textContent = dayStr;
     
-    // Simple Timer Mock (Counts down to midnight)
+    // Countdown to custom reset time
     setInterval(() => {
         const d = new Date();
-        const h = 23 - d.getHours();
-        const m = 59 - d.getMinutes();
-        const s = 59 - d.getSeconds();
-        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        const { h: resetH, m: resetM } = getResetTime();
+        const resetDate = new Date(d);
+        resetDate.setHours(resetH, resetM, 0, 0);
+        if (resetDate <= d) resetDate.setDate(resetDate.getDate() + 1);
+        const diff = Math.max(0, Math.floor((resetDate - d) / 1000));
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '00')}`;
         
         const hTimer = document.getElementById('reset-timer');
         if (hTimer) hTimer.textContent = timeStr;
@@ -550,6 +557,38 @@ function isQuestActiveOnDate(quest, dateObj) {
     }
     return true;
 }
+// ====== COLOR → XP MULTIPLIER TABLES ======
+// Normal quest colors: [blue, green, orange, red] (index matches getQuestAgeColor order)
+const NORMAL_COLOR_MULTIPLIERS = [1.0, 1.1, 1.3, 1.5];
+// Daily quest colors: [gold, green, cyan, sky] (index matches getDailyStreakColor order)
+const DAILY_COLOR_MULTIPLIERS  = [1.0, 1.2, 1.3, 1.5];
+
+function getNormalColorIndex(quest) {
+    if (!quest.createdAt) return 0;
+    const days = Math.floor((Date.now() - quest.createdAt) / 86400000);
+    if (days < 2) return 0;
+    if (days < 5) return 1;
+    if (days < 9) return 2;
+    return 3;
+}
+function getDailyColorIndex(streak) {
+    const s = streak || 0;
+    if (s <= 3) return 0;
+    if (s <= 6) return 1;
+    if (s <= 9) return 2;
+    return 3;
+}
+function getQuestMultiplier(quest) {
+    const isDaily = quest.type === 'daily' || !quest.type;
+    if (isDaily) {
+        const idx = getDailyColorIndex(quest.dailyStreak ?? 0);
+        return DAILY_COLOR_MULTIPLIERS[idx];
+    } else {
+        const idx = getNormalColorIndex(quest);
+        return NORMAL_COLOR_MULTIPLIERS[idx];
+    }
+}
+// ==========================================
 function getDailyStreakColor(streak) {
     const s = streak || 0;
     if (s <= 3)  return '#fbbf24';
@@ -735,8 +774,10 @@ function toggleQuest(id) {
     if (!quest.completed) {
         // Checking the quest
         quest.completed = true;
-        systemState.todayXp += quest.xp;
-        systemState.totalXp += quest.xp;
+        const _mult = getQuestMultiplier(quest);
+        const _earnedXp = Math.round(quest.xp * _mult);
+        systemState.todayXp += _earnedXp;
+        systemState.totalXp += _earnedXp;
 
         // --- STREAK LOGIC: The Trigger ---
         const isDaily = quest.type === 'daily' || !quest.type;
@@ -797,8 +838,10 @@ function toggleQuest(id) {
     } else {
         // Unchecking the quest
         quest.completed = false;
-        systemState.todayXp -= quest.xp;
-        systemState.totalXp -= quest.xp;
+        const _multUndo = getQuestMultiplier(quest);
+        const _undoXp = Math.round(quest.xp * _multUndo);
+        systemState.todayXp -= _undoXp;
+        systemState.totalXp -= _undoXp;
         
         // Safeguard to ensure XP never drops below 0
         if (systemState.todayXp < 0) systemState.todayXp = 0;
@@ -818,7 +861,8 @@ function toggleQuest(id) {
         const allDone = dueDailies.length > 0 && dueDailies.every(q => q.completed);
         if (allDone) {
             systemState.dailyBonusClaimed = true;
-            const bonusXp = 150;
+            const bonusXp = Math.round(systemState.todayXp * 1.11);
+            systemState._lastBonusXp = bonusXp;
             systemState.totalXp += bonusXp;
             systemState.todayXp += bonusXp;
             saveGameState();
@@ -937,8 +981,9 @@ function updateStats() {
     systemState.level = lvl;
     
     if (systemState.level > previousLevel) {
-        const prevRankIdx = Math.min(Math.floor(previousLevel / 10), 5);
-        const newRankIdx  = Math.min(Math.floor(systemState.level / 10), 5);
+        const rankThresholds = [0, 7, 15, 24, 34, 45];
+        const prevRankIdx = Math.min(rankThresholds.reduce((acc, t, i) => previousLevel >= t ? i : acc, 0), 5);
+        const newRankIdx  = Math.min(rankThresholds.reduce((acc, t, i) => systemState.level >= t ? i : acc, 0), 5);
         const rankNames   = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'];
         const rankColors  = ['#94a3b8', '#34d399', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
         const rankIcons   = ['E', 'D', 'C', 'B', 'A', 'S'];
@@ -958,16 +1003,16 @@ function updateStats() {
 
     // 2. Define Rank Logic (Every 10 levels is a new Rank)
     const ranks = [
-        { threshold: 0, letter: 'E', name: 'E-Rank' },
-        { threshold: 10, letter: 'D', name: 'D-Rank' },
-        { threshold: 20, letter: 'C', name: 'C-Rank' },
-        { threshold: 30, letter: 'B', name: 'B-Rank' },
-        { threshold: 40, letter: 'A', name: 'A-Rank' },
-        { threshold: 50, letter: 'S', name: 'S-Rank' }
+        { threshold: 0,  letter: 'E', name: 'E-Rank' },
+        { threshold: 7,  letter: 'D', name: 'D-Rank' },
+        { threshold: 15, letter: 'C', name: 'C-Rank' },
+        { threshold: 24, letter: 'B', name: 'B-Rank' },
+        { threshold: 34, letter: 'A', name: 'A-Rank' },
+        { threshold: 45, letter: 'S', name: 'S-Rank' }
     ];
 
     // Find current and next rank
-    let currentRankIndex = Math.floor(systemState.level / 10);
+    let currentRankIndex = ranks.reduce((acc, r, i) => systemState.level >= r.threshold ? i : acc, 0);
     if (currentRankIndex > 5) currentRankIndex = 5; // Cap at S-Rank
     
     const currentRank = ranks[currentRankIndex];
@@ -1082,7 +1127,7 @@ function updateStats() {
     const bonusEmojiEl = document.getElementById('bonus-emoji');
     if (bonusBanner) {
         if (systemState.dailyBonusClaimed) {
-            if (bonusStatLabel) { bonusStatLabel.textContent = '+150 XP Claimed'; bonusStatLabel.style.color = '#34d399'; }
+            if (bonusStatLabel) { bonusStatLabel.textContent = `+${systemState._lastBonusXp || 0} XP Claimed`; bonusStatLabel.style.color = '#34d399'; }
             if (bonusEmojiEl) bonusEmojiEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
             bonusBanner.style.borderColor = 'rgba(52,211,153,0.4)';
             bonusBanner.style.background = 'rgba(52,211,153,0.06)';
@@ -2337,11 +2382,34 @@ function reloadSaveFile() {
 // ==========================================
 // --- DAILY RESET & STREAK SYSTEM ---
 // ==========================================
+// ====== CUSTOM RESET TIME ======
+function getResetTime() {
+    const saved = localStorage.getItem('resetTime') || '00:00';
+    const [h, m] = saved.split(':').map(Number);
+    return { h, m };
+}
+function saveResetTime() {
+    const input = document.getElementById('reset-time-input');
+    if (!input) return;
+    localStorage.setItem('resetTime', input.value);
+    _sfx('success');
+    sysAlert(`Daily reset time set to ${input.value}.`, { title: 'SYSTEM UPDATE', icon: '✔', color: 'blue' });
+}
+// ===============================
+
 function checkDailyReset() {
     // If the user hasn't registered yet, do nothing.
     if (!localStorage.getItem('hunterName')) return;
 
-    const today = new Date().toDateString(); // Grabs today's date as a simple text string
+    const { h: resetH, m: resetM } = getResetTime();
+    const now = new Date();
+    // "Today" from the system's perspective: the calendar date after the reset time has passed.
+    // If current time is before reset time, we're still in yesterday's "game day".
+    const resetToday = new Date(now);
+    if (now.getHours() < resetH || (now.getHours() === resetH && now.getMinutes() < resetM)) {
+        resetToday.setDate(resetToday.getDate() - 1);
+    }
+    const today = resetToday.toDateString();
     const lastLogin = localStorage.getItem('lastLoginDate');
 
     // If the last login isn't today, a new day has started!

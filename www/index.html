@@ -344,7 +344,14 @@
                     ACHIEVEMENTS
                 </button>
 
-                <!-- System Data Management (Export/Import) -->
+                <!-- Reset Time Setting -->
+                <div class="data-management-card" style="flex-direction:column;gap:8px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">DAILY RESET TIME</div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="time" id="reset-time-input" class="clean-input small" style="flex:1;text-align:center;" value="00:00">
+                        <button class="sci-fi-btn" style="flex-shrink:0;padding:8px 14px;" onclick="saveResetTime()">SAVE</button>
+                    </div>
+                </div>
                 <div class="data-management-card">
                     <button class="sci-fi-btn" onclick="exportData()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
