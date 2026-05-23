@@ -105,7 +105,7 @@ body {
 
 /* Push content down ONLY on tabs that share the static header */
 #view-home, #view-quests {
-    padding-top: 158px !important; 
+    padding-top: 200px !important; 
 }
 
 /* Adjust the distance from the top of the screen for the Calendar */
@@ -158,29 +158,282 @@ body {
     background: linear-gradient(90deg, transparent, var(--neon-blue-glow), transparent);
 }
 
-/* Profile Card */
-.profile-card {
+/* ── HUD Card (Tasks Header) ── */
+.hud-card {
     display: flex;
     flex-direction: column;
-    padding: 16px 20px 14px 20px;
+    gap: 12px;
+    padding: 16px 18px;
+}
+.hud-top {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+}
+.hud-identity {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    flex: 1;
+    min-width: 0;
+    padding-left: 8px;
+}
+.hud-name {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    margin: 0;
+    text-shadow: 0 0 10px rgba(255,255,255,0.25);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.hud-badges {
+    display: flex;
+    align-items: center;
     gap: 8px;
 }
-.profile-top-row {
+.hud-rank-block {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+.hud-divider {
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--panel-border), transparent);
+}
+.hud-bottom {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+.hud-xp-section {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+    min-width: 0;
+}
+.hud-xp-labels {
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.profile-xp-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0;
+.hud-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    text-transform: uppercase;
 }
-.profile-left {
+.hud-bar-track {
+    width: 100%;
+    height: 5px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 4px;
+    overflow: hidden;
+}
+.hud-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--neon-blue);
+    box-shadow: 0 0 8px var(--neon-blue-glow);
+    border-radius: 4px;
+    transition: width 0.4s ease;
+}
+.hud-timer-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--panel-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+}
+.hud-timer-label {
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--text-muted);
+}
+.hud-timer-value {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--neon-blue);
+    text-shadow: 0 0 8px var(--neon-blue-glow);
+    font-variant-numeric: tabular-nums;
+}
+
+/* Legacy classes kept for other views */
+.profile-card { display: flex; flex-direction: column; padding: 16px 20px 14px 20px; gap: 6px; }
+.profile-top-row { display: flex; justify-content: space-between; align-items: center; }
+.profile-xp-row { display: flex; justify-content: space-between; align-items: center; }
+.profile-left { display: flex; align-items: center; gap: 16px; }
+
+/* ── Checklist ── */
+.checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 8px;
+}
+.checklist-item input[type="text"] {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text-main);
+    font-size: 14px;
+    font-family: inherit;
+}
+.checklist-item input[type="text"]::placeholder { color: var(--text-muted); }
+.checklist-item-remove {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 0 2px;
+    line-height: 1;
+    flex-shrink: 0;
+}
+.checklist-item-remove:hover { color: var(--neon-red); }
+
+/* Quest card checklist rows */
+.quest-main-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    position: relative;
+}
+
+.quest-checklist-area {
+    display: none;
+    flex-direction: column;
+    gap: 0;
+    width: 100%;
+    margin-top: 0;
+}
+
+.quest-checklist-row {
     display: flex;
     align-items: center;
     gap: 16px;
+    padding: 12px 16px 12px 52px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-top: 1px solid rgba(255,255,255,0.05);
 }
+.quest-checklist-row:active {
+    background: rgba(255,255,255,0.04);
+}
+
+.quest-checklist-row:active {
+    background: rgba(255,255,255,0.05);
+}
+
+.quest-checklist-row .cl-circle {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid var(--neon-red, #f87171);
+    background: transparent;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.quest-checklist-row .cl-check {
+    opacity: 0;
+    width: 10px;
+    height: 10px;
+}
+
+.quest-checklist-row.done .cl-circle {
+    background: rgba(248,113,113,0.25);
+    border-color: var(--neon-red, #f87171);
+}
+
+.quest-checklist-row.done .cl-check {
+    opacity: 1;
+}
+
+.quest-checklist-row .cl-label {
+    font-size: 13px;
+    color: var(--text-primary, #e2e8f0);
+    line-height: 1.4;
+}
+
+.quest-checklist-row.done .cl-label {
+    text-decoration: line-through;
+    opacity: 0.35;
+}
+.cl-circle {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 2px solid var(--neon-red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s;
+    background: transparent;
+}
+.quest-checklist-row.done .cl-circle {
+    background: var(--neon-red);
+    border-color: var(--neon-red);
+}
+.cl-check {
+    display: none;
+    width: 10px;
+    height: 10px;
+}
+.quest-checklist-row.done .cl-check { display: block; }
+.cl-label {
+    font-size: 14px;
+    color: var(--text-main);
+    flex: 1;
+    line-height: 1.4;
+}
+
+/* Checklist toggle indicator on quest card */
+.cl-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 8px;
+    padding: 3px 8px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    flex-shrink: 0;
+    user-select: none;
+    transition: background 0.15s;
+    font-variant-numeric: tabular-nums;
+}
+.cl-indicator:active { background: rgba(255,255,255,0.14); }
+.cl-indicator-fraction {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1px;
+    font-size: 15px; /* ← CHANGE THIS VALUE to resize */
+    font-weight: 700;
+    line-height: 1;
+}
+.cl-indicator-fraction span { color: var(--text-main); }
 /* Dashboard Avatar Ring */
 .avatar-ring {
     position: absolute;
@@ -200,12 +453,12 @@ body {
 /* --- Home Page Dual-Rings --- */
 .avatar-container {
     position: relative;
-    width: 60px; /* Size of your profile picture */
+    width: 60px;
     height: 60px;
     display: flex;
     justify-content: center;
     align-items: center;
-    margin: 10px; /* Gives room for the rings to spin outside it */
+    flex-shrink: 0;
 }
 .hud-ring {
     position: absolute;
@@ -273,12 +526,7 @@ body {
     box-shadow: 0 0 10px rgba(251, 191, 36, 0.2);
 }
 
-.profile-right {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 10px;
-}
+.profile-right { display: flex; align-items: center; flex-shrink: 0; }
 .rank-hexagon {
     width: 44px;
     height: 50px;
@@ -423,8 +671,9 @@ button.sci-fi-btn.filter-opt.active {
 /* HUD Quest List */
 .quest-item {
     display: flex;
-    align-items: stretch;
-    padding: 18px 16px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding: 18px 16px 18px 16px;
     margin-bottom: 12px;
     position: relative;
     z-index: 1; 
@@ -1829,4 +2078,16 @@ button.sci-fi-btn.filter-opt.active {
 .notif-complete-btn:active {
     background: rgba(56, 189, 248, 0.1);
     color: #7dd3fc;
+}
+.checklist-drag-handle {
+    color: rgba(148,163,184,0.4);
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    padding: 0 4px;
+    flex-shrink: 0;
+}
+.checklist-drag-handle:active {
+    cursor: grabbing;
+    color: rgba(148,163,184,0.8);
 }

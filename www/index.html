@@ -18,39 +18,52 @@
 
         <!-- SHARED STATIC HEADER -->
         <div id="shared-header" class="shared-header">
-            <!-- Profile Card (unified with XP bar) -->
-            <div class="system-panel profile-card">
-                <div class="profile-top-row">
-                    <div class="profile-left">
-                        <div class="avatar-container">
-                            <div class="hud-ring ring-1"></div>
-                            <div class="hud-ring ring-2"></div>
-                            <div id="home-avatar" class="avatar"></div>
-                        </div>
-                        <div class="profile-info">
-                            <h2 class="glitch-text" data-text="Jinwoo" id="home-username">Hunter</h2>
+            <div class="system-panel hud-card">
+
+                <!-- TOP: Avatar | Identity | Rank -->
+                <div class="hud-top">
+                    <div class="avatar-container" style="margin-left: 2.5%;">
+                        <div class="hud-ring ring-1"></div>
+                        <div class="hud-ring ring-2"></div>
+                        <div id="home-avatar" class="avatar"></div>
+                    </div>
+                    <div class="hud-identity">
+                        <h2 class="glitch-text hud-name" data-text="Jinwoo" id="home-username">Hunter</h2>
+                        <div class="hud-badges">
                             <div class="streak-badge">
-                                <svg class="flame-icon" width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-                                <span id="streak-count">87 Days</span>
+                                <svg class="flame-icon" width="12" height="12" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                                <span id="streak-count">0</span>
                             </div>
                         </div>
                     </div>
-                    <div class="profile-right">
+                    <div class="hud-rank-block">
                         <div class="rank-hexagon">
                             <span class="rank-text" id="home-rank-text">E</span>
                         </div>
                     </div>
                 </div>
-                <!-- XP Bar -->
-                <div class="profile-xp-row">
-                    <span id="header-exp-label" style="color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:1px;">0 / 500 EXP</span>
-                    <span id="header-level-target" style="color:var(--text-muted);font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;">LEVEL <span id="player-level" class="neon-text">0</span></span>
-                </div>
-                <div style="width:100%;height:5px;background:rgba(0,0,0,0.5);border-radius:4px;overflow:hidden;">
-                    <div id="header-level-fill" style="height:100%;width:0%;background:var(--neon-blue);box-shadow:0 0 8px var(--neon-blue-glow);border-radius:4px;transition:width 0.4s ease;"></div>
-                </div>
-            </div>
 
+                <!-- DIVIDER -->
+                <div class="hud-divider"></div>
+
+                <!-- BOTTOM: XP bar + Reset timer -->
+                <div class="hud-bottom">
+                    <div class="hud-xp-section">
+                        <div class="hud-xp-labels">
+                            <span id="header-exp-label" class="hud-label">0 / 500 EXP</span>
+                            <span id="header-level-target" class="hud-label">LVL <span id="player-level" class="neon-text">0</span></span>
+                        </div>
+                        <div class="hud-bar-track">
+                            <div id="header-level-fill" class="hud-bar-fill"></div>
+                        </div>
+                    </div>
+                    <div class="hud-timer-block">
+                        <span class="hud-timer-label">RESET</span>
+                        <span id="reset-timer" class="hud-timer-value">--:--:--</span>
+                    </div>
+                </div>
+
+            </div>
         </div>
 
         <!-- HOME VIEW -->
@@ -393,6 +406,17 @@
                 <div class="quest-section">
                     <label>Notes</label>
                     <textarea id="new-quest-notes" class="clean-input sci-fi-textarea" placeholder="Add details or sub-tasks..." onfocus="setTimeout(() => this.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)"></textarea>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- CHECKLIST SECTION -->
+                <div class="quest-section">
+                    <label>Checklist</label>
+                    <div id="checklist-items"></div>
+                    <button class="clean-add-btn" onclick="addChecklistItem()">
+                        <span class="plus-icon">+</span> New checklist entry
+                    </button>
                 </div>
 
                 <div class="divider"></div>

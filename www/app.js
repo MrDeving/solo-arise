@@ -147,7 +147,8 @@ let systemState = {
     weeklyHistory: [], 
     events: [],
     dailyBonus: null,           // { stat, multiplier, date }
-    dailyBonusClaimed: false    // true after reward given
+    dailyBonusClaimed: false,   // true after reward given
+    checklistOpen: {}           // { [questId]: 0 or 1 }
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -673,30 +674,60 @@ function renderQuests() {
             ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="opacity:0.45;flex-shrink:0;"><path d="M16 3a1 1 0 0 1 .707 1.707L15 6.414V10l3 3v1H6v-1l3-3V6.414L7.293 4.707A1 1 0 0 1 8 3h8zM11 18h2v3h-2z"/></svg>`
             : '';
 
+        const hasChecklist = quest.checklist && quest.checklist.length > 0;
+        const clDone = hasChecklist ? quest.checklist.filter(i => i.done).length : 0;
+        const clTotal = hasChecklist ? quest.checklist.length : 0;
+        const clIndicator = hasChecklist ? `
+            <div class="cl-indicator" onclick="event.stopPropagation();toggleChecklistVisibility(${quest.id}, this)">
+                <div class="cl-indicator-fraction">
+                    <span>${clDone}/${clTotal}</span>
+                </div>
+            </div>` : '';
+
         questEl.innerHTML = `
-            <!-- Age Color Slab -->
             ${ageSlab}
-            <!-- Checkbox -->
             <div class="quest-checkbox" onclick="toggleQuest(${quest.id})"></div>
-            
-            <!-- Details (Clicking this opens the Edit Menu) -->
             <div class="quest-details" onclick="openEditQuestModal(${quest.id})">
                 <div class="quest-title">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
             <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;flex-shrink:0;align-self:stretch;padding-bottom:2px;gap:4px;">
-                <!-- 3-dot menu -->
                 <div style="position:relative;">
                     <div class="quest-three-dot" onclick="event.stopPropagation();toggleQuestMenu(${quest.id}, this)">⋮</div>
                 </div>
-                <!-- Bottom icons -->
                 <div style="display:flex;align-items:center;gap:6px;">
+                    ${clIndicator}
                     ${streak}
                     ${reminderIcon}
                     ${pinIcon}
                 </div>
             </div>
         `;
+
+        // Checklist rows (collapsed by default)
+        if (hasChecklist) {
+            const clArea = document.createElement('div');
+            clArea.className = 'quest-checklist-area';
+            clArea.id = `cl-area-${quest.id}`;
+            const savedOpen = systemState.checklistOpen && systemState.checklistOpen[quest.id];
+        clArea.style.display = savedOpen ? 'flex' : 'none';
+        if (savedOpen) clArea.style.flexDirection = 'column';
+            quest.checklist.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = `quest-checklist-row${item.done ? ' done' : ''}`;
+                row.onclick = (e) => { e.stopPropagation(); toggleChecklistItem(quest.id, idx); };
+                row.innerHTML = `
+                    <div class="cl-circle">
+                        <svg class="cl-check" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2">
+                            <polyline points="1.5,5 4,7.5 8.5,2.5"/>
+                        </svg>
+                    </div>
+                    <span class="cl-label">${item.text}</span>
+                `;
+                clArea.appendChild(row);
+            });
+            questEl.appendChild(clArea);
+        }
         
         wrapperEl.appendChild(questEl);
 
@@ -744,10 +775,23 @@ function toggleQuestMenu(id, btn) {
     document.body.appendChild(menu);
 }
 
-// Close floating menu when tapping elsewhere
+// Close floating menu and checklist popup when tapping elsewhere
 document.addEventListener('click', () => {
     document.getElementById('floating-quest-menu')?.remove();
+    document.getElementById('floating-checklist-popup')?.remove();
 });
+function toggleChecklistVisibility(questId, btn) {
+    const area = document.getElementById(`cl-area-${questId}`);
+    if (!area) return;
+    const isOpen = area.style.display !== 'none';
+    const newState = isOpen ? 0 : 1;
+    area.style.display = newState === 1 ? 'flex' : 'none';
+    area.style.flexDirection = 'column';
+    // Save per-task checklist open state
+    if (!systemState.checklistOpen) systemState.checklistOpen = {};
+    systemState.checklistOpen[questId] = newState;
+    saveGameState();
+}
 function togglePinQuest(id) {
     const quest = systemState.quests.find(q => q.id === id);
     if (!quest) return;
@@ -985,7 +1029,7 @@ function updateStats() {
         const prevRankIdx = Math.min(rankThresholds.reduce((acc, t, i) => previousLevel >= t ? i : acc, 0), 5);
         const newRankIdx  = Math.min(rankThresholds.reduce((acc, t, i) => systemState.level >= t ? i : acc, 0), 5);
         const rankNames   = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'];
-        const rankColors  = ['#94a3b8', '#34d399', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
+        const rankColors  = ['#4ade80', '#60a5fa', '#c084fc', '#fbbf24', '#f87171', '#e0f2fe'];
         const rankIcons   = ['E', 'D', 'C', 'B', 'A', 'S'];
 
         if (newRankIdx > prevRankIdx) {
@@ -1001,20 +1045,20 @@ function updateStats() {
         }
     }
 
-    // 2. Define Rank Logic (Every 10 levels is a new Rank)
+    // 2. Define Rank Logic
     const ranks = [
-        { threshold: 0,  letter: 'E', name: 'E-Rank' },
-        { threshold: 7,  letter: 'D', name: 'D-Rank' },
-        { threshold: 15, letter: 'C', name: 'C-Rank' },
-        { threshold: 24, letter: 'B', name: 'B-Rank' },
-        { threshold: 34, letter: 'A', name: 'A-Rank' },
-        { threshold: 45, letter: 'S', name: 'S-Rank' }
+        { threshold: 0,  letter: 'E', name: 'E-Rank', color: '#4ade80' },
+        { threshold: 7,  letter: 'D', name: 'D-Rank', color: '#60a5fa' },
+        { threshold: 15, letter: 'C', name: 'C-Rank', color: '#c084fc' },
+        { threshold: 24, letter: 'B', name: 'B-Rank', color: '#fbbf24' },
+        { threshold: 34, letter: 'A', name: 'A-Rank', color: '#f87171' },
+        { threshold: 45, letter: 'S', name: 'S-Rank', color: '#e0f2fe' }
     ];
 
-    // Find current and next rank
+    // Find current and next rank using custom thresholds
     let currentRankIndex = ranks.reduce((acc, r, i) => systemState.level >= r.threshold ? i : acc, 0);
     if (currentRankIndex > 5) currentRankIndex = 5; // Cap at S-Rank
-    
+
     const currentRank = ranks[currentRankIndex];
     const nextRank = currentRankIndex < 5 ? ranks[currentRankIndex + 1] : ranks[5];
 
@@ -1026,12 +1070,10 @@ function updateStats() {
     const expLeft = expNeeded - xpIntoCurrentLevel;
     const levelProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((xpIntoCurrentLevel / expNeeded) * 100);
 
-    let levelsIntoRank = systemState.level % 10;
-    if (currentRankIndex >= 5) levelsIntoRank = 10;
-    const xpAtRankStart = getTotalXpForLevel(currentRankIndex * 10);
-    const xpAtRankEnd = getTotalXpForLevel(Math.min((currentRankIndex + 1) * 10, 60));
+    const xpAtRankStart = getTotalXpForLevel(currentRank.threshold);
+    const xpAtRankEnd = getTotalXpForLevel(currentRankIndex < 5 ? nextRank.threshold : 999);
     const rankProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor(((systemState.totalXp - xpAtRankStart) / (xpAtRankEnd - xpAtRankStart)) * 100);
-    const levelsToNext = currentRankIndex >= 5 ? 0 : 10 - levelsIntoRank;
+    const levelsToNext = currentRankIndex >= 5 ? 0 : nextRank.threshold - systemState.level;
 
 // --- APPLY TO UI ---
     
@@ -1042,8 +1084,148 @@ function updateStats() {
     const statLevelEl = document.getElementById('stat-level');
     if (statLevelEl) statLevelEl.textContent = systemState.level;
     
-    const homeRankEl = document.getElementById('home-rank-text');
-    if (homeRankEl) homeRankEl.textContent = currentRank.letter;
+    const rankHex = document.querySelector('.rank-hexagon');
+    if (rankHex) {
+        const c = currentRank.color;
+        const l = currentRank.letter;
+        const glowColor = c + '99';
+        const bgColor = c + '18';
+        const innerColor = { 'E': '#86efac', 'D': '#bfdbfe', 'C': '#e9d5ff', 'B': '#fde68a', 'A': '#fecaca', 'S': '#ffffff' }[l] || c;
+        const rankBadges = {
+            'E': `
+                <svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;">
+                    <defs>
+                        <radialGradient id="rg_e" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.3"/></radialGradient>
+                        <filter id="rf_e"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.5" filter="url(#rf_e)"/>
+                    <polygon points="32,14 52,25 52,47 32,58 12,47 12,25" fill="url(#rg_e)" opacity="0.4"/>
+                    <line x1="32" y1="4" x2="32" y2="14" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                    <line x1="60" y1="19" x2="52" y2="25" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                    <line x1="60" y1="53" x2="52" y2="47" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                    <line x1="32" y1="68" x2="32" y2="58" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                    <line x1="4" y1="53" x2="12" y2="47" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                    <line x1="4" y1="19" x2="12" y2="25" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
+            'D': `
+                <svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;">
+                    <defs>
+                        <radialGradient id="rg_d" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient>
+                        <filter id="rf_d"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.8" filter="url(#rf_d)"/>
+                    <polygon points="32,12 54,25 54,47 32,60 10,47 10,25" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
+                    <polygon points="32,14 52,26 52,46 32,58 12,46 12,26" fill="url(#rg_d)" opacity="0.35"/>
+                    <line x1="32" y1="4" x2="32" y2="14" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <line x1="60" y1="19" x2="54" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <line x1="60" y1="53" x2="54" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <line x1="32" y1="68" x2="32" y2="58" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <line x1="4" y1="53" x2="10" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <line x1="4" y1="19" x2="10" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
+                    <circle cx="32" cy="36" r="6" fill="${c}" opacity="0.15"/>
+                    <circle cx="32" cy="36" r="3" fill="${innerColor}" opacity="0.5"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
+            'C': `
+                <svg width="72" height="80" viewBox="0 0 72 80" style="position:absolute;">
+                    <defs>
+                        <radialGradient id="rg_c" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="50%" stop-color="${c}" stop-opacity="0.7"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient>
+                        <filter id="rf_c"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="36,4 68,22 68,58 36,76 4,58 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2" filter="url(#rf_c)"/>
+                    <polygon points="36,11 61,27 61,53 36,69 11,53 11,27" fill="none" stroke="${c}" stroke-width="0.9" opacity="0.5"/>
+                    <polygon points="36,18 54,30 54,50 36,62 18,50 18,30" fill="url(#rg_c)" opacity="0.35"/>
+                    <polygon points="36,22 50,32 50,48 36,58 22,48 22,32" fill="none" stroke="${innerColor}" stroke-width="0.5" opacity="0.3"/>
+                    <line x1="36" y1="4" x2="36" y2="18" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <line x1="68" y1="22" x2="54" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <line x1="68" y1="58" x2="54" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <line x1="36" y1="76" x2="36" y2="62" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <line x1="4" y1="58" x2="18" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <line x1="4" y1="22" x2="18" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
+                    <circle cx="36" cy="40" r="5" fill="${innerColor}" opacity="0.4"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 16px ${c},0 0 32px ${glowColor};">${l}</span>`,
+            'B': `
+                <svg width="76" height="84" viewBox="0 0 76 84" style="position:absolute;">
+                    <defs>
+                        <radialGradient id="rg_b" cx="32%" cy="28%" r="72%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="45%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient>
+                        <filter id="rf_b"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="38,4 72,22 72,62 38,80 4,62 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2.2" filter="url(#rf_b)"/>
+                    <polygon points="38,12 64,28 64,56 38,72 12,56 12,28" fill="none" stroke="${c}" stroke-width="1" opacity="0.4"/>
+                    <polygon points="38,20 56,32 56,52 38,64 20,52 20,32" fill="url(#rg_b)" opacity="0.3"/>
+                    <rect x="35" y="1" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 4)"/>
+                    <rect x="69" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 22)"/>
+                    <rect x="69" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 62)"/>
+                    <rect x="35" y="77" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 80)"/>
+                    <rect x="1" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 62)"/>
+                    <rect x="1" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 22)"/>
+                    <line x1="38" y1="4" x2="38" y2="20" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                    <line x1="72" y1="22" x2="56" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                    <line x1="72" y1="62" x2="56" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                    <line x1="38" y1="80" x2="38" y2="64" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                    <line x1="4" y1="62" x2="20" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                    <line x1="4" y1="22" x2="20" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 18px ${c},0 0 36px ${glowColor};">${l}</span>`,
+            'A': `
+                <svg width="80" height="90" viewBox="0 0 80 90" style="position:absolute;">
+                    <defs>
+                        <radialGradient id="rg_a" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="40%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient>
+                        <filter id="rf_a"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="40,4 76,23 76,67 40,86 4,67 4,23" fill="${bgColor}" stroke="${c}" stroke-width="2.5" filter="url(#rf_a)"/>
+                    <polygon points="40,12 68,29 68,61 40,78 12,61 12,29" fill="none" stroke="${c}" stroke-width="1.1" opacity="0.45"/>
+                    <polygon points="40,20 60,33 60,57 40,70 20,57 20,33" fill="url(#rg_a)" opacity="0.3"/>
+                    <polygon points="40,28 52,37 52,53 40,62 28,53 28,37" fill="none" stroke="${innerColor}" stroke-width="0.6" opacity="0.3"/>
+                    <line x1="40" y1="0" x2="40" y2="8" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
+                    <line x1="40" y1="82" x2="40" y2="90" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
+                    <line x1="0" y1="45" x2="8" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
+                    <line x1="72" y1="45" x2="80" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
+                    <circle cx="40" cy="4" r="3.5" fill="${innerColor}" opacity="0.9"/>
+                    <circle cx="40" cy="86" r="3.5" fill="${innerColor}" opacity="0.9"/>
+                    <circle cx="4" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/>
+                    <circle cx="76" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/>
+                    <line x1="40" y1="4" x2="40" y2="20" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                    <line x1="76" y1="23" x2="60" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                    <line x1="76" y1="67" x2="60" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                    <line x1="40" y1="86" x2="40" y2="70" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                    <line x1="4" y1="67" x2="20" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                    <line x1="4" y1="23" x2="20" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 60px ${glowColor};">${l}</span>`,
+            'S': `
+                <style>@keyframes sRankSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes sRankPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style>
+                <svg width="88" height="96" viewBox="0 0 88 96" style="position:absolute;overflow:visible;">
+                    <defs>
+                        <radialGradient id="rg_s" cx="35%" cy="28%" r="68%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="35%" stop-color="${c}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient>
+                        <filter id="rf_s"><feGaussianBlur stdDeviation="5.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    </defs>
+                    <polygon points="44,4 84,26 84,74 44,92 4,74 4,26" fill="${bgColor}" stroke="${c}" stroke-width="2.8" filter="url(#rf_s)"/>
+                    <polygon points="44,12 76,31 76,69 44,84 12,69 12,31" fill="none" stroke="${c}" stroke-width="1.3" opacity="0.5"/>
+                    <polygon points="44,20 68,35 68,65 44,76 20,65 20,35" fill="url(#rg_s)" opacity="0.3"/>
+                    <polygon points="44,28 60,39 60,61 44,68 28,61 28,39" fill="none" stroke="${innerColor}" stroke-width="0.7" opacity="0.35"/>
+                    <circle cx="44" cy="48" r="30" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="4 8" opacity="0.4" style="transform-origin:44px 48px;animation:sRankSpin 10s linear infinite;"/>
+                    <circle cx="44" cy="48" r="20" fill="none" stroke="${innerColor}" stroke-width="0.4" stroke-dasharray="3 9" opacity="0.25" style="transform-origin:44px 48px;animation:sRankSpin 7s linear infinite reverse;"/>
+                    <circle cx="44" cy="4" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0s;"/>
+                    <circle cx="84" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0.4s;"/>
+                    <circle cx="84" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0.8s;"/>
+                    <circle cx="44" cy="92" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 1.2s;"/>
+                    <circle cx="4" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 1.6s;"/>
+                    <circle cx="4" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 2.0s;"/>
+                    <line x1="44" y1="4" x2="44" y2="20" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                    <line x1="84" y1="26" x2="68" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                    <line x1="84" y1="74" x2="68" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                    <line x1="44" y1="92" x2="44" y2="76" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                    <line x1="4" y1="74" x2="20" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                    <line x1="4" y1="26" x2="20" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
+                </svg>
+                <span style="position:relative;z-index:2;font-size:26px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 80px ${glowColor};">${l}</span>`
+        };
+        rankHex.style.cssText = `position:relative;display:flex;align-items:center;justify-content:center;width:80px;height:88px;background:transparent;border:none;`;
+        rankHex.innerHTML = rankBadges[l] || rankBadges['E'];
+    }
 
     // Quests Screen Updates
     const qLevel = document.getElementById('quests-player-level');
@@ -1079,7 +1261,13 @@ function updateStats() {
     if(levelsLeft) levelsLeft.textContent = currentRankIndex >= 5 ? 'Max Rank Reached' : `${levelsToNext} Levels to Promotion`;
 
     const rankFill = document.getElementById('dash-rank-fill');
-    if(rankFill) rankFill.style.width = `${rankProgressPercent}%`;
+    if(rankFill) { rankFill.style.width = `${rankProgressPercent}%`; rankFill.style.background = currentRank.color; rankFill.style.boxShadow = `0 0 10px ${currentRank.color}88`; }
+    const rpcPillCurrEl = document.getElementById('dash-pill-current');
+    if(rpcPillCurrEl) { rpcPillCurrEl.style.color = currentRank.color; rpcPillCurrEl.style.borderColor = currentRank.color + '66'; rpcPillCurrEl.style.background = currentRank.color + '18'; }
+    const rpcPillNextEl = document.getElementById('dash-pill-next');
+    if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
+    const dashMiniHexEl = document.getElementById('dash-mini-hex');
+    if(dashMiniHexEl) { dashMiniHexEl.style.color = currentRank.color; dashMiniHexEl.style.borderColor = currentRank.color + '88'; }
 
     // --- APPLY TO LEVEL MODULE ---
     const levelTarget = document.getElementById('dash-level-target');
@@ -1741,7 +1929,11 @@ function applySavedDataToUI() {
     const dateJoined = localStorage.getItem('dateJoined');
 
     if (savedName) {
-        document.getElementById('home-username').textContent = savedName;
+        const homeUsernameEl = document.getElementById('home-username');
+        if (homeUsernameEl) {
+            homeUsernameEl.textContent = savedName;
+            homeUsernameEl.setAttribute('data-text', savedName);
+        }
         const dashUser = document.getElementById('dash-username');
         if(dashUser) dashUser.textContent = savedName;
         const nameInput = document.getElementById('profile-name-input');
@@ -1753,7 +1945,8 @@ function applySavedDataToUI() {
 
     if (savedAvatar) {
         const bgUrl = `url(${savedAvatar})`;
-        document.getElementById('home-avatar').style.backgroundImage = bgUrl;
+        const homeAv = document.getElementById('home-avatar');
+        if (homeAv) homeAv.style.backgroundImage = bgUrl;
         const dashAv = document.getElementById('dash-avatar');
         if(dashAv) dashAv.style.backgroundImage = bgUrl;
         const profAv = document.getElementById('profile-avatar-preview');
@@ -1901,8 +2094,91 @@ function updateScheduleSummary() {
 // --- ADD / EDIT QUEST SYSTEM ---
 // ==========================================
 
+let tempChecklist = []; // [{text, done}]
+
+function addChecklistItem(text = '') {
+    tempChecklist.push({ text, done: false });
+    renderChecklistEditor();
+}
+
+function removeChecklistItem(index) {
+    tempChecklist.splice(index, 1);
+    renderChecklistEditor();
+}
+
+function renderChecklistEditor() {
+    const container = document.getElementById('checklist-items');
+    if (!container) return;
+    container.innerHTML = '';
+    tempChecklist.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'checklist-item';
+        row.setAttribute('data-index', i);
+        row.innerHTML = `
+            <div class="checklist-drag-handle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="9" cy="6" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="6" r="1.5" fill="currentColor"/>
+                    <circle cx="9" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="9" cy="18" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="18" r="1.5" fill="currentColor"/>
+                </svg>
+            </div>
+            <input type="text" placeholder="Checklist item..." value="${item.text.replace(/"/g, '&quot;')}"
+                oninput="tempChecklist[${i}].text = this.value"
+                onfocus="setTimeout(() => this.scrollIntoView({behavior:'smooth',block:'center'}), 300)">
+            <button class="checklist-item-remove" onclick="removeChecklistItem(${i})">×</button>
+        `;
+        container.appendChild(row);
+    });
+
+    if (window._checklistSortable) window._checklistSortable.destroy();
+    window._checklistSortable = Sortable.create(container, {
+        animation: 150,
+        handle: '.checklist-drag-handle',
+        onEnd: function(evt) {
+            const moved = tempChecklist.splice(evt.oldIndex, 1)[0];
+            tempChecklist.splice(evt.newIndex, 0, moved);
+            renderChecklistEditor();
+        }
+    });
+}
+
+function toggleChecklistItem(questId, index) {
+    const quest = systemState.quests.find(q => q.id === questId);
+    if (!quest || !quest.checklist) return;
+    const item = quest.checklist[index];
+    if (item.done) {
+        // Unchecking — deduct XP
+        item.done = false;
+        const xpEarned = getChecklistItemXp(quest);
+        systemState.todayXp = Math.max(0, systemState.todayXp - xpEarned);
+        systemState.totalXp = Math.max(0, systemState.totalXp - xpEarned);
+    } else {
+        // Checking — award XP
+        item.done = true;
+        const xpEarned = getChecklistItemXp(quest);
+        systemState.todayXp += xpEarned;
+        systemState.totalXp += xpEarned;
+    }
+    saveGameState();
+    updateStats();
+    renderQuests();
+    const area = document.getElementById(`cl-area-${questId}`);
+    if (area) {
+        area.style.display = 'flex';
+        area.style.flexDirection = 'column';
+    }
+}
+
+function getChecklistItemXp(quest) {
+    const base = { trivial: 2, easy: 6, medium: 10, hard: 16 };
+    return base[quest.difficulty] || 6;
+}
+
 function openAddQuestModal(type = 'daily') {
-    editingQuestId = null; 
+    editingQuestId = null;
     currentQuestType = type;
     document.getElementById('modal-title').textContent = type === 'daily' ? 'CREATE DAILY' : 'CREATE QUEST';
     document.getElementById('new-quest-title').value = '';
@@ -1915,6 +2191,8 @@ function openAddQuestModal(type = 'daily') {
     document.getElementById('quest-due-date').value = '';
     tempReminders = [];
     renderReminders();
+    tempChecklist = [];
+    renderChecklistEditor();
     document.getElementById('schedule-type').value = 'daily';
     document.getElementById('schedule-interval').value = 1;
     document.getElementById('schedule-start-date').value = new Date().toISOString().split('T')[0];
@@ -1923,7 +2201,6 @@ function openAddQuestModal(type = 'daily') {
     toggleDayPicker();
 
     selectDifficulty('easy');
-    // This clears the blue circles when you make a NEW quest
     selectedScheduleDays = [];
     document.querySelectorAll('.day-circle').forEach(c => c.classList.remove('active'));
     document.getElementById('schedule-type').value = 'daily';
@@ -1947,6 +2224,8 @@ function openEditQuestModal(id) {
     document.getElementById('quest-due-date').value = quest.dueDate || '';
     tempReminders = quest.reminders ? [...quest.reminders] : [];
     renderReminders();
+    tempChecklist = quest.checklist ? quest.checklist.map(i => ({...i})) : [];
+    renderChecklistEditor();
     if (quest.schedule) {
         document.getElementById('schedule-type').value = quest.schedule.type || 'daily';
         document.getElementById('schedule-interval').value = quest.schedule.interval || 1;
@@ -1999,6 +2278,7 @@ function saveQuest() {
         quest.difficulty = currentDifficulty;
         quest.dueDate = document.getElementById('quest-due-date').value;
         quest.reminders = tempReminders.filter(r => r !== '');
+        quest.checklist = tempChecklist.filter(i => i.text.trim() !== '');
     } else {
         const newId = systemState.quests.length > 0 ? Math.max(...systemState.quests.map(q => q.id)) + 1 : 1;
         
@@ -2024,7 +2304,8 @@ function saveQuest() {
             createdAt: Date.now(),
             dailyStreak: 0,
             lastStreakDate: null,
-            pinned: false
+            pinned: false,
+            checklist: tempChecklist.filter(i => i.text.trim() !== '')
         });
     }
     
