@@ -982,8 +982,23 @@ function showRankUpCinematic(fromRank, toRank, color, letter, done) {
         <div style="position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;">
             <div style="font-size:11px;letter-spacing:6px;color:${color};font-weight:700;animation:ruFadeIn 0.5s 0.2s ease both;opacity:0;">RANK UP</div>
             <div style="width:100px;height:114px;position:relative;display:flex;align-items:center;justify-content:center;animation:ruHexPop 0.6s 0.5s cubic-bezier(0.34,1.56,0.64,1) both;opacity:0;animation-fill-mode:both;">
-                <svg width="100" height="114" viewBox="0 0 100 114" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;">
-                    <polygon points="50,4 96,28 96,86 50,110 4,86 4,28" fill="rgba(0,0,0,0.8)" stroke="${color}" stroke-width="2.5"/>
+                ${(() => {
+                    const c = color;
+                    const bgColor = 'rgba(0,0,0,0.85)';
+                    const innerColor = '#ffffff';
+                    const glowColor = color;
+                    const l = letter;
+                    const badges = {
+                        'E': `<svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_e" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient><filter id="ru_rf_e"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.5" filter="url(#ru_rf_e)"/><polygon points="32,14 52,25 52,47 32,58 12,47 12,25" fill="url(#ru_rg_e)" opacity="0.4"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
+                        'D': `<svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_d" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient><filter id="ru_rf_d"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.8" filter="url(#ru_rf_d)"/><polygon points="32,12 54,25 54,47 32,60 10,47 10,25" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/><polygon points="32,14 52,26 52,46 32,58 12,46 12,26" fill="url(#ru_rg_d)" opacity="0.35"/><line x1="32" y1="4" x2="32" y2="14" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="60" y1="19" x2="54" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="60" y1="53" x2="54" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="32" y1="68" x2="32" y2="58" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="4" y1="53" x2="10" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="4" y1="19" x2="10" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
+                        'C': `<svg width="72" height="80" viewBox="0 0 72 80" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_c" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="50%" stop-color="${c}" stop-opacity="0.7"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient><filter id="ru_rf_c"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="36,4 68,22 68,58 36,76 4,58 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2" filter="url(#ru_rf_c)"/><polygon points="36,11 61,27 61,53 36,69 11,53 11,27" fill="none" stroke="${c}" stroke-width="0.9" opacity="0.5"/><polygon points="36,18 54,30 54,50 36,62 18,50 18,30" fill="url(#ru_rg_c)" opacity="0.35"/><polygon points="36,22 50,32 50,48 36,58 22,48 22,32" fill="none" stroke="${innerColor}" stroke-width="0.5" opacity="0.3"/><line x1="36" y1="4" x2="36" y2="18" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="68" y1="22" x2="54" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="68" y1="58" x2="54" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="36" y1="76" x2="36" y2="62" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="4" y1="58" x2="18" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="4" y1="22" x2="18" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 16px ${c},0 0 32px ${glowColor};">${l}</span>`,
+                        'B': `<svg width="76" height="84" viewBox="0 0 76 84" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_b" cx="32%" cy="28%" r="72%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="45%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient><filter id="ru_rf_b"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="38,4 72,22 72,62 38,80 4,62 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2.2" filter="url(#ru_rf_b)"/><polygon points="38,12 64,28 64,56 38,72 12,56 12,28" fill="none" stroke="${c}" stroke-width="1" opacity="0.4"/><polygon points="38,20 56,32 56,52 38,64 20,52 20,32" fill="url(#ru_rg_b)" opacity="0.3"/><rect x="35" y="1" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 4)"/><rect x="69" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 22)"/><rect x="69" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 62)"/><rect x="35" y="77" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 80)"/><rect x="1" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 62)"/><rect x="1" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 22)"/><line x1="38" y1="4" x2="38" y2="20" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="72" y1="22" x2="56" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="72" y1="62" x2="56" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="38" y1="80" x2="38" y2="64" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="4" y1="62" x2="20" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="4" y1="22" x2="20" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 18px ${c},0 0 36px ${glowColor};">${l}</span>`,
+                        'A': `<svg width="80" height="90" viewBox="0 0 80 90" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_a" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="40%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient><filter id="ru_rf_a"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="40,4 76,23 76,67 40,86 4,67 4,23" fill="${bgColor}" stroke="${c}" stroke-width="2.5" filter="url(#ru_rf_a)"/><polygon points="40,12 68,29 68,61 40,78 12,61 12,29" fill="none" stroke="${c}" stroke-width="1.1" opacity="0.45"/><polygon points="40,20 60,33 60,57 40,70 20,57 20,33" fill="url(#ru_rg_a)" opacity="0.3"/><polygon points="40,28 52,37 52,53 40,62 28,53 28,37" fill="none" stroke="${innerColor}" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="0" x2="40" y2="8" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="40" y1="82" x2="40" y2="90" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="0" y1="45" x2="8" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="72" y1="45" x2="80" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/><circle cx="40" cy="4" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="40" cy="86" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="4" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="76" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/><line x1="40" y1="4" x2="40" y2="20" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="76" y1="23" x2="60" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="76" y1="67" x2="60" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="40" y1="86" x2="40" y2="70" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="4" y1="67" x2="20" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="4" y1="23" x2="20" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 60px ${glowColor};">${l}</span>`,
+                        'S': `<style>@keyframes ruSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes ruPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style><svg width="88" height="96" viewBox="0 0 88 96" style="position:absolute;overflow:visible;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_s" cx="35%" cy="28%" r="68%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="35%" stop-color="${c}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient><filter id="ru_rf_s"><feGaussianBlur stdDeviation="5.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="44,4 84,26 84,74 44,92 4,74 4,26" fill="${bgColor}" stroke="${c}" stroke-width="2.8" filter="url(#ru_rf_s)"/><polygon points="44,12 76,31 76,69 44,84 12,69 12,31" fill="none" stroke="${c}" stroke-width="1.3" opacity="0.5"/><polygon points="44,20 68,35 68,65 44,76 20,65 20,35" fill="url(#ru_rg_s)" opacity="0.3"/><polygon points="44,28 60,39 60,61 44,68 28,61 28,39" fill="none" stroke="${innerColor}" stroke-width="0.7" opacity="0.35"/><circle cx="44" cy="48" r="30" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="4 8" opacity="0.4" style="transform-origin:44px 48px;animation:ruSpin 10s linear infinite;"/><circle cx="44" cy="48" r="20" fill="none" stroke="${innerColor}" stroke-width="0.4" stroke-dasharray="3 9" opacity="0.25" style="transform-origin:44px 48px;animation:ruSpin 7s linear infinite reverse;"/><circle cx="44" cy="4" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0s;"/><circle cx="84" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0.4s;"/><circle cx="84" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0.8s;"/><circle cx="44" cy="92" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 1.2s;"/><circle cx="4" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 1.6s;"/><circle cx="4" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 2.0s;"/><line x1="44" y1="4" x2="44" y2="20" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="84" y1="26" x2="68" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="84" y1="74" x2="68" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="44" y1="92" x2="44" y2="76" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="4" y1="74" x2="20" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="4" y1="26" x2="20" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/></svg><span style="position:relative;z-index:2;font-size:40px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 80px ${glowColor};">${l}</span>`
+                    };
+                    return badges[letter] || badges['E'];
+                })()}
+            </div>
                 </svg>
                 <span style="font-size:42px;font-weight:900;color:${color};position:relative;z-index:1;text-shadow:0 0 20px ${color};">${letter}</span>
             </div>
@@ -1123,8 +1138,6 @@ function updateStats() {
                     <line x1="32" y1="68" x2="32" y2="58" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
                     <line x1="4" y1="53" x2="10" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
                     <line x1="4" y1="19" x2="10" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <circle cx="32" cy="36" r="6" fill="${c}" opacity="0.15"/>
-                    <circle cx="32" cy="36" r="3" fill="${innerColor}" opacity="0.5"/>
                 </svg>
                 <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
             'C': `
@@ -1143,7 +1156,6 @@ function updateStats() {
                     <line x1="36" y1="76" x2="36" y2="62" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
                     <line x1="4" y1="58" x2="18" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
                     <line x1="4" y1="22" x2="18" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <circle cx="36" cy="40" r="5" fill="${innerColor}" opacity="0.4"/>
                 </svg>
                 <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 16px ${c},0 0 32px ${glowColor};">${l}</span>`,
             'B': `
@@ -1748,7 +1760,7 @@ function saveProfileData() {
     if (!localStorage.getItem('dateJoined')) {
         const options = { year: 'numeric', month: 'long', day: 'numeric' };
         localStorage.setItem('dateJoined', new Date().toLocaleDateString('en-US', options));
-        localStorage.setItem('lastLoginDate', new Date().toDateString());
+        window._justImported = true;
     }
 
     // Apply the saved changes to all screens!
@@ -2162,6 +2174,8 @@ function toggleChecklistItem(questId, index) {
         systemState.todayXp += xpEarned;
         systemState.totalXp += xpEarned;
     }
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
     saveGameState();
     updateStats();
     renderQuests();
@@ -2595,7 +2609,7 @@ function importData(event) {
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
-            if (loadedData.lastLoginDate) localStorage.setItem('lastLoginDate', loadedData.lastLoginDate);
+            localStorage.setItem('lastLoginDate', new Date().toDateString());
             
             saveGameState();
             renderQuests();
@@ -2634,7 +2648,7 @@ function reloadSaveFile() {
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
-            if (loadedData.lastLoginDate) localStorage.setItem('lastLoginDate', loadedData.lastLoginDate);
+            localStorage.setItem('lastLoginDate', new Date().toDateString());
             
             // Save and refresh UI
             saveGameState();
@@ -2701,24 +2715,32 @@ function checkDailyReset() {
     }
 
     // If the last login isn't today, a new day has started!
-    if (lastLogin !== today) {
+    if (lastLogin !== today && !window._justImported) {
         
         if (lastLogin) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            
             // --- STREAK LOGIC: The Penalty ---
-            // Did they actually complete a task yesterday?
-            if (systemState.lastCompletedDate === yesterday.toDateString() || systemState.lastCompletedDate === today) {
-                // They did the work. Streak is safe.
-            } else {
-                // They didn't do the work. Penalty applied!
+            // Only penalize if lastLogin was more than 1 game-day ago
+            const lastLoginDate = new Date(lastLogin);
+            const daysDiff = Math.round((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
+
+            if (daysDiff >= 2) {
+                // Missed a full game-day — penalty applies
                 if (systemState.streak > 0) {
-                    // Triggers the punishment sequence!
-                    window.showPenaltySequence = true; 
+                    window.showPenaltySequence = true;
                 }
                 systemState.streak = 0;
+            } else if (daysDiff === 1) {
+                // Normal new day — check if they completed something
+                if (systemState.lastCompletedDate === lastLogin || systemState.lastCompletedDate === today) {
+                    // They did the work. Streak is safe.
+                } else {
+                    if (systemState.streak > 0) {
+                        window.showPenaltySequence = true;
+                    }
+                    systemState.streak = 0;
+                }
             }
+            // daysDiff === 0 means reset time moved back slightly — same game-day, no penalty
         } else {
             // First time ever opening the app!
             systemState.streak = 0;
