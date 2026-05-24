@@ -460,6 +460,19 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
     if (pDate) pDate.textContent = dateStr;
     if (pDay) pDay.textContent = dayStr;
     
+    // Auto-refresh date display at midnight
+    setInterval(() => {
+        const d2 = new Date();
+        if (d2.getHours() === 0 && d2.getMinutes() === 0 && d2.getSeconds() === 0) {
+            const optDate = { month: 'long', day: 'numeric', year: 'numeric' };
+            const optDay = { weekday: 'long' };
+            const newDate = d2.toLocaleDateString('en-US', optDate).toUpperCase();
+            const newDay = d2.toLocaleDateString('en-US', optDay).toUpperCase();
+            ['current-date','quests-current-date','profile-current-date'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = newDate; });
+            ['current-day','quests-current-day','profile-current-day'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = newDay; });
+        }
+    }, 1000);
+
     // Countdown to custom reset time
     setInterval(() => {
         const d = new Date();
@@ -485,7 +498,7 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         const todayStr = d.toDateString();
         const warningKey = `streak-warning-${todayStr}`;
         
-        if (d.getHours() === 18 && systemState.streak > 0 && systemState.todayXp === 0) {
+        if (d.getHours() === 18 && d.getMinutes() === 0 && systemState.streak > 0 && systemState.todayXp === 0) {
             if (!triggeredReminders.has(warningKey)) {
                 triggeredReminders.add(warningKey);
                 // --- FEATURE 2: Trigger Native or Toast ---
@@ -818,8 +831,21 @@ function toggleQuest(id) {
     if (!quest.completed) {
         // Checking the quest
         quest.completed = true;
+
+        // --- TITLE FLAGS: track runtime conditions ---
+        if (!systemState._titleFlags) systemState._titleFlags = {};
+        const _h = new Date().getHours();
+        if (_h < 7)  systemState._titleFlags.early_bird  = true;
+        if (_h < 6)  systemState._titleFlags.dawn_hunter = true;
+        if (_h >= 23) systemState._titleFlags.night_owl  = true;
+        systemState._titleFlags.totalCompleted = (systemState._titleFlags.totalCompleted || 0) + 1;
+        // chain_breaker: rebuilt to 7 after a previous reset
+        if (systemState.streak === 7 && systemState._titleFlags._hadStreakReset) {
+            systemState._titleFlags.chain_breaker = true;
+        }
         const _mult = getQuestMultiplier(quest);
         const _earnedXp = Math.round(quest.xp * _mult);
+        quest._earnedXp = _earnedXp; // Snapshot so uncheck always refunds exact amount
         systemState.todayXp += _earnedXp;
         systemState.totalXp += _earnedXp;
 
@@ -882,8 +908,8 @@ function toggleQuest(id) {
     } else {
         // Unchecking the quest
         quest.completed = false;
-        const _multUndo = getQuestMultiplier(quest);
-        const _undoXp = Math.round(quest.xp * _multUndo);
+        const _undoXp = quest._earnedXp ?? Math.round(quest.xp * getQuestMultiplier(quest));
+        quest._earnedXp = undefined;
         systemState.todayXp -= _undoXp;
         systemState.totalXp -= _undoXp;
         
@@ -898,22 +924,30 @@ function toggleQuest(id) {
     checkAchievements();
 
     // --- DAILY BONUS CHECK: Did completing this quest finish ALL daily quests? ---
-    if (!systemState.dailyBonusClaimed && systemState.dailyBonus) {
-        const dailyQuests = systemState.quests.filter(q => q.type === 'daily' || !q.type);
-        const today = new Date();
-        const dueDailies = dailyQuests.filter(q => isQuestActiveOnDate(q, today));
-        const allDone = dueDailies.length > 0 && dueDailies.every(q => q.completed);
-        if (allDone) {
-            systemState.dailyBonusClaimed = true;
-            const bonusXp = Math.round(systemState.todayXp * 1.11);
-            systemState._lastBonusXp = bonusXp;
-            systemState.totalXp += bonusXp;
-            systemState.todayXp += bonusXp;
-            saveGameState();
-            updateStats();
-            checkAchievements();
-            queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
-        }
+    const _dailyQuests = systemState.quests.filter(q => q.type === 'daily' || !q.type);
+    const _today = new Date();
+    const _dueDailies = _dailyQuests.filter(q => isQuestActiveOnDate(q, _today));
+    const _allDone = _dueDailies.length > 0 && _dueDailies.every(q => q.completed);
+
+    if (!systemState.dailyBonusClaimed && systemState.dailyBonus && _allDone) {
+        systemState.dailyBonusClaimed = true;
+        const bonusXp = Math.round(systemState.todayXp * 1.11);
+        systemState._lastBonusXp = bonusXp;
+        systemState.totalXp += bonusXp;
+        systemState.todayXp += bonusXp;
+        saveGameState();
+        updateStats();
+        checkAchievements();
+        queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
+    } else if (systemState.dailyBonusClaimed && !_allDone) {
+        // A daily was unchecked after the bonus was claimed — reverse it
+        const bonusXp = systemState._lastBonusXp || 0;
+        systemState.dailyBonusClaimed = false;
+        systemState.totalXp = Math.max(0, systemState.totalXp - bonusXp);
+        systemState.todayXp = Math.max(0, systemState.todayXp - bonusXp);
+        systemState._lastBonusXp = 0;
+        saveGameState();
+        updateStats();
     }
 }
 
@@ -1885,7 +1919,7 @@ async function scheduleNativeWorkManager(quest) {
                             futureTasks.push({
                                 title: quest.title,
                                 body: quest.notes || "A daily task requires your attention.",
-                                id: parseInt(`${quest.id}${remIdx}${daysScheduled}`), 
+                                id: parseInt(`${quest.id}0${remIdx}0${daysScheduled}`.slice(0, 9)), 
                                 schedule: { at: checkDate, allowWhileIdle: true }, // <--- FORCES ANDROID TO WAKE UP
                                 channelId: 'system_alerts',
                                 actionTypeId: 'QUEST_ACTIONS',
@@ -2411,6 +2445,21 @@ const ACH_ICONS = {
     strategist:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`,
     bonus_hunter:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`,
     perfectionist: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+
+    // --- TITLES ---
+    early_bird:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>`,
+    night_owl:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>`,
+    the_relentless: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/><circle cx="18" cy="5" r="3"/></svg>`,
+    solo_player:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`,
+    ghost_protocol: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 1 8 8v10l-3-2-2 2-2-2-2 2-2-2-3 2V10a8 8 0 0 1 8-8z"/><line x1="9" y1="10" x2="9.01" y2="10"/><line x1="15" y1="10" x2="15.01" y2="10"/></svg>`,
+    chain_breaker:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
+    dawn_hunter:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+    iron_body:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>`,
+    hoarder:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    completionist:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>`,
+    silent_blade:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>`,
+    awakened:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M12 5V2M12 22v-3M5 12H2M22 12h-3"/></svg>`,
+    monarch_shadow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/><circle cx="12" cy="7" r="1" fill="currentColor"/></svg>`,
 };
 
 const ACHIEVEMENTS = [
@@ -2439,6 +2488,27 @@ const ACHIEVEMENTS = [
     { id: 'strategist',    label: 'Strategist',        desc: 'Have 25 active/created quests',        color: '#6366f1', check: s => s.quests.length >= 25 },
     { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           color: '#f472b6', check: s => s.dailyBonusClaimed },
     { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
+
+    // --- TITLES: Time-based ---
+    { id: 'early_bird',     label: 'Early Bird',        desc: 'Complete a daily quest before 7:00 AM',                         color: '#fbbf24', check: s => s._titleFlags && s._titleFlags.early_bird },
+    { id: 'night_owl',      label: 'Night Owl',         desc: 'Complete a daily quest after 11:00 PM',                         color: '#818cf8', check: s => s._titleFlags && s._titleFlags.night_owl },
+    { id: 'dawn_hunter',    label: 'Dawn Hunter',       desc: 'Complete a daily quest before 6:00 AM',                        color: '#fb923c', check: s => s._titleFlags && s._titleFlags.dawn_hunter },
+
+    // --- TITLES: Streak-based ---
+    { id: 'the_relentless', label: 'The Relentless',    desc: 'Maintain a 14-day streak without missing a single day',         color: '#f43f5e', check: s => s.streak >= 14 },
+    { id: 'chain_breaker',  label: 'Chain Breaker',     desc: 'Rebuild your streak to 7 after losing it',                     color: '#94a3b8', check: s => s._titleFlags && s._titleFlags.chain_breaker },
+    { id: 'iron_body',      label: 'Iron Body',         desc: 'Keep the same daily quest active for 30 consecutive completions',color: '#22d3ee', check: s => s.quests.some(q => (q.dailyStreak ?? 0) >= 30) },
+    { id: 'awakened',       label: 'Awakened',          desc: 'Keep the same daily quest active for 100 consecutive completions',color: '#a78bfa', check: s => s.quests.some(q => (q.dailyStreak ?? 0) >= 100) },
+
+    // --- TITLES: Completion-based ---
+    { id: 'solo_player',    label: 'Solo Player',       desc: 'Complete 50 total quests (daily + normal combined)',            color: '#34d399', check: s => { const done = s.quests.filter(q=>q.completed).length + (s._titleFlags&&s._titleFlags.totalCompleted||0); return (s._titleFlags&&s._titleFlags.totalCompleted||0) >= 50; } },
+    { id: 'completionist',  label: 'Completionist',     desc: 'Complete 200 total quests',                                    color: '#f472b6', check: s => s._titleFlags && s._titleFlags.totalCompleted >= 200 },
+    { id: 'silent_blade',   label: 'Silent Blade',      desc: 'Complete 500 total quests',                                    color: '#e2e8f0', check: s => s._titleFlags && s._titleFlags.totalCompleted >= 500 },
+
+    // --- TITLES: Misc ---
+    { id: 'ghost_protocol', label: 'Ghost Protocol',    desc: 'Have 5 quests with active reminders at the same time',         color: '#64748b', check: s => s.quests.filter(q => q.reminders && q.reminders.length > 0).length >= 5 },
+    { id: 'hoarder',        label: 'The Hoarder',       desc: 'Have 50 quests created at the same time',                      color: '#a16207', check: s => s.quests.length >= 50 },
+    { id: 'monarch_shadow', label: 'Monarch of Shadows',desc: 'Unlock every other achievement',                               color: '#ffd700', check: s => { const others = ACHIEVEMENTS.filter(a => a.id !== 'monarch_shadow'); return others.every(a => (s.achievements||[]).includes(a.id)); } },
 ];
 
 // ==========================================
@@ -2554,7 +2624,7 @@ function sanitizeSystemState(loadedState) {
         quests: [], streakIncrementedToday: false,
         lastCompletedDate: null, weeklyHistory: [],
         events: [], dailyBonus: null, dailyBonusClaimed: false,
-        achievements: []
+        achievements: [], _titleFlags: {}
     };
 
     // 2. Merge them. The loaded save will overwrite the defaults, 
@@ -2609,7 +2679,13 @@ function importData(event) {
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
-            localStorage.setItem('lastLoginDate', new Date().toDateString());
+            const todayStr = new Date().toDateString();
+            localStorage.setItem('lastLoginDate', todayStr);
+            if (!systemState.lastCompletedDate) {
+                systemState.lastCompletedDate = todayStr;
+            }
+            window._justImported = true;
+            setTimeout(() => { window._justImported = false; }, 3000);
             
             saveGameState();
             renderQuests();
@@ -2729,15 +2805,24 @@ function checkDailyReset() {
                     window.showPenaltySequence = true;
                 }
                 systemState.streak = 0;
+                if (!systemState._titleFlags) systemState._titleFlags = {};
+                systemState._titleFlags._hadStreakReset = true;
             } else if (daysDiff === 1) {
                 // Normal new day — check if they completed something
-                if (systemState.lastCompletedDate === lastLogin || systemState.lastCompletedDate === today) {
+                const lastLoginDateStr = new Date(lastLogin).toDateString();
+                if (
+                    systemState.lastCompletedDate === lastLogin ||
+                    systemState.lastCompletedDate === lastLoginDateStr ||
+                    systemState.lastCompletedDate === today
+                ) {
                     // They did the work. Streak is safe.
                 } else {
                     if (systemState.streak > 0) {
                         window.showPenaltySequence = true;
                     }
                     systemState.streak = 0;
+                    if (!systemState._titleFlags) systemState._titleFlags = {};
+                    systemState._titleFlags._hadStreakReset = true;
                 }
             }
             // daysDiff === 0 means reset time moved back slightly — same game-day, no penalty
@@ -2747,6 +2832,7 @@ function checkDailyReset() {
         }
 
         if (window.showPenaltySequence) {
+            window.showPenaltySequence = false;
             queuePopup('streakLost', (done) => {
                 window._currentPopupDone = done;
                 document.getElementById('sl-streak-lost-modal').style.display = 'flex';
@@ -2930,8 +3016,11 @@ function proceedPenalty() {
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
     
-    // Deduct 5 Levels worth of XP (XP_PER_LEVEL is 500, so 5 * 500 = 2500)
-    const penaltyXP = 5 * XP_PER_LEVEL;
+    // Deduct 5 levels worth of XP based on actual current level scaling
+    let penaltyXP = 0;
+    for (let i = 0; i < 5; i++) {
+        penaltyXP += getXpForLevel(Math.max(1, systemState.level - i));
+    }
     systemState.totalXp -= penaltyXP;
     
     // Ensure XP never goes below 0 (Can't drop below Level 0)
