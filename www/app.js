@@ -1466,6 +1466,35 @@ function switchTab(tabId) {
 // ==========================================
 // --- ETHIOPIAN CALENDAR SYSTEM ---
 // ==========================================
+function ethToGregorian(ethYear, ethMonth, ethDay) {
+    const anchorEth = { y: 2018, m: 6, d: 2 };
+    const anchorGC  = new Date(2026, 1, 9);
+    let totalDays = 0;
+    let y = anchorEth.y, m = anchorEth.m, d = anchorEth.d;
+
+    const isAfter = ethYear > anchorEth.y || (ethYear === anchorEth.y && ethMonth > anchorEth.m) || (ethYear === anchorEth.y && ethMonth === anchorEth.m && ethDay > anchorEth.d);
+    const isBefore = ethYear < anchorEth.y || (ethYear === anchorEth.y && ethMonth < anchorEth.m) || (ethYear === anchorEth.y && ethMonth === anchorEth.m && ethDay < anchorEth.d);
+
+    if (isAfter) {
+        while (!(y === ethYear && m === ethMonth && d === ethDay)) {
+            d++;
+            totalDays++;
+            const dim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30;
+            if (d > dim) { d = 1; m++; if (m > 13) { m = 1; y++; } }
+        }
+    } else if (isBefore) {
+        while (!(y === ethYear && m === ethMonth && d === ethDay)) {
+            d--;
+            totalDays--;
+            if (d < 1) { m--; if (m < 1) { m = 13; y--; } const pdim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30; d = pdim; }
+        }
+    }
+
+    const result = new Date(anchorGC);
+    result.setDate(result.getDate() + totalDays);
+    return result;
+}
+
 function getLiveEthDate() {
     const anchorGC = new Date("2026-02-09T00:00:00"); 
     const anchorEth = { y: 2018, m: 6, d: 2 }; 
@@ -1582,7 +1611,9 @@ function renderEthCalendar() {
             // Keep the Tooltip logic so they can hover/press to read what the events are
             const tip = document.createElement('div');
             tip.className = 'cal-tooltip';
-            tip.innerHTML = daysEvents.map(ev => `
+            const _greg = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
+            const _gregStr = _greg.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            tip.innerHTML = `<div class="tooltip-greg-date">${_gregStr}</div>` + daysEvents.map(ev => `
                 <div class="tooltip-item"><div class="tooltip-dot" style="background:${ev.color}"></div><span>${ev.title}</span></div>
             `).join('');
             div.appendChild(tip);
@@ -1597,6 +1628,12 @@ function renderEthCalendar() {
                 clickIndex = (clickIndex + 1) % daysEvents.length;
             };
         } else {
+            const _gregEmpty = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
+            const _gregEmptyStr = _gregEmpty.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const emptyTip = document.createElement('div');
+            emptyTip.className = 'cal-tooltip';
+            emptyTip.innerHTML = `<div class="tooltip-greg-date">${_gregEmptyStr}</div>`;
+            div.appendChild(emptyTip);
             div.onclick = () => {
                 resetCalForm();
                 document.getElementById('evt-day').value = d;

@@ -947,6 +947,15 @@ button.sci-fi-btn.filter-opt.active {
     border-radius: 4px; font-size: 10px; white-space: nowrap; opacity: 0;
     pointer-events: none; transition: 0.2s; z-index: 20; display: flex; flex-direction: column; gap: 4px;
 }
+.tooltip-greg-date {
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.45);
+    text-transform: uppercase;
+    margin-bottom: 5px;
+    padding-bottom: 5px;
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+}
 .cal-cell:hover .cal-tooltip, .cal-cell:active .cal-tooltip { opacity: 1; bottom: 120%; }
 .tooltip-item { display: flex; align-items: center; gap: 6px; color: white; }
 .tooltip-dot { width: 6px; height: 6px; border-radius: 50%; }
