@@ -1023,12 +1023,115 @@ function showRankUpCinematic(fromRank, toRank, color, letter, done) {
                     const glowColor = color;
                     const l = letter;
                     const badges = {
-                        'E': `<svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_e" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient><filter id="ru_rf_e"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.5" filter="url(#ru_rf_e)"/><polygon points="32,14 52,25 52,47 32,58 12,47 12,25" fill="url(#ru_rg_e)" opacity="0.4"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
-                        'D': `<svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_d" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient><filter id="ru_rf_d"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.8" filter="url(#ru_rf_d)"/><polygon points="32,12 54,25 54,47 32,60 10,47 10,25" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/><polygon points="32,14 52,26 52,46 32,58 12,46 12,26" fill="url(#ru_rg_d)" opacity="0.35"/><line x1="32" y1="4" x2="32" y2="14" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="60" y1="19" x2="54" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="60" y1="53" x2="54" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="32" y1="68" x2="32" y2="58" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="4" y1="53" x2="10" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/><line x1="4" y1="19" x2="10" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
-                        'C': `<svg width="72" height="80" viewBox="0 0 72 80" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_c" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="50%" stop-color="${c}" stop-opacity="0.7"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient><filter id="ru_rf_c"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="36,4 68,22 68,58 36,76 4,58 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2" filter="url(#ru_rf_c)"/><polygon points="36,11 61,27 61,53 36,69 11,53 11,27" fill="none" stroke="${c}" stroke-width="0.9" opacity="0.5"/><polygon points="36,18 54,30 54,50 36,62 18,50 18,30" fill="url(#ru_rg_c)" opacity="0.35"/><polygon points="36,22 50,32 50,48 36,58 22,48 22,32" fill="none" stroke="${innerColor}" stroke-width="0.5" opacity="0.3"/><line x1="36" y1="4" x2="36" y2="18" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="68" y1="22" x2="54" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="68" y1="58" x2="54" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="36" y1="76" x2="36" y2="62" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="4" y1="58" x2="18" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/><line x1="4" y1="22" x2="18" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 16px ${c},0 0 32px ${glowColor};">${l}</span>`,
-                        'B': `<svg width="76" height="84" viewBox="0 0 76 84" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_b" cx="32%" cy="28%" r="72%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="45%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient><filter id="ru_rf_b"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="38,4 72,22 72,62 38,80 4,62 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2.2" filter="url(#ru_rf_b)"/><polygon points="38,12 64,28 64,56 38,72 12,56 12,28" fill="none" stroke="${c}" stroke-width="1" opacity="0.4"/><polygon points="38,20 56,32 56,52 38,64 20,52 20,32" fill="url(#ru_rg_b)" opacity="0.3"/><rect x="35" y="1" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 4)"/><rect x="69" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 22)"/><rect x="69" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 62)"/><rect x="35" y="77" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 80)"/><rect x="1" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 62)"/><rect x="1" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 22)"/><line x1="38" y1="4" x2="38" y2="20" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="72" y1="22" x2="56" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="72" y1="62" x2="56" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="38" y1="80" x2="38" y2="64" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="4" y1="62" x2="20" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/><line x1="4" y1="22" x2="20" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 18px ${c},0 0 36px ${glowColor};">${l}</span>`,
-                        'A': `<svg width="80" height="90" viewBox="0 0 80 90" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_a" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="40%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient><filter id="ru_rf_a"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="40,4 76,23 76,67 40,86 4,67 4,23" fill="${bgColor}" stroke="${c}" stroke-width="2.5" filter="url(#ru_rf_a)"/><polygon points="40,12 68,29 68,61 40,78 12,61 12,29" fill="none" stroke="${c}" stroke-width="1.1" opacity="0.45"/><polygon points="40,20 60,33 60,57 40,70 20,57 20,33" fill="url(#ru_rg_a)" opacity="0.3"/><polygon points="40,28 52,37 52,53 40,62 28,53 28,37" fill="none" stroke="${innerColor}" stroke-width="0.6" opacity="0.3"/><line x1="40" y1="0" x2="40" y2="8" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="40" y1="82" x2="40" y2="90" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="0" y1="45" x2="8" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/><line x1="72" y1="45" x2="80" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/><circle cx="40" cy="4" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="40" cy="86" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="4" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/><circle cx="76" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/><line x1="40" y1="4" x2="40" y2="20" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="76" y1="23" x2="60" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="76" y1="67" x2="60" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="40" y1="86" x2="40" y2="70" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="4" y1="67" x2="20" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/><line x1="4" y1="23" x2="20" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/></svg><span style="position:relative;z-index:2;font-size:36px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 60px ${glowColor};">${l}</span>`,
-                        'S': `<style>@keyframes ruSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes ruPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style><svg width="88" height="96" viewBox="0 0 88 96" style="position:absolute;overflow:visible;animation:ruPulseGlow 2s 1s ease infinite;"><defs><radialGradient id="ru_rg_s" cx="35%" cy="28%" r="68%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="35%" stop-color="${c}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient><filter id="ru_rf_s"><feGaussianBlur stdDeviation="5.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs><polygon points="44,4 84,26 84,74 44,92 4,74 4,26" fill="${bgColor}" stroke="${c}" stroke-width="2.8" filter="url(#ru_rf_s)"/><polygon points="44,12 76,31 76,69 44,84 12,69 12,31" fill="none" stroke="${c}" stroke-width="1.3" opacity="0.5"/><polygon points="44,20 68,35 68,65 44,76 20,65 20,35" fill="url(#ru_rg_s)" opacity="0.3"/><polygon points="44,28 60,39 60,61 44,68 28,61 28,39" fill="none" stroke="${innerColor}" stroke-width="0.7" opacity="0.35"/><circle cx="44" cy="48" r="30" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="4 8" opacity="0.4" style="transform-origin:44px 48px;animation:ruSpin 10s linear infinite;"/><circle cx="44" cy="48" r="20" fill="none" stroke="${innerColor}" stroke-width="0.4" stroke-dasharray="3 9" opacity="0.25" style="transform-origin:44px 48px;animation:ruSpin 7s linear infinite reverse;"/><circle cx="44" cy="4" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0s;"/><circle cx="84" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0.4s;"/><circle cx="84" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 0.8s;"/><circle cx="44" cy="92" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 1.2s;"/><circle cx="4" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 1.6s;"/><circle cx="4" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:ruPulse 2s ease infinite 2.0s;"/><line x1="44" y1="4" x2="44" y2="20" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="84" y1="26" x2="68" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="84" y1="74" x2="68" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="44" y1="92" x2="44" y2="76" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="4" y1="74" x2="20" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/><line x1="4" y1="26" x2="20" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/></svg><span style="position:relative;z-index:2;font-size:40px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 80px ${glowColor};">${l}</span>`
+                        'E': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_e"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0a0500" stroke="#3a1a05" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.3"/>
+                            <polygon points="50,20 74,33 74,67 50,80 26,67 26,33" fill="none" stroke="${c}" stroke-width="0.4" opacity="0.15"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_e)" opacity="0.8"/>
+                            <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.2"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_e)">${l}</text>
+                        </svg>`,
+                        'D': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_d"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#010810" stroke="#1a3a5c" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.25"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_d)" opacity="0.75"/>
+                            <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.4" opacity="0.2" stroke-dasharray="3,6"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_d)">${l}</text>
+                            <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.7"/>
+                            <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.7"/>
+                            <rect x="12" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                            <rect x="84" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                        </svg>`,
+                        'C': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_c"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000f08" stroke="#0a4030" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_c)" opacity="0.8"/>
+                            <line x1="5" y1="44" x2="14" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="5" y1="56" x2="14" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="95" y1="44" x2="86" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="95" y1="56" x2="86" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <rect x="3" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                            <rect x="94" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_c)">${l}</text>
+                            <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.8"/>
+                            <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,28 20,31 17,37" fill="${c}" opacity="0.7"/>
+                            <polygon points="86,28 80,31 83,37" fill="${c}" opacity="0.7"/>
+                            <polygon points="14,72 20,69 17,63" fill="${c}" opacity="0.7"/>
+                            <polygon points="86,72 80,69 83,63" fill="${c}" opacity="0.7"/>
+                        </svg>`,
+                        'B': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000510" stroke="#0a2a5a" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#ru_glow_b)" opacity="0.9"/>
+                            <polyline points="6,34 2,50 6,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                            <polyline points="94,34 98,50 94,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                            <rect x="0" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                            <rect x="96" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_b)">${l}</text>
+                            <polygon points="50,8 54,15 46,15" fill="${c}" opacity="0.9"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                            <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                        </svg>`,
+                        'A': `<svg width="100" height="106" viewBox="0 0 100 106" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_a"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#080010" stroke="#3a0a6a" stroke-width="1.5"/>
+                            <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#ru_glow_a)" opacity="0.9"/>
+                            <polygon points="11,27 4,44 4,56 11,73 15,69 9,55 9,45 15,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                            <polygon points="89,27 96,44 96,56 89,73 85,69 91,55 91,45 85,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                            <rect x="2" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                            <rect x="94" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                            <polygon points="50,1 46,8 54,8" fill="${c}" filter="url(#ru_glow_a)"/>
+                            <polygon points="50,1 46,8 54,8" fill="#ee88ff"/>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_a)">${l}</text>
+                            <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                        </svg>`,
+                        'S': `<style>@keyframes ruSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes ruPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style>
+                        <svg width="100" height="108" viewBox="0 0 100 108" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs>
+                                <filter id="ru_glow_s"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                                <filter id="ru_glow_s2"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                            </defs>
+                            <polygon points="50,2 70,11 87,27 94,50 87,73 70,89 50,98 30,89 13,73 6,50 13,27 30,11" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="2,6" opacity="0.35"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0f0500" stroke="#6a2a00" stroke-width="1.5"/>
+                            <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.25"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="#ff6600" stroke-width="2" filter="url(#ru_glow_s2)" opacity="0.6"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="1"/>
+                            <polygon points="10,26 3,43 3,57 10,74 14,70 8,55 8,45 14,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="0.9"/>
+                            <polygon points="90,26 97,43 97,57 90,74 86,70 92,55 92,45 86,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="0.9"/>
+                            <polyline points="12,38 9,50 12,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                            <polyline points="88,38 91,50 88,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                            <polygon points="3,50 6,46 10,50 6,54" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="97,50 94,46 90,50 94,54" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="50,0 46,8 54,8" fill="${c}" filter="url(#ru_glow_s2)"/>
+                            <polygon points="50,0 46,8 54,8" fill="#ffe066"/>
+                            <polygon points="40,4 37,10 43,10" fill="#ff8800" opacity="0.9" filter="url(#ru_glow_s)"/>
+                            <polygon points="60,4 57,10 63,10" fill="#ff8800" opacity="0.9" filter="url(#ru_glow_s)"/>
+                            <polygon points="20,28 16,24 20,20 24,24" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="80,28 76,24 80,20 84,24" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="20,72 16,76 20,80 24,76" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="80,72 76,76 80,80 84,76" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ff6600" opacity="0.2" filter="url(#ru_glow_s2)">${l}</text>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ffe066" filter="url(#ru_glow_s)">${l}</text>
+                        </svg>`
                     };
                     return badges[letter] || badges['E'];
                 })()}
@@ -1078,7 +1181,7 @@ function updateStats() {
         const prevRankIdx = Math.min(rankThresholds.reduce((acc, t, i) => previousLevel >= t ? i : acc, 0), 5);
         const newRankIdx  = Math.min(rankThresholds.reduce((acc, t, i) => systemState.level >= t ? i : acc, 0), 5);
         const rankNames   = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'];
-        const rankColors  = ['#4ade80', '#60a5fa', '#c084fc', '#fbbf24', '#f87171', '#e0f2fe'];
+        const rankColors  = ['#b57a50', '#8faec6', '#00ffaa', '#00f0ff', '#cc44ff', '#ffb700'];
         const rankIcons   = ['E', 'D', 'C', 'B', 'A', 'S'];
 
         if (newRankIdx > prevRankIdx) {
@@ -1096,12 +1199,12 @@ function updateStats() {
 
     // 2. Define Rank Logic
     const ranks = [
-        { threshold: 0,  letter: 'E', name: 'E-Rank', color: '#4ade80' },
-        { threshold: 7,  letter: 'D', name: 'D-Rank', color: '#60a5fa' },
-        { threshold: 15, letter: 'C', name: 'C-Rank', color: '#c084fc' },
-        { threshold: 24, letter: 'B', name: 'B-Rank', color: '#fbbf24' },
-        { threshold: 34, letter: 'A', name: 'A-Rank', color: '#f87171' },
-        { threshold: 45, letter: 'S', name: 'S-Rank', color: '#e0f2fe' }
+        { threshold: 0,  letter: 'E', name: 'E-Rank', color: '#b57a50' },
+        { threshold: 7,  letter: 'D', name: 'D-Rank', color: '#8faec6' },
+        { threshold: 15, letter: 'C', name: 'C-Rank', color: '#00ffaa' },
+        { threshold: 24, letter: 'B', name: 'B-Rank', color: '#00f0ff' },
+        { threshold: 34, letter: 'A', name: 'A-Rank', color: '#cc44ff' },
+        { threshold: 45, letter: 'S', name: 'S-Rank', color: '#ffb700' }
     ];
 
     // Find current and next rank using custom thresholds
@@ -1141,135 +1244,120 @@ function updateStats() {
         const bgColor = c + '18';
         const innerColor = { 'E': '#86efac', 'D': '#bfdbfe', 'C': '#e9d5ff', 'B': '#fde68a', 'A': '#fecaca', 'S': '#ffffff' }[l] || c;
         const rankBadges = {
-            'E': `
-                <svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;">
-                    <defs>
-                        <radialGradient id="rg_e" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.3"/></radialGradient>
-                        <filter id="rf_e"><feGaussianBlur stdDeviation="2.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.5" filter="url(#rf_e)"/>
-                    <polygon points="32,14 52,25 52,47 32,58 12,47 12,25" fill="url(#rg_e)" opacity="0.4"/>
-                    <line x1="32" y1="4" x2="32" y2="14" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                    <line x1="60" y1="19" x2="52" y2="25" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                    <line x1="60" y1="53" x2="52" y2="47" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                    <line x1="32" y1="68" x2="32" y2="58" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                    <line x1="4" y1="53" x2="12" y2="47" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                    <line x1="4" y1="19" x2="12" y2="25" stroke="${c}" stroke-width="0.7" opacity="0.5"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
-            'D': `
-                <svg width="64" height="72" viewBox="0 0 64 72" style="position:absolute;">
-                    <defs>
-                        <radialGradient id="rg_d" cx="35%" cy="30%" r="65%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="0.95"/><stop offset="60%" stop-color="${c}" stop-opacity="0.5"/><stop offset="100%" stop-color="${c}" stop-opacity="0.15"/></radialGradient>
-                        <filter id="rf_d"><feGaussianBlur stdDeviation="3" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="32,4 60,19 60,53 32,68 4,53 4,19" fill="${bgColor}" stroke="${c}" stroke-width="1.8" filter="url(#rf_d)"/>
-                    <polygon points="32,12 54,25 54,47 32,60 10,47 10,25" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.4"/>
-                    <polygon points="32,14 52,26 52,46 32,58 12,46 12,26" fill="url(#rg_d)" opacity="0.35"/>
-                    <line x1="32" y1="4" x2="32" y2="14" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <line x1="60" y1="19" x2="54" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <line x1="60" y1="53" x2="54" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <line x1="32" y1="68" x2="32" y2="58" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <line x1="4" y1="53" x2="10" y2="47" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                    <line x1="4" y1="19" x2="10" y2="25" stroke="${innerColor}" stroke-width="1" opacity="0.7"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 14px ${c},0 0 28px ${glowColor};">${l}</span>`,
-            'C': `
-                <svg width="72" height="80" viewBox="0 0 72 80" style="position:absolute;">
-                    <defs>
-                        <radialGradient id="rg_c" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="50%" stop-color="${c}" stop-opacity="0.7"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient>
-                        <filter id="rf_c"><feGaussianBlur stdDeviation="3.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="36,4 68,22 68,58 36,76 4,58 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2" filter="url(#rf_c)"/>
-                    <polygon points="36,11 61,27 61,53 36,69 11,53 11,27" fill="none" stroke="${c}" stroke-width="0.9" opacity="0.5"/>
-                    <polygon points="36,18 54,30 54,50 36,62 18,50 18,30" fill="url(#rg_c)" opacity="0.35"/>
-                    <polygon points="36,22 50,32 50,48 36,58 22,48 22,32" fill="none" stroke="${innerColor}" stroke-width="0.5" opacity="0.3"/>
-                    <line x1="36" y1="4" x2="36" y2="18" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <line x1="68" y1="22" x2="54" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <line x1="68" y1="58" x2="54" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <line x1="36" y1="76" x2="36" y2="62" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <line x1="4" y1="58" x2="18" y2="50" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                    <line x1="4" y1="22" x2="18" y2="30" stroke="${innerColor}" stroke-width="1.2" opacity="0.8"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 16px ${c},0 0 32px ${glowColor};">${l}</span>`,
-            'B': `
-                <svg width="76" height="84" viewBox="0 0 76 84" style="position:absolute;">
-                    <defs>
-                        <radialGradient id="rg_b" cx="32%" cy="28%" r="72%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="45%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.1"/></radialGradient>
-                        <filter id="rf_b"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="38,4 72,22 72,62 38,80 4,62 4,22" fill="${bgColor}" stroke="${c}" stroke-width="2.2" filter="url(#rf_b)"/>
-                    <polygon points="38,12 64,28 64,56 38,72 12,56 12,28" fill="none" stroke="${c}" stroke-width="1" opacity="0.4"/>
-                    <polygon points="38,20 56,32 56,52 38,64 20,52 20,32" fill="url(#rg_b)" opacity="0.3"/>
-                    <rect x="35" y="1" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 4)"/>
-                    <rect x="69" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 22)"/>
-                    <rect x="69" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 72 62)"/>
-                    <rect x="35" y="77" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 38 80)"/>
-                    <rect x="1" y="59" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 62)"/>
-                    <rect x="1" y="19" width="6" height="6" fill="${c}" opacity="0.95" transform="rotate(45 4 22)"/>
-                    <line x1="38" y1="4" x2="38" y2="20" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                    <line x1="72" y1="22" x2="56" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                    <line x1="72" y1="62" x2="56" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                    <line x1="38" y1="80" x2="38" y2="64" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                    <line x1="4" y1="62" x2="20" y2="52" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                    <line x1="4" y1="22" x2="20" y2="32" stroke="${innerColor}" stroke-width="1.3" opacity="0.9"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 18px ${c},0 0 36px ${glowColor};">${l}</span>`,
-            'A': `
-                <svg width="80" height="90" viewBox="0 0 80 90" style="position:absolute;">
-                    <defs>
-                        <radialGradient id="rg_a" cx="35%" cy="28%" r="70%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="40%" stop-color="${c}" stop-opacity="0.8"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient>
-                        <filter id="rf_a"><feGaussianBlur stdDeviation="4.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="40,4 76,23 76,67 40,86 4,67 4,23" fill="${bgColor}" stroke="${c}" stroke-width="2.5" filter="url(#rf_a)"/>
-                    <polygon points="40,12 68,29 68,61 40,78 12,61 12,29" fill="none" stroke="${c}" stroke-width="1.1" opacity="0.45"/>
-                    <polygon points="40,20 60,33 60,57 40,70 20,57 20,33" fill="url(#rg_a)" opacity="0.3"/>
-                    <polygon points="40,28 52,37 52,53 40,62 28,53 28,37" fill="none" stroke="${innerColor}" stroke-width="0.6" opacity="0.3"/>
-                    <line x1="40" y1="0" x2="40" y2="8" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
-                    <line x1="40" y1="82" x2="40" y2="90" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
-                    <line x1="0" y1="45" x2="8" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
-                    <line x1="72" y1="45" x2="80" y2="45" stroke="${c}" stroke-width="2.5" opacity="0.9"/>
-                    <circle cx="40" cy="4" r="3.5" fill="${innerColor}" opacity="0.9"/>
-                    <circle cx="40" cy="86" r="3.5" fill="${innerColor}" opacity="0.9"/>
-                    <circle cx="4" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/>
-                    <circle cx="76" cy="45" r="3.5" fill="${innerColor}" opacity="0.9"/>
-                    <line x1="40" y1="4" x2="40" y2="20" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                    <line x1="76" y1="23" x2="60" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                    <line x1="76" y1="67" x2="60" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                    <line x1="40" y1="86" x2="40" y2="70" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                    <line x1="4" y1="67" x2="20" y2="57" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                    <line x1="4" y1="23" x2="20" y2="33" stroke="${innerColor}" stroke-width="1.4" opacity="0.9"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:22px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 60px ${glowColor};">${l}</span>`,
-            'S': `
-                <style>@keyframes sRankSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes sRankPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style>
-                <svg width="88" height="96" viewBox="0 0 88 96" style="position:absolute;overflow:visible;">
-                    <defs>
-                        <radialGradient id="rg_s" cx="35%" cy="28%" r="68%"><stop offset="0%" stop-color="${innerColor}" stop-opacity="1"/><stop offset="35%" stop-color="${c}" stop-opacity="0.9"/><stop offset="100%" stop-color="${c}" stop-opacity="0.05"/></radialGradient>
-                        <filter id="rf_s"><feGaussianBlur stdDeviation="5.5" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
-                    </defs>
-                    <polygon points="44,4 84,26 84,74 44,92 4,74 4,26" fill="${bgColor}" stroke="${c}" stroke-width="2.8" filter="url(#rf_s)"/>
-                    <polygon points="44,12 76,31 76,69 44,84 12,69 12,31" fill="none" stroke="${c}" stroke-width="1.3" opacity="0.5"/>
-                    <polygon points="44,20 68,35 68,65 44,76 20,65 20,35" fill="url(#rg_s)" opacity="0.3"/>
-                    <polygon points="44,28 60,39 60,61 44,68 28,61 28,39" fill="none" stroke="${innerColor}" stroke-width="0.7" opacity="0.35"/>
-                    <circle cx="44" cy="48" r="30" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="4 8" opacity="0.4" style="transform-origin:44px 48px;animation:sRankSpin 10s linear infinite;"/>
-                    <circle cx="44" cy="48" r="20" fill="none" stroke="${innerColor}" stroke-width="0.4" stroke-dasharray="3 9" opacity="0.25" style="transform-origin:44px 48px;animation:sRankSpin 7s linear infinite reverse;"/>
-                    <circle cx="44" cy="4" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0s;"/>
-                    <circle cx="84" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0.4s;"/>
-                    <circle cx="84" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 0.8s;"/>
-                    <circle cx="44" cy="92" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 1.2s;"/>
-                    <circle cx="4" cy="74" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 1.6s;"/>
-                    <circle cx="4" cy="26" r="4" fill="${innerColor}" opacity="0.9" style="animation:sRankPulse 2s ease infinite 2.0s;"/>
-                    <line x1="44" y1="4" x2="44" y2="20" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                    <line x1="84" y1="26" x2="68" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                    <line x1="84" y1="74" x2="68" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                    <line x1="44" y1="92" x2="44" y2="76" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                    <line x1="4" y1="74" x2="20" y2="65" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                    <line x1="4" y1="26" x2="20" y2="35" stroke="${innerColor}" stroke-width="1.6" opacity="1"/>
-                </svg>
-                <span style="position:relative;z-index:2;font-size:26px;font-weight:900;color:${c};text-shadow:0 0 20px ${c},0 0 40px ${glowColor},0 0 80px ${glowColor};">${l}</span>`
+            'E': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-e"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0a0500" stroke="#3a1a05" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.3"/>
+                <polygon points="50,20 74,33 74,67 50,80 26,67 26,33" fill="none" stroke="${c}" stroke-width="0.4" opacity="0.15"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-e)" opacity="0.8"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.2"/>
+                <line x1="32" y1="20" x2="68" y2="80" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-e)">${l}</text>
+            </svg>`,
+            'D': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-d"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#010810" stroke="#1a3a5c" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.25"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-d)" opacity="0.75"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.4" opacity="0.2" stroke-dasharray="3,6"/>
+                <line x1="14" y1="40" x2="86" y2="40" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <line x1="14" y1="60" x2="86" y2="60" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-d)">${l}</text>
+                <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.7"/>
+                <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.7"/>
+                <rect x="12" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                <rect x="84" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+            </svg>`,
+            'C': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-c"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000f08" stroke="#0a4030" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-c)" opacity="0.8"/>
+                <line x1="5" y1="44" x2="14" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="5" y1="56" x2="14" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="95" y1="44" x2="86" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="95" y1="56" x2="86" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <rect x="3" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                <rect x="94" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-c)">${l}</text>
+                <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.8"/>
+                <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.8"/>
+                <polygon points="14,28 20,31 17,37" fill="${c}" opacity="0.7"/>
+                <polygon points="86,28 80,31 83,37" fill="${c}" opacity="0.7"/>
+                <polygon points="14,72 20,69 17,63" fill="${c}" opacity="0.7"/>
+                <polygon points="86,72 80,69 83,63" fill="${c}" opacity="0.7"/>
+            </svg>`,
+            'B': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000510" stroke="#0a2a5a" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#glow-b)" opacity="0.9"/>
+                <polyline points="6,34 2,50 6,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                <polyline points="94,34 98,50 94,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                <rect x="0" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                <rect x="96" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.15" stroke-dasharray="2,8"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-b)">${l}</text>
+                <polygon points="50,8 54,15 46,15" fill="${c}" opacity="0.9"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+            </svg>`,
+            'A': `<svg class="rk-badge" viewBox="0 0 100 106">
+                <defs><filter id="glow-a"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#080010" stroke="#3a0a6a" stroke-width="1.5"/>
+                <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#glow-a)" opacity="0.9"/>
+                <polygon points="11,27 4,44 4,56 11,73 15,69 9,55 9,45 15,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                <polygon points="89,27 96,44 96,56 89,73 85,69 91,55 91,45 85,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                <rect x="2" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                <rect x="94" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                <polygon points="50,1 46,8 54,8" fill="${c}" filter="url(#glow-a)"/>
+                <polygon points="50,1 46,8 54,8" fill="#ee88ff"/>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-a)">${l}</text>
+                <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+            </svg>`,
+            'S': `<svg class="rk-badge" viewBox="0 0 100 108">
+                <defs>
+                    <filter id="glow-s"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    <filter id="glow-s2"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                <polygon points="50,2 70,11 87,27 94,50 87,73 70,89 50,98 30,89 13,73 6,50 13,27 30,11" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="2,6" opacity="0.35"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0f0500" stroke="#6a2a00" stroke-width="1.5"/>
+                <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.25"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="#ff6600" stroke-width="2" filter="url(#glow-s2)" opacity="0.6"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="1"/>
+                <polygon points="10,26 3,43 3,57 10,74 14,70 8,55 8,45 14,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="0.9"/>
+                <polygon points="90,26 97,43 97,57 90,74 86,70 92,55 92,45 86,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="0.9"/>
+                <polyline points="12,38 9,50 12,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                <polyline points="88,38 91,50 88,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                <polygon points="3,50 6,46 10,50 6,54" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="97,50 94,46 90,50 94,54" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="50,0 46,8 54,8" fill="${c}" filter="url(#glow-s2)"/>
+                <polygon points="50,0 46,8 54,8" fill="#ffe066"/>
+                <polygon points="40,4 37,10 43,10" fill="#ff8800" opacity="0.9" filter="url(#glow-s)"/>
+                <polygon points="60,4 57,10 63,10" fill="#ff8800" opacity="0.9" filter="url(#glow-s)"/>
+                <polygon points="20,28 16,24 20,20 24,24" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="80,28 76,24 80,20 84,24" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="20,72 16,76 20,80 24,76" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="80,72 76,76 80,80 84,76" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" filter="url(#glow-s)"/>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ff6600" opacity="0.2" filter="url(#glow-s2)">${l}</text>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ffe066" filter="url(#glow-s)">${l}</text>
+            </svg>`,
         };
-        rankHex.style.cssText = `position:relative;display:flex;align-items:center;justify-content:center;width:80px;height:88px;background:transparent;border:none;`;
+        rankHex.style.cssText = `position:relative;display:flex;align-items:center;justify-content:center;width:100px;height:100px;background:transparent;border:none;`;
         rankHex.innerHTML = rankBadges[l] || rankBadges['E'];
     }
 
@@ -1314,6 +1402,9 @@ function updateStats() {
     if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
     const dashMiniHexEl = document.getElementById('dash-mini-hex');
     if(dashMiniHexEl) { dashMiniHexEl.style.color = currentRank.color; dashMiniHexEl.style.borderColor = currentRank.color + '88'; }
+    document.documentElement.style.setProperty('--rank-color', currentRank.color);
+document.documentElement.style.setProperty('--rank-color-glow', currentRank.color + '66');
+document.documentElement.style.setProperty('--rank-color-dim', currentRank.color + '22');
 
     // --- APPLY TO LEVEL MODULE ---
     const levelTarget = document.getElementById('dash-level-target');
