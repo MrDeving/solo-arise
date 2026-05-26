@@ -1402,9 +1402,29 @@ function updateStats() {
     if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
     const dashMiniHexEl = document.getElementById('dash-mini-hex');
     if(dashMiniHexEl) { dashMiniHexEl.style.color = currentRank.color; dashMiniHexEl.style.borderColor = currentRank.color + '88'; }
-    document.documentElement.style.setProperty('--rank-color', currentRank.color);
-document.documentElement.style.setProperty('--rank-color-glow', currentRank.color + '66');
-document.documentElement.style.setProperty('--rank-color-dim', currentRank.color + '22');
+    const rankColors = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
+const cardTheme = localStorage.getItem('cardTheme') || 'default';
+const themeColor = cardTheme === 'default' ? '#38bdf8' : (rankColors[cardTheme] || '#38bdf8');
+document.documentElement.style.setProperty('--rank-color', themeColor);
+document.documentElement.style.setProperty('--rank-color-glow', themeColor + '66');
+document.documentElement.style.setProperty('--rank-color-dim', themeColor + '22');
+const rankThresholdsCheck = { E: 0, D: 7, C: 15, B: 24, A: 34, S: 45 };
+const rankLabels = { default: 'DEFAULT', E: 'E-RANK', D: 'D-RANK', C: 'C-RANK', B: 'B-RANK', A: 'A-RANK', S: 'S-RANK' };
+document.querySelectorAll('.theme-opt-btn').forEach(b => {
+    const t = b.dataset.theme;
+    const locked = t !== 'default' && rankThresholdsCheck[t] !== undefined && systemState.level < rankThresholdsCheck[t];
+    b.classList.toggle('active', t === cardTheme);
+    if (locked) {
+        b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#555" stroke="#555" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+        b.style.color = '#555';
+        b.style.borderColor = '#333';
+        b.style.opacity = '0.5';
+        b.style.cursor = 'not-allowed';
+    } else {
+        b.innerHTML = `<div class="theme-dot"></div>${rankLabels[t] || t}`;
+        b.style.cursor = 'pointer';
+    }
+});
 
     // --- APPLY TO LEVEL MODULE ---
     const levelTarget = document.getElementById('dash-level-target');
@@ -2886,6 +2906,64 @@ function getResetTime() {
     const saved = localStorage.getItem('resetTime') || '00:00';
     const [h, m] = saved.split(':').map(Number);
     return { h, m };
+}
+function setCardTheme(theme) {
+    const rankThresholds = { E: 0, D: 7, C: 15, B: 24, A: 34, S: 45 };
+    const rankColors     = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
+
+    if (theme !== 'default' && rankThresholds[theme] !== undefined) {
+        const required = rankThresholds[theme];
+        if (systemState.level < required) {
+            showFloatingMsg(
+                `Locked. Reach Level ${required} to unlock.`,
+                rankColors[theme]
+            );
+            return;
+        }
+    }
+    localStorage.setItem('cardTheme', theme);
+    updateStats();
+}
+
+function showFloatingMsg(msg, color = '#00f0ff') {
+    let el = document.getElementById('floating-theme-msg');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'floating-theme-msg';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%) translateY(6px);
+        background: rgba(8,12,24,0.96);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-top: 1px solid ${color}55;
+        color: rgba(255,255,255,0.75);
+        padding: 9px 16px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        font-family: 'Orbitron', sans-serif;
+        text-align: center;
+        max-width: 75vw;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        pointer-events: none;
+    `;
+    requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateX(-50%) translateY(0)';
+    });
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-50%) translateY(6px)';
+    }, 2400);
 }
 function saveResetTime() {
     const input = document.getElementById('reset-time-input');

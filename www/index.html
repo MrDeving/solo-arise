@@ -356,7 +356,19 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
                     ACHIEVEMENTS
                 </button>
-
+<!-- Profile Card Theme Setting -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">PROFILE CARD THEME</div>
+                    <div class="theme-selector-grid" id="theme-selector">
+                        <button class="theme-opt-btn" data-theme="default" onclick="setCardTheme('default')" style="border-color:#38bdf8;color:#38bdf8;"><div class="theme-dot"></div>DEFAULT</button>
+                        <button class="theme-opt-btn" data-theme="E"       onclick="setCardTheme('E')"       style="border-color:#b57a50;color:#b57a50;"><div class="theme-dot"></div>E-RANK</button>
+                        <button class="theme-opt-btn" data-theme="D"       onclick="setCardTheme('D')"       style="border-color:#8faec6;color:#8faec6;"><div class="theme-dot"></div>D-RANK</button>
+                        <button class="theme-opt-btn" data-theme="C"       onclick="setCardTheme('C')"       style="border-color:#00ffaa;color:#00ffaa;"><div class="theme-dot"></div>C-RANK</button>
+                        <button class="theme-opt-btn" data-theme="B"       onclick="setCardTheme('B')"       style="border-color:#00f0ff;color:#00f0ff;"><div class="theme-dot"></div>B-RANK</button>
+                        <button class="theme-opt-btn" data-theme="A"       onclick="setCardTheme('A')"       style="border-color:#cc44ff;color:#cc44ff;"><div class="theme-dot"></div>A-RANK</button>
+                        <button class="theme-opt-btn" data-theme="S"       onclick="setCardTheme('S')"       style="border-color:#ffb700;color:#ffb700;"><div class="theme-dot"></div>S-RANK</button>
+                    </div>
+                </div>
                 <!-- Reset Time Setting -->
                 <div class="data-management-card" style="flex-direction:column;gap:8px;">
                     <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">DAILY RESET TIME</div>
