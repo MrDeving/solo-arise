@@ -105,7 +105,17 @@ body {
 
 /* Push content down ONLY on tabs that share the static header */
 #view-home, #view-quests {
-    padding-top: 210px !important; 
+    padding-top: 210px !important;
+    overflow-y: hidden !important;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Scrollable task container — only the list scrolls, header/button stays fixed */
+.tasks-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 16px;
 }
 
 /* Adjust the distance from the top of the screen for the Calendar */
@@ -2149,4 +2159,23 @@ button.sci-fi-btn.filter-opt.active {
     border-radius: 50%;
     background: currentColor;
     box-shadow: 0 0 6px currentColor;
+}
+/* Scrollbar for task containers */
+.tasks-scroll-container::-webkit-scrollbar {
+    display: block;
+    width: 4px;
+}
+.tasks-scroll-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+.tasks-scroll-container::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 999px;
+}
+.tasks-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.7);
+}
+.tasks-scroll-container {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }

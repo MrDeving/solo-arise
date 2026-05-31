@@ -298,7 +298,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // This helper checks if anything is open and closes it. Returns true if something was closed.
     const handlePhoneBackButton = () => {
         const modals = [
-            { id: 'achievements-sheet-overlay', close: () => { const s=document.getElementById('achievements-sheet'); if(s) s.style.transform='translateY(100%)'; setTimeout(()=>{ document.getElementById('achievements-sheet-overlay').style.display='none'; },350); } },
+            { id: 'achievements-sheet-overlay', close: () => { const s=document.getElementById('achievements-sheet'); if(s) s.style.transform='translateY(100%)'; setTimeout(()=>{ const o=document.getElementById('achievements-sheet-overlay'); if(o) o.style.display='none'; },350); } },
             { id: 'add-quest-modal',           close: () => closeQuestModal() },
             { id: 'filter-modal',              close: () => closeFilterModal() },
             { id: 'confirm-delete-modal',      close: () => cancelDeleteQuest() },
@@ -354,13 +354,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- SETUP FOR NATIVE APPS (Capacitor/Cordova) ---
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-        Capacitor.Plugins.App.addListener('backButton', () => {
-            if (!handlePhoneBackButton()) {
-                Capacitor.Plugins.App.exitApp();
+    const setupCapacitorBack = () => {
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            // Capacitor v8: use the globally registered plugin
+            const AppPlugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.App)
+                           || (window.CapacitorPlugins && window.CapacitorPlugins.App);
+            if (AppPlugin) {
+                AppPlugin.addListener('backButton', ({ canGoBack }) => {
+                    if (!handlePhoneBackButton()) {
+                        AppPlugin.exitApp();
+                    }
+                });
+                return;
             }
-        });
-    }
+        }
+        // Fallback: retry after plugins finish loading (sometimes they load async)
+        setTimeout(setupCapacitorBack, 500);
+    };
+    setupCapacitorBack();
 });
 
 // --- Drag and Drop Feature ---
@@ -1517,6 +1528,62 @@ document.querySelectorAll('.theme-opt-btn').forEach(b => {
 // --- Navigation ---
 // We define the exact order of tabs to calculate which way to swipe
 const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
+
+// --- SWIPE TO SWITCH TABS ---
+(function() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    const SWIPE_THRESHOLD = 60;    // min horizontal px to count as a swipe
+    const ANGLE_THRESHOLD = 35;    // max degrees off horizontal
+    const TIME_LIMIT = 400;        // ms max for a swipe gesture
+
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        // Ignore if any modal/overlay is open
+        const openOverlays = [
+            'add-quest-modal', 'filter-modal', 'confirm-delete-modal',
+            'registration-warning-modal', 'sys-dialog-overlay',
+            'sl-streak-up-modal', 'sl-streak-lost-modal', 'sl-penalty-modal',
+            'achievements-sheet-overlay'
+        ];
+        if (openOverlays.some(id => {
+            const el = document.getElementById(id);
+            return el && window.getComputedStyle(el).display !== 'none';
+        })) return;
+
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        const elapsed = Date.now() - touchStartTime;
+
+        // Must be fast enough, long enough horizontally, and mostly horizontal
+        if (elapsed > TIME_LIMIT) return;
+        if (Math.abs(dx) < SWIPE_THRESHOLD) return;
+        const angle = Math.abs(Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI);
+        if (angle > ANGLE_THRESHOLD) return;
+
+        // Find the current active tab
+        const currentTab = tabsOrder.find(tab => {
+            const el = document.getElementById(`view-${tab}`);
+            return el && el.classList.contains('active');
+        });
+        if (!currentTab) return;
+
+        const currentIndex = tabsOrder.indexOf(currentTab);
+        if (dx < 0) {
+            // Swiped left → go to next tab
+            if (currentIndex < tabsOrder.length - 1) switchTab(tabsOrder[currentIndex + 1]);
+        } else {
+            // Swiped right → go to previous tab
+            if (currentIndex > 0) switchTab(tabsOrder[currentIndex - 1]);
+        }
+    }, { passive: true });
+})();
 
 function switchTab(tabId) {
     if (tabId === 'profile') { renderAchievements(); }
