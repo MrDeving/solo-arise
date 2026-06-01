@@ -1412,7 +1412,9 @@ function updateStats() {
     const rpcPillNextEl = document.getElementById('dash-pill-next');
     if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
     const dashMiniHexEl = document.getElementById('dash-mini-hex');
-    if(dashMiniHexEl) { dashMiniHexEl.style.color = currentRank.color; dashMiniHexEl.style.borderColor = currentRank.color + '88'; }
+    if(dashMiniHexEl) {
+        dashMiniHexEl.innerHTML = rankHex ? rankHex.innerHTML : '';
+    }
     const rankColors = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
 const cardTheme = localStorage.getItem('cardTheme') || 'default';
 const themeColor = cardTheme === 'default' ? '#38bdf8' : (rankColors[cardTheme] || '#38bdf8');
