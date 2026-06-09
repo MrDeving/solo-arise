@@ -1,3 +1,6 @@
+// 0 = arcade live, 1 = coming soon
+const ARCADE_COMING_SOON = 1;
+
 // ====== GLOBAL POPUP QUEUE ENGINE (PRIORITY-SORTED) ======
 // Priority order (lower number = higher priority, fires first):
 // 9=sysDialog, 1=streakUp, 6=dailyBonus, 4=levelUp, 5=rankUp, 2=streakLost, 3=penalty, 7=achievement, 8=toast
@@ -148,7 +151,8 @@ let systemState = {
     events: [],
     dailyBonus: null,           // { stat, multiplier, date }
     dailyBonusClaimed: false,   // true after reward given
-    checklistOpen: {}           // { [questId]: 0 or 1 }
+    checklistOpen: {},          // { [questId]: 0 or 1 }
+energyCores: 0              // ⚡ Arcade currency earned from completing tasks
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -286,6 +290,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const rtInput = document.getElementById('reset-time-input');
     if (rtInput) rtInput.value = localStorage.getItem('resetTime') || '00:00';
     initSortable();     // 6. Initialize drag-and-drop reordering
+    updateArcadeComingSoon();
     
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
@@ -860,6 +865,13 @@ function toggleQuest(id) {
         systemState.todayXp += _earnedXp;
         systemState.totalXp += _earnedXp;
 
+        // ⚡ Award Energy Cores based on difficulty
+        const _coreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
+        const _coresEarned = _coreMap[quest.difficulty] || 5;
+        if (!systemState.energyCores) systemState.energyCores = 0;
+        systemState.energyCores += _coresEarned;
+        arcadeUpdateCoresDisplay();
+
         // --- STREAK LOGIC: The Trigger ---
         const isDaily = quest.type === 'daily' || !quest.type;
 
@@ -923,6 +935,12 @@ function toggleQuest(id) {
         quest._earnedXp = undefined;
         systemState.todayXp -= _undoXp;
         systemState.totalXp -= _undoXp;
+
+        // ⚡ Refund cores on uncheck
+        const _undoCoreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
+        const _coresToRefund = _undoCoreMap[quest.difficulty] || 5;
+        systemState.energyCores = Math.max(0, (systemState.energyCores || 0) - _coresToRefund);
+        arcadeUpdateCoresDisplay();
         
         // Safeguard to ensure XP never drops below 0
         if (systemState.todayXp < 0) systemState.todayXp = 0;
@@ -1529,7 +1547,7 @@ document.querySelectorAll('.theme-opt-btn').forEach(b => {
 
 // --- Navigation ---
 // We define the exact order of tabs to calculate which way to swipe
-const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
+const tabsOrder = ['home', 'quests', 'analytics', 'arcade', 'profile'];
 
 // --- SWIPE TO SWITCH TABS ---
 (function() {
@@ -1548,6 +1566,10 @@ const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
 
     document.addEventListener('touchend', (e) => {
         // Ignore if any modal/overlay is open
+        // Block swipe if the arcade game panel is open
+        const gamePanel = document.getElementById('arcade-game-panel');
+        if (gamePanel && gamePanel.classList.contains('open')) return;
+
         const openOverlays = [
             'add-quest-modal', 'filter-modal', 'confirm-delete-modal',
             'registration-warning-modal', 'sys-dialog-overlay',
@@ -1586,9 +1608,18 @@ const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
         }
     }, { passive: true });
 })();
+function updateArcadeComingSoon() {
+    const overlay = document.querySelector('.arcade-coming-soon-overlay');
+    if (!overlay) return;
+    overlay.style.display = ARCADE_COMING_SOON === 1 ? 'flex' : 'none';
+}
 
 function switchTab(tabId) {
     if (tabId === 'profile') { renderAchievements(); }
+    if (tabId === 'arcade') { setTimeout(arcadeOnEnter, 80); updateArcadeComingSoon(); }
+    // Exit arcade if leaving it
+    const wasArcade = document.getElementById('view-arcade')?.classList.contains('active');
+    if (wasArcade && tabId !== 'arcade') arcadeOnExit();
     // Check if the user is registered. If not, block navigation and show warning.
     if (tabId !== 'profile' && !localStorage.getItem('hunterName')) {
         document.getElementById('registration-warning-modal').style.display = 'flex';
@@ -1637,6 +1668,7 @@ function switchTab(tabId) {
     
     // Update Nav UI safely
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
     
     // Find the button that matches this tab and highlight it
     const activeNavBtn = document.querySelector(`.nav-item[onclick="switchTab('${tabId}')"]`);
@@ -3085,10 +3117,16 @@ function checkDailyReset() {
             } else if (daysDiff === 1) {
                 // Normal new day — check if they completed something
                 const lastLoginDateStr = new Date(lastLogin).toDateString();
+                const yesterday = new Date(Date.now() - 86400000);
+                const anyDueYesterdayCompleted = systemState.quests.some(q => {
+                    const isDaily = q.type === 'daily' || !q.type;
+                    return isDaily && isQuestActiveOnDate(q, yesterday) && q.lastStreakDate === lastLoginDateStr;
+                });
                 if (
                     systemState.lastCompletedDate === lastLogin ||
                     systemState.lastCompletedDate === lastLoginDateStr ||
-                    systemState.lastCompletedDate === today
+                    systemState.lastCompletedDate === today ||
+                    anyDueYesterdayCompleted
                 ) {
                     // They did the work. Streak is safe.
                 } else {
@@ -3126,6 +3164,9 @@ function checkDailyReset() {
                     }
                 }
                 q.completed = false;
+                if (q.checklist && q.checklist.length > 0) {
+                    q.checklist.forEach(item => { item.done = false; });
+                }
             }
         });
         
@@ -3331,3 +3372,588 @@ function closeAchievementsSheet(e) {
     sheet.style.transform = 'translateY(100%)';
     setTimeout(() => { overlay.style.display = 'none'; }, 350);
 }
+
+// ============================================================
+// ARCADE — VOID HUNTER (Space Shooter)
+// ============================================================
+let _arcadeLoop = null;
+let _arcadeRunning = false;
+
+const ARCADE = {
+    canvas: null, ctx: null,
+    W: 0, H: 0,
+    score: 0, bestScore: 0,
+    cores: 0,           // cores earned THIS run (trickle)
+    coreTimer: 0,       // frames since last trickle
+    player: null,
+    bullets: [], enemies: [], particles: [], stars: [],
+    enemyTimer: 0, enemyInterval: 90,
+    frame: 0,
+    touchX: null,
+    upgrades: { speed: 1, fireRate: 1, shield: 0 },
+    shieldHp: 0,
+    fireTimer: 0,
+};
+
+function arcadeUpdateCoresDisplay() {
+    const el = document.getElementById('arcade-cores-display');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+}
+
+function arcadeInit() {
+    ARCADE.canvas = document.getElementById('game-canvas');
+    if (!ARCADE.canvas) return;
+    ARCADE.ctx = ARCADE.canvas.getContext('2d');
+    arcadeResize();
+    arcadeUpdateCoresDisplay();
+    ARCADE.bestScore = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    document.getElementById('arcade-best-score').textContent = ARCADE.bestScore;
+
+    // Touch controls
+    ARCADE.canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        ARCADE.touchX = t.clientX;
+        if (!_arcadeRunning) arcadeStartGame();
+    }, { passive: false });
+    ARCADE.canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        ARCADE.touchX = e.touches[0].clientX;
+    }, { passive: false });
+    ARCADE.canvas.addEventListener('touchend', () => { ARCADE.touchX = null; }, { passive: false });
+
+    // Mouse controls (desktop)
+    ARCADE.canvas.addEventListener('mousemove', e => {
+        if (_arcadeRunning) ARCADE.touchX = e.clientX;
+    });
+    ARCADE.canvas.addEventListener('click', () => {
+        if (!_arcadeRunning) arcadeStartGame();
+    });
+}
+
+function arcadeResize() {
+    const c = ARCADE.canvas;
+    if (!c) return;
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight - 52; // subtract panel top bar height
+    ARCADE.W = c.width;
+    ARCADE.H = c.height;
+}
+
+function arcadeStartGame() {
+    arcadeResize();
+    const overlay = document.getElementById('game-overlay');
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    setTimeout(() => { overlay.style.display = 'none'; }, 300);
+
+    ARCADE.score = 0;
+    ARCADE.cores = 0;
+    ARCADE.coreTimer = 0;
+    ARCADE.frame = 0;
+    ARCADE.bullets = [];
+    ARCADE.enemies = [];
+    ARCADE.particles = [];
+    ARCADE.enemyTimer = 0;
+    ARCADE.enemyInterval = 90;
+    ARCADE.fireTimer = 0;
+    ARCADE.touchX = null;
+
+    // Stars
+    ARCADE.stars = Array.from({ length: 80 }, () => ({
+        x: Math.random() * ARCADE.W,
+        y: Math.random() * ARCADE.H,
+        r: Math.random() * 1.5 + 0.3,
+        speed: Math.random() * 1.5 + 0.3,
+        opacity: Math.random() * 0.7 + 0.2,
+    }));
+
+    // Player
+    const lvl = systemState.level || 1;
+    ARCADE.upgrades.speed    = 1 + Math.min(lvl * 0.05, 1.5);
+    ARCADE.upgrades.fireRate = 1 + Math.min(lvl * 0.04, 1.2);
+    ARCADE.upgrades.shield   = lvl >= 10 ? 1 : 0;
+    ARCADE.shieldHp = ARCADE.upgrades.shield ? 1 : 0;
+
+    ARCADE.player = {
+        x: ARCADE.W / 2,
+        y: ARCADE.H - 90,
+        w: 32, h: 38,
+        hp: 3 + ARCADE.upgrades.shield,
+        maxHp: 3 + ARCADE.upgrades.shield,
+        invFrames: 0,
+    };
+
+    _arcadeRunning = true;
+    if (_arcadeLoop) cancelAnimationFrame(_arcadeLoop);
+    _arcadeLoop = requestAnimationFrame(arcadeLoop);
+}
+
+function arcadeLoop() {
+    if (!_arcadeRunning) return;
+    arcadeUpdate();
+    arcadeDraw();
+    _arcadeLoop = requestAnimationFrame(arcadeLoop);
+}
+
+function arcadeUpdate() {
+    const A = ARCADE;
+    A.frame++;
+
+    // Move player toward touch
+    if (A.touchX !== null && A.player) {
+        const rect = A.canvas.getBoundingClientRect();
+        const targetX = A.touchX - rect.left;
+        const dx = targetX - A.player.x;
+        const spd = 5 * A.upgrades.speed;
+        if (Math.abs(dx) > spd) A.player.x += dx > 0 ? spd : -spd;
+        else A.player.x = targetX;
+        A.player.x = Math.max(A.player.w / 2, Math.min(A.W - A.player.w / 2, A.player.x));
+    }
+
+    // Invincibility frames
+    if (A.player && A.player.invFrames > 0) A.player.invFrames--;
+
+    // Auto-fire
+    const fireInterval = Math.max(8, Math.round(18 / A.upgrades.fireRate));
+    A.fireTimer++;
+    if (A.fireTimer >= fireInterval && A.player) {
+        A.fireTimer = 0;
+        A.bullets.push({ x: A.player.x, y: A.player.y - 20, w: 4, h: 12, speed: 10, dmg: 1 });
+    }
+
+    // Scroll stars
+    A.stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > A.H) { s.y = 0; s.x = Math.random() * A.W; }
+    });
+
+    // Spawn enemies — get harder over time
+    A.enemyTimer++;
+    const minInterval = Math.max(28, 90 - Math.floor(A.score / 3));
+    if (A.enemyTimer >= minInterval) {
+        A.enemyTimer = 0;
+        const type = A.score > 40 && Math.random() < 0.25 ? 'tank' : (Math.random() < 0.3 ? 'fast' : 'normal');
+        const cfg = {
+            normal: { w: 28, h: 28, speed: 1.4, hp: 1, color: '#f87171' },
+            fast:   { w: 22, h: 22, speed: 2.6, hp: 1, color: '#fb923c' },
+            tank:   { w: 36, h: 36, speed: 0.8, hp: 3, color: '#c084fc' },
+        }[type];
+        A.enemies.push({
+            x: Math.random() * (A.W - 40) + 20,
+            y: -30, type, ...cfg, maxHp: cfg.hp,
+        });
+    }
+
+    // Move bullets
+    A.bullets = A.bullets.filter(b => b.y > -20);
+    A.bullets.forEach(b => { b.y -= b.speed; });
+
+    // Move enemies
+    A.enemies = A.enemies.filter(e => e.y < A.H + 40);
+    A.enemies.forEach(e => { e.y += e.speed; });
+
+    // Bullet-enemy collision
+    for (let bi = A.bullets.length - 1; bi >= 0; bi--) {
+        const b = A.bullets[bi];
+        for (let ei = A.enemies.length - 1; ei >= 0; ei--) {
+            const e = A.enemies[ei];
+            if (Math.abs(b.x - e.x) < (e.w / 2 + b.w / 2) &&
+                Math.abs(b.y - e.y) < (e.h / 2 + b.h / 2)) {
+                A.bullets.splice(bi, 1);
+                e.hp -= b.dmg;
+                if (e.hp <= 0) {
+                    A.score++;
+                    arcadeSpawnParticles(e.x, e.y, e.color, e.type === 'tank' ? 12 : 7);
+                    A.enemies.splice(ei, 1);
+                } else {
+                    arcadeSpawnParticles(e.x, e.y, e.color, 3);
+                }
+                break;
+            }
+        }
+    }
+
+    // Enemy-player collision
+    if (A.player && A.player.invFrames === 0) {
+        for (let ei = A.enemies.length - 1; ei >= 0; ei--) {
+            const e = A.enemies[ei];
+            if (Math.abs(e.x - A.player.x) < (e.w / 2 + A.player.w / 2 - 4) &&
+                Math.abs(e.y - A.player.y) < (e.h / 2 + A.player.h / 2 - 4)) {
+                A.enemies.splice(ei, 1);
+                A.player.hp--;
+                A.player.invFrames = 60;
+                arcadeSpawnParticles(A.player.x, A.player.y, '#38bdf8', 10);
+                if (A.player.hp <= 0) { arcadeGameOver(); return; }
+                break;
+            }
+        }
+    }
+
+    // Particles
+    A.particles = A.particles.filter(p => p.life > 0);
+    A.particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.06;
+        p.life--;
+        p.opacity = p.life / p.maxLife;
+    });
+
+    // Core trickle — 1 core every ~10 seconds of play
+    A.coreTimer++;
+    if (A.coreTimer >= 600) {
+        A.coreTimer = 0;
+        A.cores += 1;
+    }
+
+    // Score display
+    const scoreEl = document.querySelector('.arcade-hud-center');
+    if (scoreEl) scoreEl.innerHTML = `<span class="arcade-title-text">SCORE: ${A.score}</span>`;
+}
+
+function arcadeSpawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const life = 20 + Math.random() * 20;
+        ARCADE.particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4 - 1,
+            color, life, maxLife: life,
+            r: Math.random() * 3 + 1,
+            opacity: 1,
+        });
+    }
+}
+
+function arcadeGameOver() {
+    _arcadeRunning = false;
+    cancelAnimationFrame(_arcadeLoop);
+
+    const A = ARCADE;
+    const earned = A.cores;
+
+    // Save best score
+    if (A.score > A.bestScore) {
+        A.bestScore = A.score;
+        localStorage.setItem('arcadeBestScore', A.bestScore);
+        document.getElementById('arcade-best-score').textContent = A.bestScore;
+    }
+
+    // Deposit trickle cores into main wallet
+    if (!systemState.energyCores) systemState.energyCores = 0;
+    systemState.energyCores += earned;
+    saveGameState();
+    arcadeUpdateCoresDisplay();
+
+    // Show overlay
+    const overlay = document.getElementById('game-overlay');
+    const title    = document.getElementById('overlay-title');
+    const sub      = document.getElementById('overlay-subtitle');
+    const scoreRow = document.getElementById('overlay-score-row');
+    const finalSc  = document.getElementById('overlay-final-score');
+    const rewardRow= document.getElementById('overlay-reward-row');
+    const rewardTx = document.getElementById('overlay-reward-text');
+    const btn      = document.getElementById('overlay-btn');
+
+    title.textContent = 'GAME OVER';
+    sub.textContent   = A.score > A.bestScore ? '★ NEW BEST!' : 'MISSION FAILED';
+    finalSc.textContent = A.score;
+    scoreRow.style.display = 'flex';
+    rewardRow.style.display = earned > 0 ? 'flex' : 'none';
+    rewardTx.textContent = `+${earned} ⚡ CORES EARNED`;
+    btn.textContent = 'RETRY';
+
+    overlay.style.display = 'flex';
+    overlay.style.opacity = '0';
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+    });
+}
+
+function arcadeDraw() {
+    const A = ARCADE;
+    const ctx = A.ctx;
+    if (!ctx) return;
+
+    // Background
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, A.W, A.H);
+
+    // Stars
+    A.stars.forEach(s => {
+        ctx.globalAlpha = s.opacity;
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Enemies
+    A.enemies.forEach(e => {
+        const pulse = 0.85 + 0.15 * Math.sin(A.frame * 0.12);
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        // Glow
+        ctx.shadowColor = e.color;
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = pulse;
+        // Enemy shape: diamond
+        const s = e.w / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -s); ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);  ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.stroke();
+        if (e.type === 'tank') {
+            ctx.globalAlpha = 0.3 * pulse;
+            ctx.fillStyle = e.color;
+            ctx.fill();
+        }
+        // HP pips for tank
+        if (e.type === 'tank' && e.hp > 1) {
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = e.color;
+            for (let i = 0; i < e.hp; i++) {
+                ctx.beginPath();
+                ctx.arc(-4 + i * 4, s + 6, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    });
+
+    // Bullets
+    A.bullets.forEach(b => {
+        ctx.save();
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#7dd3fc';
+        ctx.beginPath();
+        ctx.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 3);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Particles
+    A.particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Player
+    if (A.player && (A.player.invFrames === 0 || Math.floor(A.frame / 4) % 2 === 0)) {
+        const p = A.player;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 20;
+        // Ship body
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -p.h / 2);
+        ctx.lineTo(p.w / 2, p.h / 2);
+        ctx.lineTo(p.w / 4, p.h / 3);
+        ctx.lineTo(-p.w / 4, p.h / 3);
+        ctx.lineTo(-p.w / 2, p.h / 2);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Engine glow
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 16;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-p.w / 4, p.h / 3);
+        ctx.lineTo(0, p.h / 2 + 6 + Math.random() * 5);
+        ctx.lineTo(p.w / 4, p.h / 3);
+        ctx.stroke();
+        ctx.restore();
+
+        // HP bar
+        const barW = 40, barH = 4;
+        const bx = p.x - barW / 2, by = p.y + p.h / 2 + 8;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(bx, by, barW, barH);
+        const pct = p.hp / p.maxHp;
+        ctx.fillStyle = pct > 0.5 ? '#34d399' : pct > 0.25 ? '#fbbf24' : '#f87171';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 6;
+        ctx.fillRect(bx, by, barW * pct, barH);
+        ctx.shadowBlur = 0;
+    }
+
+    // Score HUD (bottom of canvas)
+    ctx.fillStyle = 'rgba(56,189,248,0.08)';
+    ctx.fillRect(0, A.H - 38, A.W, 38);
+    ctx.strokeStyle = 'rgba(56,189,248,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, A.H - 38); ctx.lineTo(A.W, A.H - 38); ctx.stroke();
+    ctx.fillStyle = 'rgba(56,189,248,0.6)';
+    ctx.font = '700 11px Rajdhani, sans-serif';
+    ctx.letterSpacing = '2px';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚡ ' + ((systemState.energyCores || 0) + A.cores), 12, A.H - 14);
+    ctx.textAlign = 'right';
+    ctx.fillText('HP ' + (A.player ? A.player.hp : 0) + ' / ' + (A.player ? A.player.maxHp : 0), A.W - 12, A.H - 14);
+}
+
+// Called when arcade tab becomes visible
+function arcadeOnEnter() {
+    arcadeUpdateCoresDisplay();
+    // Update best score on card
+    const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    const cardBest = document.getElementById('card-best-voidhunter');
+    if (cardBest) cardBest.textContent = best;
+    // Draw card preview animation
+    arcadeDrawCardPreview();
+}
+
+function arcadeOnExit() {
+    if (_arcadeRunning) {
+        _arcadeRunning = false;
+        cancelAnimationFrame(_arcadeLoop);
+    }
+    // Also close the game panel if open
+    const panel = document.getElementById('arcade-game-panel');
+    if (panel) panel.classList.remove('open');
+}
+
+function arcadeOpenGame(gameId) {
+    const panel = document.getElementById('arcade-game-panel');
+    const titleEl = document.getElementById('arcade-panel-title');
+    if (!panel) return;
+
+    // Set panel title based on game
+    const titles = { voidhunter: 'VOID HUNTER' };
+    if (titleEl) titleEl.textContent = titles[gameId] || gameId.toUpperCase();
+
+    // Slide panel up
+    panel.classList.add('open');
+
+    // Init the canvas after panel is visible
+    setTimeout(() => {
+        arcadeInit();
+        arcadeUpdatePanelCores();
+    }, 80);
+}
+
+function arcadeCloseGame() {
+    // Stop game if running
+    if (_arcadeRunning) {
+        _arcadeRunning = false;
+        cancelAnimationFrame(_arcadeLoop);
+    }
+    // Slide panel back down
+    const panel = document.getElementById('arcade-game-panel');
+    if (panel) panel.classList.remove('open');
+
+    // Refresh lobby best score
+    const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    const cardBest = document.getElementById('card-best-voidhunter');
+    if (cardBest) cardBest.textContent = best;
+
+    arcadeUpdateCoresDisplay();
+}
+
+function arcadeUpdatePanelCores() {
+    const el = document.getElementById('arcade-panel-cores');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+}
+
+// Animated preview on lobby card
+function arcadeDrawCardPreview() {
+    const c = document.getElementById('preview-voidhunter');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height;
+    let frame = 0;
+    const stars = Array.from({ length: 30 }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.2 + 0.3, speed: Math.random() * 0.6 + 0.2,
+    }));
+    const enemies = [
+        { x: W * 0.3, y: -10 }, { x: W * 0.7, y: -40 }, { x: W * 0.5, y: -70 }
+    ];
+
+    function drawFrame() {
+        // Only animate while arcade view is active and panel closed
+        const panel = document.getElementById('arcade-game-panel');
+        if (panel && panel.classList.contains('open')) return;
+
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, W, H);
+
+        // Stars
+        stars.forEach(s => {
+            s.y += s.speed;
+            if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = '#e0f2fe';
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // Enemies drifting down
+        enemies.forEach((e, i) => {
+            e.y += 0.5;
+            if (e.y > H + 20) e.y = -20;
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.shadowColor = '#f87171'; ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.5;
+            const s = 8;
+            ctx.beginPath();
+            ctx.moveTo(0,-s); ctx.lineTo(s,0); ctx.lineTo(0,s); ctx.lineTo(-s,0);
+            ctx.closePath(); ctx.stroke();
+            ctx.restore();
+        });
+
+        // Mini ship
+        const px = W / 2 + Math.sin(frame * 0.04) * 12;
+        const py = H - 20;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 12;
+        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0,-10); ctx.lineTo(8,10); ctx.lineTo(4,7); ctx.lineTo(-4,7); ctx.lineTo(-8,10);
+        ctx.closePath(); ctx.stroke();
+        // Engine
+        ctx.shadowColor = '#fbbf24'; ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-4,7); ctx.lineTo(0, 14 + Math.random()*3); ctx.lineTo(4,7);
+        ctx.stroke();
+        ctx.restore();
+
+        frame++;
+        requestAnimationFrame(drawFrame);
+    }
+    drawFrame();
+}
+
+// Also update panel cores whenever cores change
+const _origArcadeUpdateCoresDisplay = arcadeUpdateCoresDisplay;
+function arcadeUpdateCoresDisplay() {
+    const el = document.getElementById('arcade-cores-display');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+    arcadeUpdatePanelCores();
+}
+// ============================================================
+// END ARCADE
+// ============================================================

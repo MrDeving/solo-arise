@@ -2181,3 +2181,343 @@ button.sci-fi-btn.filter-opt.active {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
 }
+/* ============================================================
+   ARCADE
+   ============================================================ */
+
+/* --- Lobby View --- */
+.arcade-view {
+    padding: 0 !important;
+    overflow-y: auto !important;
+    display: flex;
+    flex-direction: column;
+    background: #020617;
+    padding-bottom: 80px !important;
+}
+.arcade-lobby-hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 52px 20px 12px 20px;
+    background: linear-gradient(to bottom, rgba(2,6,23,1) 60%, transparent);
+    flex-shrink: 0;
+}
+.arcade-lobby-hud-left, .arcade-lobby-hud-right {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.arcade-lobby-hud-right { align-items: flex-end; }
+.arcade-hud-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.arcade-hud-value {
+    font-size: 18px;
+    font-weight: 900;
+    letter-spacing: 1px;
+    color: var(--neon-blue);
+    text-shadow: 0 0 12px rgba(56,189,248,0.7);
+}
+.arcade-lobby-title-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 0 20px 20px 20px;
+    flex-shrink: 0;
+}
+.arcade-lobby-title {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    color: var(--text-main);
+    text-shadow: 0 0 24px rgba(56,189,248,0.4);
+}
+.arcade-lobby-subtitle {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 4px;
+    color: var(--text-muted);
+}
+
+/* --- Game Grid --- */
+.arcade-game-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    padding: 0 14px 20px 14px;
+}
+.arcade-game-card {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, 0.7);
+    border: 1px solid rgba(56,189,248,0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    -webkit-tap-highlight-color: transparent;
+}
+.arcade-game-card:active {
+    border-color: rgba(56,189,248,0.6);
+    box-shadow: 0 0 20px rgba(56,189,248,0.15);
+}
+.arcade-game-card.locked {
+    opacity: 0.4;
+    pointer-events: none;
+    cursor: default;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+    gap: 10px;
+}
+.arcade-card-lock-icon {
+    color: var(--text-muted);
+}
+.arcade-card-preview {
+    width: 100%;
+    height: 100px;
+    display: block;
+    object-fit: cover;
+    background: #020617;
+}
+.arcade-card-info {
+    padding: 10px 12px 4px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+.arcade-card-name {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 2px;
+    color: var(--text-main);
+    text-transform: uppercase;
+}
+.arcade-card-genre {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: var(--neon-blue);
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+.arcade-card-best {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    padding-bottom: 2px;
+}
+.arcade-card-play-btn {
+    margin: 8px 12px 12px 12px;
+    background: transparent;
+    border: 1px solid rgba(56,189,248,0.4);
+    color: var(--neon-blue);
+    font-size: 11px;
+    font-weight: 900;
+    letter-spacing: 3px;
+    text-align: center;
+    padding: 7px 0;
+    border-radius: 4px;
+    text-shadow: 0 0 8px rgba(56,189,248,0.5);
+    transition: background 0.2s;
+}
+.arcade-game-card:active .arcade-card-play-btn {
+    background: rgba(56,189,248,0.1);
+}
+
+/* --- Game Panel (fullscreen, slides up) --- */
+.arcade-game-panel {
+    position: fixed;
+    inset: 0;
+    z-index: 200;
+    background: #020617;
+    display: flex;
+    flex-direction: column;
+    transform: translateY(100%);
+    transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+}
+.arcade-game-panel.open {
+    transform: translateY(0);
+}
+.arcade-panel-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 16px;
+    padding-top: max(14px, env(safe-area-inset-top));
+    background: rgba(2, 6, 23, 0.95);
+    border-bottom: 1px solid rgba(56,189,248,0.15);
+    flex-shrink: 0;
+    z-index: 10;
+}
+.arcade-exit-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid rgba(56,189,248,0.3);
+    color: var(--text-muted);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+.arcade-exit-btn:active { color: var(--neon-red); border-color: var(--neon-red); }
+.arcade-panel-title {
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    color: var(--text-main);
+    text-transform: uppercase;
+}
+.arcade-panel-cores {
+    font-size: 14px;
+    font-weight: 800;
+    color: var(--neon-blue);
+    letter-spacing: 1px;
+    text-shadow: 0 0 10px rgba(56,189,248,0.6);
+    min-width: 60px;
+    text-align: right;
+}
+#game-canvas {
+    flex: 1;
+    width: 100%;
+    display: block;
+    touch-action: none;
+}
+.game-overlay {
+    position: absolute;
+    top: 52px; left: 0; right: 0; bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(2, 6, 23, 0.75);
+    backdrop-filter: blur(6px);
+    z-index: 30;
+    transition: opacity 0.3s ease;
+}
+.game-overlay-box {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+    padding: 36px 32px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(56,189,248,0.35);
+    border-radius: 4px;
+    min-width: 240px;
+    box-shadow: 0 0 40px rgba(56,189,248,0.1), inset 0 0 30px rgba(56,189,248,0.04);
+}
+.overlay-title {
+    font-size: 22px;
+    font-weight: 900;
+    letter-spacing: 5px;
+    color: var(--text-main);
+    text-shadow: 0 0 20px rgba(56,189,248,0.6);
+    text-transform: uppercase;
+}
+.overlay-subtitle {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+}
+.overlay-score-row {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+.overlay-score-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: var(--text-muted);
+}
+.overlay-score-val {
+    font-size: 42px;
+    font-weight: 900;
+    color: var(--neon-blue);
+    text-shadow: 0 0 24px rgba(56,189,248,0.8);
+    line-height: 1;
+}
+.overlay-reward-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.overlay-reward-text {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--neon-gold);
+    text-shadow: 0 0 12px rgba(251,191,36,0.6);
+}
+.arcade-launch-btn {
+    background: transparent;
+    border: 1px solid rgba(56,189,248,0.5);
+    color: var(--neon-blue);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 13px;
+    font-weight: 900;
+    letter-spacing: 4px;
+    padding: 12px 32px;
+    cursor: pointer;
+    text-transform: uppercase;
+    text-shadow: 0 0 10px rgba(56,189,248,0.7);
+    box-shadow: 0 0 16px rgba(56,189,248,0.15);
+    transition: all 0.2s;
+    margin-top: 4px;
+}
+.arcade-launch-btn:active {
+    background: rgba(56,189,248,0.12);
+    box-shadow: 0 0 24px rgba(56,189,248,0.3);
+}
+/* ── Arcade Coming Soon Overlay ── */
+.arcade-coming-soon-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    background: rgba(5, 10, 25, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding-bottom: var(--bottom-nav-height, 65px);
+    pointer-events: all;
+}
+
+.arcade-coming-soon-text {
+    font-size: 28px;
+    font-weight: 900;
+    letter-spacing: 8px;
+    background: linear-gradient(90deg, #38bdf8, #a78bfa, #f472b6, #38bdf8);
+    background-size: 300% 100%;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    animation: shimmer-shift 3s linear infinite;
+}
+
+@keyframes shimmer-shift {
+    0% { background-position: 0% 50%; }
+    100% { background-position: 300% 50%; }
+}
