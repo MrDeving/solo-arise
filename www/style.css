@@ -74,7 +74,7 @@ body {
     position: absolute;
     top: 0; left: 0; right: 0;
     z-index: 15; /* Keeps it above the swiping tabs */
-    padding: 20px 16px 0 16px;
+    padding: 12px 16px 0 16px;
     transition: opacity 0.2s ease-out; /* Fades out when going to Stats/Profile */
 }
 .shared-header.hidden {
@@ -105,7 +105,7 @@ body {
 
 /* Push content down ONLY on tabs that share the static header */
 #view-home, #view-quests {
-    padding-top: 210px !important;
+    padding-top: 180px !important;
     overflow-y: hidden !important;
     display: flex;
     flex-direction: column;
@@ -173,8 +173,8 @@ body {
 .hud-card {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px 18px;
+    gap: 8px;
+    padding: 10px 18px;
     background: linear-gradient(135deg, color-mix(in srgb, var(--rank-color, #00f0ff) 10%, rgba(15,23,42,0.6)), rgba(15,23,42,0.4)) !important;
     border-color: var(--rank-color-glow, var(--panel-border)) !important;
     box-shadow: 0 8px 32px 0 rgba(0,0,0,0.37), 0 0 24px var(--rank-color-dim, transparent) !important;
@@ -183,7 +183,7 @@ body {
 .hud-top {
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 10px;
 }
 .hud-identity {
     display: flex;
@@ -486,16 +486,16 @@ body {
     border: 2px solid transparent;
 }
 .ring-1 {
-    width: 75px;
-    height: 75px;
+    width: 64px;
+    height: 64px;
     border-top: 2px solid var(--rank-color, var(--neon-blue));
     border-left: 2px solid var(--rank-color, var(--neon-blue));
     animation: rotate 10s linear infinite;
     transition: border-color 0.6s ease;
 }
 .ring-2 {
-    width: 85px;
-    height: 85px;
+    width: 72px;
+    height: 72px;
     border-bottom: 2px dashed var(--rank-color-glow, var(--text-muted));
     border-right: 2px solid var(--rank-color-glow, var(--neon-blue-glow));
     animation: rotate 15s linear infinite reverse;

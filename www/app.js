@@ -997,7 +997,7 @@ function showDailyBonusModal(xp, done) {
                         <path d="M12 2l2.5 6.5H21l-5.5 4 2 6.5L12 15l-5.5 4 2-6.5L3 8.5h6.5z"/>
                     </svg>
                 </div>
-                <div class="sl-box-header">ALL QUESTS COMPLETE</div>
+                <div class="sl-box-header">ALL DAILIES COMPLETE</div>
             </div>
             <div class="reward-xp-display">
                 <div class="reward-xp-label">BONUS XP GRANTED</div>
