@@ -18,40 +18,51 @@
 
         <!-- SHARED STATIC HEADER -->
         <div id="shared-header" class="shared-header">
-            <!-- Profile Card -->
-            <div class="system-panel profile-card">
-                <div class="profile-left">
-                    <div class="avatar-container">
+            <div class="system-panel hud-card">
+
+                <!-- TOP: Avatar | Identity | Rank -->
+                <div class="hud-top">
+                    <div class="avatar-container" style="margin-left: 2.5%;">
                         <div class="hud-ring ring-1"></div>
                         <div class="hud-ring ring-2"></div>
                         <div id="home-avatar" class="avatar"></div>
                     </div>
-                    <div class="profile-info">
-                        <h2 class="glitch-text" data-text="Jinwoo" id="home-username">Noobie</h2>
-                        <div class="streak-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
-                            <span id="streak-count">87 Days</span>
+                    <div class="hud-identity">
+                        <h2 class="glitch-text hud-name" data-text="Jinwoo" id="home-username">Hunter</h2>
+                        <div class="hud-badges">
+                            <div class="streak-badge">
+                                <svg class="flame-icon" width="12" height="12" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                                <span id="streak-count">0</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hud-rank-block">
+                        <div class="rank-hexagon">
+                            <span class="rank-text" id="home-rank-text">E</span>
                         </div>
                     </div>
                 </div>
-                <div class="profile-right">
-                    <div class="rank-hexagon">
-                        <span class="rank-text" id="home-rank-text">E</span>
-                    </div>
-                    <div class="level-text">LEVEL <span id="player-level" class="neon-text">0</span></div>
-                </div>
-            </div>
 
-            <!-- Timer Card -->
-            <div class="system-panel timer-card">
-                <div class="timer-left">
-                    <div class="label">SYSTEM RESET IN</div>
-                    <div class="time" id="reset-timer">23:09:54</div>
+                <!-- DIVIDER -->
+                <div class="hud-divider"></div>
+
+                <!-- BOTTOM: XP bar + Reset timer -->
+                <div class="hud-bottom">
+                    <div class="hud-xp-section">
+                        <div class="hud-xp-labels">
+                            <span id="header-exp-label" class="hud-label">0 / 500 EXP</span>
+                            <span id="header-level-target" class="hud-label">LVL <span id="player-level" class="neon-text">0</span></span>
+                        </div>
+                        <div class="hud-bar-track">
+                            <div id="header-level-fill" class="hud-bar-fill"></div>
+                        </div>
+                    </div>
+                    <div class="hud-timer-block">
+                        <span class="hud-timer-label">RESET</span>
+                        <span id="reset-timer" class="hud-timer-value">--:--:--</span>
+                    </div>
                 </div>
-                <div class="timer-right">
-                    <div class="label">DATE: <span class="highlight" id="current-date">MARCH 12, 2026</span></div>
-                    <div class="label">DAY: <span class="highlight" id="current-day">THURSDAY</span></div>
-                </div>
+
             </div>
         </div>
 
@@ -77,7 +88,7 @@
             </div>
 
             <!-- Quest List -->
-            <div id="daily-bonus-banner" style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(15,23,42,0.6);border:1px solid rgba(56,189,248,0.2);display:flex;align-items:center;justify-content:space-between;">
+            <div id="daily-bonus-banner" style="margin-bottom:10px;padding:10px 14px;border-radius:10px;background:rgba(15,23,42,0.6);border:1px solid rgba(56,189,248,0.2);display:none;align-items:center;justify-content:space-between;">
                 <div style="display:flex;align-items:center;gap:10px;">
                     <div id="bonus-emoji" style="width:36px;height:36px;display:flex;align-items:center;justify-content:center;flex-shrink:0;"></div>
                     <div>
@@ -89,8 +100,10 @@
             </div>
 
             <!-- Quest List -->
-            <div class="quest-list" id="quest-container">
-                <!-- Quests generated by JS -->
+            <div class="tasks-scroll-container">
+                <div class="quest-list" id="quest-container">
+                    <!-- Quests generated by JS -->
+                </div>
             </div>
         </div>
 
@@ -116,8 +129,10 @@
             </div>
 
             <!-- Main Quest List -->
-            <div class="quest-list" id="main-quest-container">
-                <!-- Quests generated by JS -->
+            <div class="tasks-scroll-container">
+                <div class="quest-list" id="main-quest-container">
+                    <!-- Quests generated by JS -->
+                </div>
             </div>
         </div>
 
@@ -268,18 +283,22 @@
                 
                 <h2 id="dash-username" class="dash-name">Hunter</h2>
                 
-                <!-- Level / Rank Pill -->
+                <!-- Level / Rank Badge -->
                 <div class="level-rank-pill">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                     <span class="pill-text">Level <span id="dash-level">9</span></span>
                     <div class="pill-divider"></div>
-                    <div class="mini-hex" id="dash-mini-hex">E</div>
+                    <div class="rank-hexagon" id="dash-mini-hex" style="width:28px;height:32px;display:flex;align-items:center;justify-content:center;transform:scale(0.4);transform-origin:center;">
+                        <span class="rank-text" id="dash-rank-badge-text">E</span>
+                    </div>
                 </div>
 
                 <!-- Hunter Details List -->
                 <div class="hunter-details">
                     <div class="detail-row"><span>Date Joined</span><span class="detail-val" id="dash-date-joined">--</span></div>
                     <div class="detail-row"><span>System Access</span><span class="detail-val">Verified</span></div>
+                    <div class="detail-row"><span>Current Date</span><span class="detail-val" id="profile-current-date">--</span></div>
+                    <div class="detail-row"><span>Day</span><span class="detail-val" id="profile-current-day">--</span></div>
+                    <div class="detail-row"><span>System Reset In</span><span class="detail-val" style="color: var(--neon-blue); text-shadow: 0 0 8px var(--neon-blue-glow);" id="profile-reset-timer">--:--:--</span></div>
                 </div>
 
                 <!-- Dual Progression Card -->
@@ -288,7 +307,7 @@
                     <!-- Header -->
                     <div class="rpc-top" style="margin-bottom: 0;">
                         <div class="streak-badge">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
+                            <svg class="flame-icon" width="14" height="14" viewBox="0 0 24 24" fill="var(--neon-gold)" stroke="none"><path d="M8.5 14.5A2.5 2.5 0 0011 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 11-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 002.5 2.5z"/></svg>
                             <span id="dash-streak">0 Days</span>
                         </div>
                         <div class="rpc-level">
@@ -342,8 +361,27 @@
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="6"/><path d="M8.21 13.89L7 23l5-3 5 3-1.21-9.12"/></svg>
                     ACHIEVEMENTS
                 </button>
-
-                <!-- System Data Management (Export/Import) -->
+<!-- Profile Card Theme Setting -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">PROFILE CARD THEME</div>
+                    <div class="theme-selector-grid" id="theme-selector">
+                        <button class="theme-opt-btn" data-theme="default" onclick="setCardTheme('default')" style="border-color:#38bdf8;color:#38bdf8;"><div class="theme-dot"></div>DEFAULT</button>
+                        <button class="theme-opt-btn" data-theme="E"       onclick="setCardTheme('E')"       style="border-color:#b57a50;color:#b57a50;"><div class="theme-dot"></div>E-RANK</button>
+                        <button class="theme-opt-btn" data-theme="D"       onclick="setCardTheme('D')"       style="border-color:#8faec6;color:#8faec6;"><div class="theme-dot"></div>D-RANK</button>
+                        <button class="theme-opt-btn" data-theme="C"       onclick="setCardTheme('C')"       style="border-color:#00ffaa;color:#00ffaa;"><div class="theme-dot"></div>C-RANK</button>
+                        <button class="theme-opt-btn" data-theme="B"       onclick="setCardTheme('B')"       style="border-color:#00f0ff;color:#00f0ff;"><div class="theme-dot"></div>B-RANK</button>
+                        <button class="theme-opt-btn" data-theme="A"       onclick="setCardTheme('A')"       style="border-color:#cc44ff;color:#cc44ff;"><div class="theme-dot"></div>A-RANK</button>
+                        <button class="theme-opt-btn" data-theme="S"       onclick="setCardTheme('S')"       style="border-color:#ffb700;color:#ffb700;"><div class="theme-dot"></div>S-RANK</button>
+                    </div>
+                </div>
+                <!-- Reset Time Setting -->
+                <div class="data-management-card" style="flex-direction:column;gap:8px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">DAILY RESET TIME</div>
+                    <div style="display:flex;align-items:center;gap:10px;">
+                        <input type="time" id="reset-time-input" class="clean-input small" style="flex:1;text-align:center;" value="00:00">
+                        <button class="sci-fi-btn" style="flex-shrink:0;padding:8px 14px;" onclick="saveResetTime()">SAVE</button>
+                    </div>
+                </div>
                 <div class="data-management-card">
                     <button class="sci-fi-btn" onclick="exportData()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -385,6 +423,17 @@
                 <div class="quest-section">
                     <label>Notes</label>
                     <textarea id="new-quest-notes" class="clean-input sci-fi-textarea" placeholder="Add details or sub-tasks..." onfocus="setTimeout(() => this.scrollIntoView({behavior: 'smooth', block: 'center'}), 300)"></textarea>
+                </div>
+
+                <div class="divider"></div>
+
+                <!-- CHECKLIST SECTION -->
+                <div class="quest-section">
+                    <label>Checklist</label>
+                    <div id="checklist-items"></div>
+                    <button class="clean-add-btn" onclick="addChecklistItem()">
+                        <span class="plus-icon">+</span> New checklist entry
+                    </button>
                 </div>
 
                 <div class="divider"></div>
@@ -565,7 +614,93 @@
                 </div>
             </div>
         </div>
+<!-- ARCADE VIEW — LOBBY -->
+        <div id="view-arcade" class="view arcade-view">
 
+            <!-- COMING SOON OVERLAY -->
+            <div class="arcade-coming-soon-overlay" style="display:none;">
+                <div class="arcade-coming-soon-text">COMING SOON</div>
+            </div>
+
+            <!-- Lobby HUD -->
+            <div class="arcade-lobby-hud">
+                <div class="arcade-lobby-hud-left">
+                    <span class="arcade-hud-label">ENERGY CORES</span>
+                    <span class="arcade-hud-value" id="arcade-cores-display">0 ⚡</span>
+                </div>
+                <div class="arcade-lobby-hud-right">
+                    <span class="arcade-hud-label">GAMES</span>
+                    <span class="arcade-hud-value" id="arcade-game-count">1</span>
+                </div>
+            </div>
+
+            <!-- Lobby Title -->
+            <div class="arcade-lobby-title-row">
+                <span class="arcade-lobby-title">ARCADE</span>
+                <span class="arcade-lobby-subtitle">SELECT YOUR GAME</span>
+            </div>
+
+            <!-- Game Grid -->
+            <div class="arcade-game-grid" id="arcade-game-grid">
+
+                <!-- CARD: Void Hunter -->
+                <div class="arcade-game-card" onclick="arcadeOpenGame('voidhunter')">
+                    <canvas class="arcade-card-preview" id="preview-voidhunter" width="150" height="90"></canvas>
+                    <div class="arcade-card-info">
+                        <div class="arcade-card-name">VOID HUNTER</div>
+                        <div class="arcade-card-genre">SHOOTER</div>
+                        <div class="arcade-card-best">BEST: <span id="card-best-voidhunter">0</span></div>
+                    </div>
+                    <div class="arcade-card-play-btn">PLAY</div>
+                </div>
+
+                <!-- LOCKED SLOT (placeholder for next game) -->
+                <div class="arcade-game-card locked">
+                    <div class="arcade-card-lock-icon">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <div class="arcade-card-info">
+                        <div class="arcade-card-name" style="color:var(--text-muted)">COMING SOON</div>
+                        <div class="arcade-card-genre">???</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- GAME PANEL — fullscreen overlay, slides up over lobby -->
+        <div id="arcade-game-panel" class="arcade-game-panel">
+            <!-- Panel Top Bar -->
+            <div class="arcade-panel-bar">
+                <button class="arcade-exit-btn" onclick="arcadeCloseGame()">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+                    EXIT
+                </button>
+                <span class="arcade-panel-title" id="arcade-panel-title">VOID HUNTER</span>
+                <div class="arcade-panel-cores">
+                    <span id="arcade-panel-cores">0 ⚡</span>
+                </div>
+            </div>
+            <!-- Canvas lives here -->
+            <canvas id="game-canvas"></canvas>
+            <!-- Game overlay (start / game over screen) -->
+            <div id="game-overlay" class="game-overlay">
+                <div class="game-overlay-box">
+                    <div class="holo-corner tl"></div><div class="holo-corner tr"></div>
+                    <div class="holo-corner bl"></div><div class="holo-corner br"></div>
+                    <div id="overlay-title" class="overlay-title">VOID HUNTER</div>
+                    <div id="overlay-subtitle" class="overlay-subtitle">TAP TO LAUNCH</div>
+                    <div id="overlay-score-row" class="overlay-score-row" style="display:none;">
+                        <span class="overlay-score-label">SCORE</span>
+                        <span id="overlay-final-score" class="overlay-score-val">0</span>
+                    </div>
+                    <div id="overlay-reward-row" class="overlay-reward-row" style="display:none;">
+                        <span id="overlay-reward-text" class="overlay-reward-text">+0 ⚡ CORES</span>
+                    </div>
+                    <button class="arcade-launch-btn" id="overlay-btn" onclick="arcadeStartGame()">LAUNCH</button>
+                </div>
+            </div>
+        </div>
         <!-- BOTTOM NAVIGATION -->
         <nav class="bottom-nav">
             <button class="nav-item active" onclick="switchTab('home')">
@@ -579,6 +714,10 @@
             <button class="nav-item" onclick="switchTab('analytics')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/><path d="M16 18h.01"/></svg>
                 <span>CALENDAR</span>
+            </button>
+            <button class="nav-item" onclick="switchTab('arcade')">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 12h4M8 10v4"/><circle cx="15" cy="12" r="1" fill="currentColor"/><circle cx="18" cy="10" r="1" fill="currentColor"/></svg>
+                <span>ARCADE</span>
             </button>
             <button class="nav-item" onclick="switchTab('profile')">
                 <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -666,6 +805,19 @@
             <div class="sl-btn-row">
                 <button class="sl-btn-new" onclick="proceedPenalty()">ACCEPT</button>
             </div>
+        </div>
+    </div>
+
+    <!-- 4. Welcome Back Modal (Missed Dailies Review) -->
+    <div id="sl-welcome-back-modal" class="sl-modal-overlay" style="display: none;">
+        <div class="sl-system-box wb-box">
+            <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
+            <div class="sl-header-container">
+                <div class="sl-box-header" style="letter-spacing:3px;">WELCOME BACK</div>
+            </div>
+            <div class="sl-body-text" style="margin-top:-10px;">Check off any Dailies you did yesterday:</div>
+            <div id="welcome-back-list" class="wb-list"></div>
+            <button class="sl-btn-new wb-start-btn" onclick="confirmWelcomeBack()">START MY DAY</button>
         </div>
     </div>
 

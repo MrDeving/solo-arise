@@ -1,7 +1,11 @@
+// 0 = arcade live, 1 = coming soon
+const ARCADE_COMING_SOON = 1;
+
 // ====== GLOBAL POPUP QUEUE ENGINE (PRIORITY-SORTED) ======
 // Priority order (lower number = higher priority, fires first):
 // 9=sysDialog, 1=streakUp, 6=dailyBonus, 4=levelUp, 5=rankUp, 2=streakLost, 3=penalty, 7=achievement, 8=toast
 const POPUP_PRIORITY = {
+    welcomeBack: 0,
     sysDialog:   1,
     streakUp:    2,
     dailyBonus:  3,
@@ -120,12 +124,12 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
 
 // ==========================================
 // We define how much XP it takes to gain 1 Level. (You can change this later!)
+const DONE_QUEST_LIMIT = 30; // Max completed normal quests stored at once
 const XP_PER_LEVEL = 500; // Legacy fallback, do not remove
 const RANK_XP = [300, 500, 800, 1200, 1800, 2500]; // XP per level inside each rank (E,D,C,B,A,S)
 
 function getXpForLevel(level) {
-    const rankIdx = Math.min(Math.floor(level / 10), 5);
-    return RANK_XP[rankIdx];
+    return 100 + (level - 1) * 20 + Math.floor(level / 5) * 50;
 }
 
 function getTotalXpForLevel(level) {
@@ -137,7 +141,7 @@ function getTotalXpForLevel(level) {
 let triggeredReminders = new Set(); // Remembers which notifications have popped up so they don't spam
 
 let systemState = {
-    level: 0,
+    level: 1,
     totalXp: 0,
     todayXp: 0,
     streak: 0,
@@ -147,7 +151,9 @@ let systemState = {
     weeklyHistory: [], 
     events: [],
     dailyBonus: null,           // { stat, multiplier, date }
-    dailyBonusClaimed: false    // true after reward given
+    dailyBonusClaimed: false,   // true after reward given
+    checklistOpen: {},          // { [questId]: 0 or 1 }
+energyCores: 0              // ⚡ Arcade currency earned from completing tasks
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -159,7 +165,9 @@ let currentActiveTab = 'home'; // Tracks which tab we are currently looking at
 
 // Initialize Audio (Ensure saved.mp3 is in the www folder)
 const levelUpSound = new Audio('saved.mp3');
+levelUpSound.volume = 1.0;
 const popupSound = new Audio('solo_leveling_system.mp3');
+popupSound.volume = 1.0;
 
 // ====== UI SOUND ENGINE (no extra files needed) ======
 const _sfxCtx = (() => {
@@ -279,7 +287,11 @@ document.addEventListener('DOMContentLoaded', () => {
     renderQuests();     // 3. Draw the quests (Filters are applied automatically now)
     updateStats();      // 4. Update the math (Level, Rank, Streak, XP)
     loadSavedProfile(); // 5. Load the Profile image & name
+    // Load saved reset time into settings input
+    const rtInput = document.getElementById('reset-time-input');
+    if (rtInput) rtInput.value = localStorage.getItem('resetTime') || '00:00';
     initSortable();     // 6. Initialize drag-and-drop reordering
+    updateArcadeComingSoon();
     
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
@@ -292,7 +304,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // This helper checks if anything is open and closes it. Returns true if something was closed.
     const handlePhoneBackButton = () => {
         const modals = [
-            { id: 'achievements-sheet-overlay', close: () => { const s=document.getElementById('achievements-sheet'); if(s) s.style.transform='translateY(100%)'; setTimeout(()=>{ document.getElementById('achievements-sheet-overlay').style.display='none'; },350); } },
+            { id: 'achievements-sheet-overlay', close: () => { const s=document.getElementById('achievements-sheet'); if(s) s.style.transform='translateY(100%)'; setTimeout(()=>{ const o=document.getElementById('achievements-sheet-overlay'); if(o) o.style.display='none'; },350); } },
             { id: 'add-quest-modal',           close: () => closeQuestModal() },
             { id: 'filter-modal',              close: () => closeFilterModal() },
             { id: 'confirm-delete-modal',      close: () => cancelDeleteQuest() },
@@ -348,13 +360,24 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- SETUP FOR NATIVE APPS (Capacitor/Cordova) ---
-    if (window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.App) {
-        Capacitor.Plugins.App.addListener('backButton', () => {
-            if (!handlePhoneBackButton()) {
-                Capacitor.Plugins.App.exitApp();
+    const setupCapacitorBack = () => {
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            // Capacitor v8: use the globally registered plugin
+            const AppPlugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.App)
+                           || (window.CapacitorPlugins && window.CapacitorPlugins.App);
+            if (AppPlugin) {
+                AppPlugin.addListener('backButton', ({ canGoBack }) => {
+                    if (!handlePhoneBackButton()) {
+                        AppPlugin.exitApp();
+                    }
+                });
+                return;
             }
-        });
-    }
+        }
+        // Fallback: retry after plugins finish loading (sometimes they load async)
+        setTimeout(setupCapacitorBack, 500);
+    };
+    setupCapacitorBack();
 });
 
 // --- Drag and Drop Feature ---
@@ -378,6 +401,17 @@ function initSortable() {
         
         ghostClass: 'sortable-ghost',
         dragClass: 'sortable-drag',
+        onMove: function (evt) {
+            const draggedId = parseInt(evt.dragged.getAttribute('data-id'));
+            const relatedId = parseInt(evt.related.getAttribute('data-id'));
+            const draggedQuest = systemState.quests.find(q => q.id === draggedId);
+            const relatedQuest = systemState.quests.find(q => q.id === relatedId);
+            if (!draggedQuest || !relatedQuest) return true;
+            // Block pinned dragging into unpinned zone and vice versa
+            if (draggedQuest.pinned && !relatedQuest.pinned) return false;
+            if (!draggedQuest.pinned && relatedQuest.pinned) return false;
+            return true;
+        },
         onEnd: function (evt) {
             const itemEl = evt.item;
             const movedId = parseInt(itemEl.getAttribute('data-id'));
@@ -391,9 +425,12 @@ function initSortable() {
             if (movedQuestIndex === -1) return;
             const movedQuest = systemState.quests.splice(movedQuestIndex, 1)[0];
 
-            // 2. Figure out where to put it back based on its new siblings
-            // This safely bypasses hidden/filtered quests without losing data!
-            if (nextEl) {
+            // 2. If pinned, snap back to top zone; if unpinned, stay below all pinned
+            if (movedQuest.pinned) {
+                const firstUnpinnedIndex = systemState.quests.findIndex(q => !q.pinned);
+                const insertAt = firstUnpinnedIndex === -1 ? systemState.quests.length : firstUnpinnedIndex;
+                systemState.quests.splice(insertAt, 0, movedQuest);
+            } else if (nextEl) {
                 const nextId = parseInt(nextEl.getAttribute('data-id'));
                 const nextQuestIndex = systemState.quests.findIndex(q => q.id === nextId);
                 systemState.quests.splice(nextQuestIndex, 0, movedQuest);
@@ -402,7 +439,6 @@ function initSortable() {
                 const prevQuestIndex = systemState.quests.findIndex(q => q.id === prevId);
                 systemState.quests.splice(prevQuestIndex + 1, 0, movedQuest);
             } else {
-                // Failsafe: Put it at the end
                 systemState.quests.push(movedQuest);
             }
 
@@ -427,32 +463,59 @@ function initDates() {
 const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
     const dayStr = now.toLocaleDateString('en-US', optionsDay).toUpperCase();
     
-    document.getElementById('current-date').textContent = dateStr;
-    document.getElementById('current-day').textContent = dayStr;
+    const hDate = document.getElementById('current-date');
+    const hDay = document.getElementById('current-day');
+    if (hDate) hDate.textContent = dateStr;
+    if (hDay) hDay.textContent = dayStr;
     
     const qDate = document.getElementById('quests-current-date');
     const qDay = document.getElementById('quests-current-day');
     if (qDate) qDate.textContent = dateStr;
     if (qDay) qDay.textContent = dayStr;
+    const pDate = document.getElementById('profile-current-date');
+    const pDay = document.getElementById('profile-current-day');
+    if (pDate) pDate.textContent = dateStr;
+    if (pDay) pDay.textContent = dayStr;
     
-    // Simple Timer Mock (Counts down to midnight)
+    // Auto-refresh date display at midnight
+    setInterval(() => {
+        const d2 = new Date();
+        if (d2.getHours() === 0 && d2.getMinutes() === 0 && d2.getSeconds() === 0) {
+            const optDate = { month: 'long', day: 'numeric', year: 'numeric' };
+            const optDay = { weekday: 'long' };
+            const newDate = d2.toLocaleDateString('en-US', optDate).toUpperCase();
+            const newDay = d2.toLocaleDateString('en-US', optDay).toUpperCase();
+            ['current-date','quests-current-date','profile-current-date'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = newDate; });
+            ['current-day','quests-current-day','profile-current-day'].forEach(id => { const el = document.getElementById(id); if (el) el.textContent = newDay; });
+        }
+    }, 1000);
+
+    // Countdown to custom reset time
     setInterval(() => {
         const d = new Date();
-        const h = 23 - d.getHours();
-        const m = 59 - d.getMinutes();
-        const s = 59 - d.getSeconds();
-        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        const { h: resetH, m: resetM } = getResetTime();
+        const resetDate = new Date(d);
+        resetDate.setHours(resetH, resetM, 0, 0);
+        if (resetDate <= d) resetDate.setDate(resetDate.getDate() + 1);
+        const diff = Math.max(0, Math.floor((resetDate - d) / 1000));
+        const h = Math.floor(diff / 3600);
+        const m = Math.floor((diff % 3600) / 60);
+        const s = diff % 60;
+        const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '00')}`;
         
-        document.getElementById('reset-timer').textContent = timeStr;
+        const hTimer = document.getElementById('reset-timer');
+        if (hTimer) hTimer.textContent = timeStr;
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
+        const pTimer = document.getElementById('profile-reset-timer');
+        if (pTimer) pTimer.textContent = timeStr;
         // --- SYSTEM STREAK WARNING ---
         // Triggers at exactly 18:00 (6 PM) if you have an active streak but haven't done anything today.
         const todayStr = d.toDateString();
         const warningKey = `streak-warning-${todayStr}`;
         
-        if (d.getHours() === 18 && systemState.streak > 0 && systemState.todayXp === 0) {
+        if (d.getHours() === 18 && d.getMinutes() === 0 && systemState.streak > 0 && systemState.todayXp === 0) {
             if (!triggeredReminders.has(warningKey)) {
                 triggeredReminders.add(warningKey);
                 // --- FEATURE 2: Trigger Native or Toast ---
@@ -525,7 +588,53 @@ function isQuestActiveOnDate(quest, dateObj) {
     }
     return true;
 }
+// ====== COLOR → XP MULTIPLIER TABLES ======
+// Normal quest colors: [blue, green, orange, red] (index matches getQuestAgeColor order)
+const NORMAL_COLOR_MULTIPLIERS = [1.0, 1.1, 1.3, 1.5];
+// Daily quest colors: [gold, green, cyan, sky] (index matches getDailyStreakColor order)
+const DAILY_COLOR_MULTIPLIERS  = [1.0, 1.2, 1.3, 1.5];
 
+function getNormalColorIndex(quest) {
+    if (!quest.createdAt) return 0;
+    const days = Math.floor((Date.now() - quest.createdAt) / 86400000);
+    if (days < 2) return 0;
+    if (days < 5) return 1;
+    if (days < 9) return 2;
+    return 3;
+}
+function getDailyColorIndex(streak) {
+    const s = streak || 0;
+    if (s <= 3) return 0;
+    if (s <= 6) return 1;
+    if (s <= 9) return 2;
+    return 3;
+}
+function getQuestMultiplier(quest) {
+    const isDaily = quest.type === 'daily' || !quest.type;
+    if (isDaily) {
+        const idx = getDailyColorIndex(quest.dailyStreak ?? 0);
+        return DAILY_COLOR_MULTIPLIERS[idx];
+    } else {
+        const idx = getNormalColorIndex(quest);
+        return NORMAL_COLOR_MULTIPLIERS[idx];
+    }
+}
+// ==========================================
+function getDailyStreakColor(streak) {
+    const s = streak || 0;
+    if (s <= 3)  return '#fbbf24';
+    if (s <= 6)  return '#34d399';
+    if (s <= 9)  return '#22d3ee';
+    return '#38bdf8';
+}
+    function getQuestAgeColor(quest) {
+    if (!quest.createdAt) return null;
+    const days = Math.floor((Date.now() - quest.createdAt) / 86400000);
+    if (days < 2)  return '#38bdf8';
+    if (days < 5)  return '#34d399';
+    if (days < 9)  return '#fb923c';
+    return '#f87171';
+}
 function renderQuests() {
     const homeContainer = document.getElementById('quest-container');
     const mainContainer = document.getElementById('main-quest-container');
@@ -550,10 +659,10 @@ function renderQuests() {
         // 2. "Due" Filter (Dailies): Hides anything that IS completed.
         if (activeFilter === 'due' && quest.completed) return;
         
-        // 3. "Scheduled" Filter (Main Quests): Hides completed, and hides ones missing a due date.
+        // 3. "Scheduled" Filter (Main Quests): Hides completed, and hides ones missing both a due date AND reminders.
         if (activeFilter === 'scheduled') {
-            if (quest.completed) return; 
-            if (!quest.dueDate) return;  
+            if (quest.completed) return;
+            if (!quest.dueDate && (!quest.reminders || quest.reminders.length === 0)) return;
         }
 
         // 4. "All" Filter (Main Quests): Hides completed quests. 
@@ -565,51 +674,8 @@ function renderQuests() {
         wrapperEl.className = 'quest-swipe-wrapper';
         wrapperEl.setAttribute('data-id', quest.id); // Sortable needs this on the wrapper now
 
-        // Delete Background
-        const deleteBg = document.createElement('div');
-        deleteBg.className = 'quest-delete-action';
-        deleteBg.innerHTML = `<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
-        deleteBg.onclick = () => deleteQuest(quest.id);
-
         const questEl = document.createElement('div');
         questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
-        
-        // Swipe Touch Logic
-        let startX = 0; let currentX = 0; let startY = 0; let isSwiping = false;
-        
-        questEl.addEventListener('touchstart', e => {
-            startX = e.touches[0].clientX;
-            startY = e.touches[0].clientY;
-            isSwiping = false;
-        }, {passive: true});
-        
-        questEl.addEventListener('touchmove', e => {
-            currentX = e.touches[0].clientX;
-            const diffX = currentX - startX;
-            const diffY = e.touches[0].clientY - startY;
-            
-            // Trigger swipe only if moving left horizontally (avoid SortableJS/Scroll conflict)
-            if (Math.abs(diffX) > Math.abs(diffY) && diffX < 0) {
-                isSwiping = true;
-                wrapperEl.classList.add('is-swiping'); // Reveal the delete button only during a real swipe
-                questEl.style.transform = `translateX(${Math.max(diffX, -80)}px)`;
-            }
-        }, {passive: true});
-        
-        questEl.addEventListener('touchend', () => {
-            if (!isSwiping) return;
-            const diffX = currentX - startX;
-            if (diffX < -40) {
-                questEl.style.transform = `translateX(-80px)`; // Lock open
-                setTimeout(() => {
-                    questEl.style.transform = `translateX(0px)`;
-                    wrapperEl.classList.remove('is-swiping'); // Hide the button again once it snaps back
-                }, 1500); // Auto-close after 3s
-            } else {
-                questEl.style.transform = `translateX(0px)`; // Snap back
-                wrapperEl.classList.remove('is-swiping');
-            }
-        });
 
         // Map Colors (Trivial=Blue, Easy=Green, Medium=Yellow, Hard=Red)
         let diffColor = 'var(--neon-blue)';
@@ -620,20 +686,79 @@ function renderQuests() {
         // Text Label
         let diffLabel = quest.difficulty ? quest.difficulty.charAt(0).toUpperCase() + quest.difficulty.slice(1) : 'Easy';
 
+        const slabColor = isDaily
+            ? getDailyStreakColor(quest.dailyStreak ?? 0)
+            : (!quest.completed ? getQuestAgeColor(quest) : null);
+        const ageSlab = slabColor ? `<div class="quest-age-slab" style="background:${slabColor};"></div>` : '';
+
+        const streak = (isDaily && (quest.dailyStreak ?? 0) > 0)
+            ? `<div class="quest-streak-badge"><span class="streak-chevrons">▶▶</span>${quest.dailyStreak}</div>`
+            : '';
+
+        const hasReminder = quest.reminders && quest.reminders.length > 0;
+        const reminderIcon = hasReminder
+            ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.45;flex-shrink:0;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6M22 6l-3-3"/></svg>`
+            : '';
+
+        const pinIcon = quest.pinned
+            ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="opacity:0.45;flex-shrink:0;"><path d="M16 3a1 1 0 0 1 .707 1.707L15 6.414V10l3 3v1H6v-1l3-3V6.414L7.293 4.707A1 1 0 0 1 8 3h8zM11 18h2v3h-2z"/></svg>`
+            : '';
+
+        const hasChecklist = quest.checklist && quest.checklist.length > 0;
+        const clDone = hasChecklist ? quest.checklist.filter(i => i.done).length : 0;
+        const clTotal = hasChecklist ? quest.checklist.length : 0;
+        const clIndicator = hasChecklist ? `
+            <div class="cl-indicator" onclick="event.stopPropagation();toggleChecklistVisibility(${quest.id}, this)">
+                <div class="cl-indicator-fraction">
+                    <span>${clDone}/${clTotal}</span>
+                </div>
+            </div>` : '';
+
         questEl.innerHTML = `
-            <!-- Checkbox -->
+            ${ageSlab}
             <div class="quest-checkbox" onclick="toggleQuest(${quest.id})"></div>
-            
-            <!-- Details (Clicking this opens the Edit Menu) -->
             <div class="quest-details" onclick="openEditQuestModal(${quest.id})">
                 <div class="quest-title">${quest.title}</div>
                 ${quest.notes ? `<div class="quest-notes">${quest.notes}</div>` : ''}
             </div>
-            
-            <!-- Rewards removed to save space -->
+            <div style="display:flex;flex-direction:column;align-items:flex-end;justify-content:space-between;flex-shrink:0;align-self:stretch;padding-bottom:2px;gap:4px;">
+                <div style="position:relative;">
+                    <div class="quest-three-dot" onclick="event.stopPropagation();toggleQuestMenu(${quest.id}, this)">⋮</div>
+                </div>
+                <div style="display:flex;align-items:center;gap:6px;">
+                    ${clIndicator}
+                    ${streak}
+                    ${reminderIcon}
+                    ${pinIcon}
+                </div>
+            </div>
         `;
+
+        // Checklist rows (collapsed by default)
+        if (hasChecklist) {
+            const clArea = document.createElement('div');
+            clArea.className = 'quest-checklist-area';
+            clArea.id = `cl-area-${quest.id}`;
+            const savedOpen = systemState.checklistOpen && systemState.checklistOpen[quest.id];
+        clArea.style.display = savedOpen ? 'flex' : 'none';
+        if (savedOpen) clArea.style.flexDirection = 'column';
+            quest.checklist.forEach((item, idx) => {
+                const row = document.createElement('div');
+                row.className = `quest-checklist-row${item.done ? ' done' : ''}`;
+                row.onclick = (e) => { e.stopPropagation(); toggleChecklistItem(quest.id, idx); };
+                row.innerHTML = `
+                    <div class="cl-circle">
+                        <svg class="cl-check" viewBox="0 0 10 10" fill="none" stroke="white" stroke-width="2">
+                            <polyline points="1.5,5 4,7.5 8.5,2.5"/>
+                        </svg>
+                    </div>
+                    <span class="cl-label">${item.text}</span>
+                `;
+                clArea.appendChild(row);
+            });
+            questEl.appendChild(clArea);
+        }
         
-        wrapperEl.appendChild(deleteBg);
         wrapperEl.appendChild(questEl);
 
         // Append to the correct tab based on type
@@ -644,7 +769,68 @@ function renderQuests() {
         }
     });
 }
+function toggleQuestMenu(id, btn) {
+    // Remove any existing floating dropdown
+    const existing = document.getElementById('floating-quest-menu');
+    if (existing) {
+        existing.remove();
+        if (existing.dataset.questId == id) return; // clicking same dot closes it
+    }
 
+    const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return;
+
+    const menu = document.createElement('div');
+    menu.id = 'floating-quest-menu';
+    menu.dataset.questId = id;
+    menu.className = 'quest-dropdown open';
+    menu.innerHTML = `
+        <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${id});document.getElementById('floating-quest-menu')?.remove();">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
+            ${quest.pinned ? 'Unpin' : 'Pin'}
+        </div>
+        <div class="quest-dropdown-item" style="color:var(--neon-red);" onclick="event.stopPropagation();document.getElementById('floating-quest-menu')?.remove();deleteQuest(${id});">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+            Delete
+        </div>
+    `;
+
+    // Position it relative to the button
+    const rect = btn.getBoundingClientRect();
+    menu.style.position = 'fixed';
+    menu.style.top = `${rect.bottom + 4}px`;
+    menu.style.left = `${rect.left - 100}px`;
+    menu.style.zIndex = '9999';
+
+    document.body.appendChild(menu);
+}
+
+// Close floating menu and checklist popup when tapping elsewhere
+document.addEventListener('click', () => {
+    document.getElementById('floating-quest-menu')?.remove();
+    document.getElementById('floating-checklist-popup')?.remove();
+});
+function toggleChecklistVisibility(questId, btn) {
+    const area = document.getElementById(`cl-area-${questId}`);
+    if (!area) return;
+    const isOpen = area.style.display !== 'none';
+    const newState = isOpen ? 0 : 1;
+    area.style.display = newState === 1 ? 'flex' : 'none';
+    area.style.flexDirection = 'column';
+    // Save per-task checklist open state
+    if (!systemState.checklistOpen) systemState.checklistOpen = {};
+    systemState.checklistOpen[questId] = newState;
+    saveGameState();
+}
+function togglePinQuest(id) {
+    const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return;
+    quest.pinned = !quest.pinned;
+    // Move pinned to top, unpinned fall below all pinned
+    systemState.quests.sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+    saveGameState();
+    renderQuests();
+}
 function deleteQuest(id) {
     sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: '🗑', color: 'red' }).then(ok => {
         if (!ok) return;
@@ -662,11 +848,49 @@ function toggleQuest(id) {
     if (!quest.completed) {
         // Checking the quest
         quest.completed = true;
-        systemState.todayXp += quest.xp;
-        systemState.totalXp += quest.xp;
-        
+
+        // --- TITLE FLAGS: track runtime conditions ---
+        if (!systemState._titleFlags) systemState._titleFlags = {};
+        const _h = new Date().getHours();
+        if (_h < 7)  systemState._titleFlags.early_bird  = true;
+        if (_h < 6)  systemState._titleFlags.dawn_hunter = true;
+        if (_h >= 23) systemState._titleFlags.night_owl  = true;
+        systemState._titleFlags.totalCompleted = (systemState._titleFlags.totalCompleted || 0) + 1;
+        // chain_breaker: rebuilt to 7 after a previous reset
+        if (systemState.streak === 7 && systemState._titleFlags._hadStreakReset) {
+            systemState._titleFlags.chain_breaker = true;
+        }
+        const _mult = getQuestMultiplier(quest);
+        const _earnedXp = Math.round(quest.xp * _mult);
+        quest._earnedXp = _earnedXp; // Snapshot so uncheck always refunds exact amount
+        systemState.todayXp += _earnedXp;
+        systemState.totalXp += _earnedXp;
+
+        // ⚡ Award Energy Cores based on difficulty
+        const _coreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
+        const _coresEarned = _coreMap[quest.difficulty] || 5;
+        if (!systemState.energyCores) systemState.energyCores = 0;
+        systemState.energyCores += _coresEarned;
+        arcadeUpdateCoresDisplay();
+
         // --- STREAK LOGIC: The Trigger ---
         const isDaily = quest.type === 'daily' || !quest.type;
+
+        // --- DAILY STREAK LOGIC ---
+        if (isDaily) {
+            const todayStr = new Date().toDateString();
+            const last = quest.lastStreakDate;
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            const yesterdayStr = yesterday.toDateString();
+            if (last === yesterdayStr || last === null || last === undefined) {
+                quest.dailyStreak = (quest.dailyStreak ?? 0) + 1;
+            } else if (last !== todayStr) {
+                quest.dailyStreak = 1; // missed a day, reset
+            }
+            quest.lastStreakDate = todayStr;
+        }
+        
         if (isDaily) {
             systemState.lastCompletedDate = new Date().toDateString(); // Register that work was done today
             
@@ -696,12 +920,28 @@ function toggleQuest(id) {
             // Play normal sound for non-dailies
             levelUpSound.currentTime = 0;
             levelUpSound.play().catch(e => console.log("Audio blocked"));
+
+            // --- DONE QUEST CAP: Enforce 30-task limit for completed normal quests ---
+            const doneNormalQuests = systemState.quests.filter(q => q.type === 'normal' && q.completed);
+            if (doneNormalQuests.length > DONE_QUEST_LIMIT) {
+                // Find the oldest completed normal quest (lowest id = oldest)
+                const oldest = doneNormalQuests.reduce((a, b) => a.id < b.id ? a : b);
+                systemState.quests = systemState.quests.filter(q => q.id !== oldest.id);
+            }
         }
     } else {
         // Unchecking the quest
         quest.completed = false;
-        systemState.todayXp -= quest.xp;
-        systemState.totalXp -= quest.xp;
+        const _undoXp = quest._earnedXp ?? Math.round(quest.xp * getQuestMultiplier(quest));
+        quest._earnedXp = undefined;
+        systemState.todayXp -= _undoXp;
+        systemState.totalXp -= _undoXp;
+
+        // ⚡ Refund cores on uncheck
+        const _undoCoreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
+        const _coresToRefund = _undoCoreMap[quest.difficulty] || 5;
+        systemState.energyCores = Math.max(0, (systemState.energyCores || 0) - _coresToRefund);
+        arcadeUpdateCoresDisplay();
         
         // Safeguard to ensure XP never drops below 0
         if (systemState.todayXp < 0) systemState.todayXp = 0;
@@ -714,21 +954,30 @@ function toggleQuest(id) {
     checkAchievements();
 
     // --- DAILY BONUS CHECK: Did completing this quest finish ALL daily quests? ---
-    if (!systemState.dailyBonusClaimed && systemState.dailyBonus) {
-        const dailyQuests = systemState.quests.filter(q => q.type === 'daily' || !q.type);
-        const today = new Date();
-        const dueDailies = dailyQuests.filter(q => isQuestActiveOnDate(q, today));
-        const allDone = dueDailies.length > 0 && dueDailies.every(q => q.completed);
-        if (allDone) {
-            systemState.dailyBonusClaimed = true;
-            const bonusXp = 150;
-            systemState.totalXp += bonusXp;
-            systemState.todayXp += bonusXp;
-            saveGameState();
-            updateStats();
-            checkAchievements();
-            queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
-        }
+    const _dailyQuests = systemState.quests.filter(q => q.type === 'daily' || !q.type);
+    const _today = new Date();
+    const _dueDailies = _dailyQuests.filter(q => isQuestActiveOnDate(q, _today));
+    const _allDone = _dueDailies.length > 0 && _dueDailies.every(q => q.completed);
+
+    if (!systemState.dailyBonusClaimed && systemState.dailyBonus && _allDone) {
+        systemState.dailyBonusClaimed = true;
+        const bonusXp = Math.round(systemState.todayXp * 1.11);
+        systemState._lastBonusXp = bonusXp;
+        systemState.totalXp += bonusXp;
+        systemState.todayXp += bonusXp;
+        saveGameState();
+        updateStats();
+        checkAchievements();
+        queuePopup('dailyBonus', (done) => { showDailyBonusModal(bonusXp, done); });
+    } else if (systemState.dailyBonusClaimed && !_allDone) {
+        // A daily was unchecked after the bonus was claimed — reverse it
+        const bonusXp = systemState._lastBonusXp || 0;
+        systemState.dailyBonusClaimed = false;
+        systemState.totalXp = Math.max(0, systemState.totalXp - bonusXp);
+        systemState.todayXp = Math.max(0, systemState.todayXp - bonusXp);
+        systemState._lastBonusXp = 0;
+        saveGameState();
+        updateStats();
     }
 }
 
@@ -749,7 +998,7 @@ function showDailyBonusModal(xp, done) {
                         <path d="M12 2l2.5 6.5H21l-5.5 4 2 6.5L12 15l-5.5 4 2-6.5L3 8.5h6.5z"/>
                     </svg>
                 </div>
-                <div class="sl-box-header">ALL QUESTS COMPLETE</div>
+                <div class="sl-box-header">ALL DAILIES COMPLETE</div>
             </div>
             <div class="reward-xp-display">
                 <div class="reward-xp-label">BONUS XP GRANTED</div>
@@ -797,8 +1046,126 @@ function showRankUpCinematic(fromRank, toRank, color, letter, done) {
         <div style="position:relative;z-index:2;text-align:center;display:flex;flex-direction:column;align-items:center;gap:20px;">
             <div style="font-size:11px;letter-spacing:6px;color:${color};font-weight:700;animation:ruFadeIn 0.5s 0.2s ease both;opacity:0;">RANK UP</div>
             <div style="width:100px;height:114px;position:relative;display:flex;align-items:center;justify-content:center;animation:ruHexPop 0.6s 0.5s cubic-bezier(0.34,1.56,0.64,1) both;opacity:0;animation-fill-mode:both;">
-                <svg width="100" height="114" viewBox="0 0 100 114" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;">
-                    <polygon points="50,4 96,28 96,86 50,110 4,86 4,28" fill="rgba(0,0,0,0.8)" stroke="${color}" stroke-width="2.5"/>
+                ${(() => {
+                    const c = color;
+                    const bgColor = 'rgba(0,0,0,0.85)';
+                    const innerColor = '#ffffff';
+                    const glowColor = color;
+                    const l = letter;
+                    const badges = {
+                        'E': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_e"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0a0500" stroke="#3a1a05" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.3"/>
+                            <polygon points="50,20 74,33 74,67 50,80 26,67 26,33" fill="none" stroke="${c}" stroke-width="0.4" opacity="0.15"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_e)" opacity="0.8"/>
+                            <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.2"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_e)">${l}</text>
+                        </svg>`,
+                        'D': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_d"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#010810" stroke="#1a3a5c" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.25"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_d)" opacity="0.75"/>
+                            <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.4" opacity="0.2" stroke-dasharray="3,6"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_d)">${l}</text>
+                            <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.7"/>
+                            <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.7"/>
+                            <rect x="12" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                            <rect x="84" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                        </svg>`,
+                        'C': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_c"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000f08" stroke="#0a4030" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_c)" opacity="0.8"/>
+                            <line x1="5" y1="44" x2="14" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="5" y1="56" x2="14" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="95" y1="44" x2="86" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <line x1="95" y1="56" x2="86" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                            <rect x="3" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                            <rect x="94" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_c)">${l}</text>
+                            <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.8"/>
+                            <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,28 20,31 17,37" fill="${c}" opacity="0.7"/>
+                            <polygon points="86,28 80,31 83,37" fill="${c}" opacity="0.7"/>
+                            <polygon points="14,72 20,69 17,63" fill="${c}" opacity="0.7"/>
+                            <polygon points="86,72 80,69 83,63" fill="${c}" opacity="0.7"/>
+                        </svg>`,
+                        'B': `<svg width="100" height="100" viewBox="0 0 100 100" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000510" stroke="#0a2a5a" stroke-width="1.5"/>
+                            <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#ru_glow_b)" opacity="0.9"/>
+                            <polyline points="6,34 2,50 6,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                            <polyline points="94,34 98,50 94,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                            <rect x="0" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                            <rect x="96" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                            <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_b)">${l}</text>
+                            <polygon points="50,8 54,15 46,15" fill="${c}" opacity="0.9"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                            <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                        </svg>`,
+                        'A': `<svg width="100" height="106" viewBox="0 0 100 106" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs><filter id="ru_glow_a"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#080010" stroke="#3a0a6a" stroke-width="1.5"/>
+                            <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#ru_glow_a)" opacity="0.9"/>
+                            <polygon points="11,27 4,44 4,56 11,73 15,69 9,55 9,45 15,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                            <polygon points="89,27 96,44 96,56 89,73 85,69 91,55 91,45 85,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                            <rect x="2" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                            <rect x="94" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                            <polygon points="50,1 46,8 54,8" fill="${c}" filter="url(#ru_glow_a)"/>
+                            <polygon points="50,1 46,8 54,8" fill="#ee88ff"/>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#ru_glow_a)">${l}</text>
+                            <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                            <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                        </svg>`,
+                        'S': `<style>@keyframes ruSpin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}@keyframes ruPulse{0%,100%{opacity:0.5}50%{opacity:1}}</style>
+                        <svg width="100" height="108" viewBox="0 0 100 108" style="position:absolute;animation:ruPulseGlow 2s 1s ease infinite;overflow:visible;">
+                            <defs>
+                                <filter id="ru_glow_s"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                                <filter id="ru_glow_s2"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                            </defs>
+                            <polygon points="50,2 70,11 87,27 94,50 87,73 70,89 50,98 30,89 13,73 6,50 13,27 30,11" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="2,6" opacity="0.35"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0f0500" stroke="#6a2a00" stroke-width="1.5"/>
+                            <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.25"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="#ff6600" stroke-width="2" filter="url(#ru_glow_s2)" opacity="0.6"/>
+                            <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="1"/>
+                            <polygon points="10,26 3,43 3,57 10,74 14,70 8,55 8,45 14,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="0.9"/>
+                            <polygon points="90,26 97,43 97,57 90,74 86,70 92,55 92,45 86,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#ru_glow_s)" opacity="0.9"/>
+                            <polyline points="12,38 9,50 12,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                            <polyline points="88,38 91,50 88,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                            <polygon points="3,50 6,46 10,50 6,54" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="97,50 94,46 90,50 94,54" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="50,0 46,8 54,8" fill="${c}" filter="url(#ru_glow_s2)"/>
+                            <polygon points="50,0 46,8 54,8" fill="#ffe066"/>
+                            <polygon points="40,4 37,10 43,10" fill="#ff8800" opacity="0.9" filter="url(#ru_glow_s)"/>
+                            <polygon points="60,4 57,10 63,10" fill="#ff8800" opacity="0.9" filter="url(#ru_glow_s)"/>
+                            <polygon points="20,28 16,24 20,20 24,24" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="80,28 76,24 80,20 84,24" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="20,72 16,76 20,80 24,76" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="80,72 76,76 80,80 84,76" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <polygon points="50,92 54,85 46,85" fill="${c}" filter="url(#ru_glow_s)"/>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ff6600" opacity="0.2" filter="url(#ru_glow_s2)">${l}</text>
+                            <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ffe066" filter="url(#ru_glow_s)">${l}</text>
+                        </svg>`
+                    };
+                    return badges[letter] || badges['E'];
+                })()}
+            </div>
                 </svg>
                 <span style="font-size:42px;font-weight:900;color:${color};position:relative;z-index:1;text-shadow:0 0 20px ${color};">${letter}</span>
             </div>
@@ -840,10 +1207,11 @@ function updateStats() {
     systemState.level = lvl;
     
     if (systemState.level > previousLevel) {
-        const prevRankIdx = Math.min(Math.floor(previousLevel / 10), 5);
-        const newRankIdx  = Math.min(Math.floor(systemState.level / 10), 5);
+        const rankThresholds = [0, 7, 15, 24, 34, 45];
+        const prevRankIdx = Math.min(rankThresholds.reduce((acc, t, i) => previousLevel >= t ? i : acc, 0), 5);
+        const newRankIdx  = Math.min(rankThresholds.reduce((acc, t, i) => systemState.level >= t ? i : acc, 0), 5);
         const rankNames   = ['E-Rank', 'D-Rank', 'C-Rank', 'B-Rank', 'A-Rank', 'S-Rank'];
-        const rankColors  = ['#94a3b8', '#34d399', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
+        const rankColors  = ['#b57a50', '#8faec6', '#00ffaa', '#00f0ff', '#cc44ff', '#ffb700'];
         const rankIcons   = ['E', 'D', 'C', 'B', 'A', 'S'];
 
         if (newRankIdx > prevRankIdx) {
@@ -859,20 +1227,20 @@ function updateStats() {
         }
     }
 
-    // 2. Define Rank Logic (Every 10 levels is a new Rank)
+    // 2. Define Rank Logic
     const ranks = [
-        { threshold: 0, letter: 'E', name: 'E-Rank' },
-        { threshold: 10, letter: 'D', name: 'D-Rank' },
-        { threshold: 20, letter: 'C', name: 'C-Rank' },
-        { threshold: 30, letter: 'B', name: 'B-Rank' },
-        { threshold: 40, letter: 'A', name: 'A-Rank' },
-        { threshold: 50, letter: 'S', name: 'S-Rank' }
+        { threshold: 0,  letter: 'E', name: 'E-Rank', color: '#b57a50' },
+        { threshold: 7,  letter: 'D', name: 'D-Rank', color: '#8faec6' },
+        { threshold: 15, letter: 'C', name: 'C-Rank', color: '#00ffaa' },
+        { threshold: 24, letter: 'B', name: 'B-Rank', color: '#00f0ff' },
+        { threshold: 34, letter: 'A', name: 'A-Rank', color: '#cc44ff' },
+        { threshold: 45, letter: 'S', name: 'S-Rank', color: '#ffb700' }
     ];
 
-    // Find current and next rank
-    let currentRankIndex = Math.floor(systemState.level / 10);
+    // Find current and next rank using custom thresholds
+    let currentRankIndex = ranks.reduce((acc, r, i) => systemState.level >= r.threshold ? i : acc, 0);
     if (currentRankIndex > 5) currentRankIndex = 5; // Cap at S-Rank
-    
+
     const currentRank = ranks[currentRankIndex];
     const nextRank = currentRankIndex < 5 ? ranks[currentRankIndex + 1] : ranks[5];
 
@@ -884,12 +1252,10 @@ function updateStats() {
     const expLeft = expNeeded - xpIntoCurrentLevel;
     const levelProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor((xpIntoCurrentLevel / expNeeded) * 100);
 
-    let levelsIntoRank = systemState.level % 10;
-    if (currentRankIndex >= 5) levelsIntoRank = 10;
-    const xpAtRankStart = getTotalXpForLevel(currentRankIndex * 10);
-    const xpAtRankEnd = getTotalXpForLevel(Math.min((currentRankIndex + 1) * 10, 60));
+    const xpAtRankStart = getTotalXpForLevel(currentRank.threshold);
+    const xpAtRankEnd = getTotalXpForLevel(currentRankIndex < 5 ? nextRank.threshold : 999);
     const rankProgressPercent = currentRankIndex >= 5 ? 100 : Math.floor(((systemState.totalXp - xpAtRankStart) / (xpAtRankEnd - xpAtRankStart)) * 100);
-    const levelsToNext = currentRankIndex >= 5 ? 0 : 10 - levelsIntoRank;
+    const levelsToNext = currentRankIndex >= 5 ? 0 : nextRank.threshold - systemState.level;
 
 // --- APPLY TO UI ---
     
@@ -900,8 +1266,130 @@ function updateStats() {
     const statLevelEl = document.getElementById('stat-level');
     if (statLevelEl) statLevelEl.textContent = systemState.level;
     
-    const homeRankEl = document.getElementById('home-rank-text');
-    if (homeRankEl) homeRankEl.textContent = currentRank.letter;
+    const rankHex = document.querySelector('.rank-hexagon');
+    if (rankHex) {
+        const c = currentRank.color;
+        const l = currentRank.letter;
+        const glowColor = c + '99';
+        const bgColor = c + '18';
+        const innerColor = { 'E': '#86efac', 'D': '#bfdbfe', 'C': '#e9d5ff', 'B': '#fde68a', 'A': '#fecaca', 'S': '#ffffff' }[l] || c;
+        const rankBadges = {
+            'E': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-e"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0a0500" stroke="#3a1a05" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.3"/>
+                <polygon points="50,20 74,33 74,67 50,80 26,67 26,33" fill="none" stroke="${c}" stroke-width="0.4" opacity="0.15"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-e)" opacity="0.8"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.2"/>
+                <line x1="32" y1="20" x2="68" y2="80" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-e)">${l}</text>
+            </svg>`,
+            'D': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-d"><feGaussianBlur stdDeviation="2.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#010810" stroke="#1a3a5c" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.25"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-d)" opacity="0.75"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.4" opacity="0.2" stroke-dasharray="3,6"/>
+                <line x1="14" y1="40" x2="86" y2="40" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <line x1="14" y1="60" x2="86" y2="60" stroke="${c}" stroke-width="0.3" opacity="0.1"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-d)">${l}</text>
+                <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.7"/>
+                <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.7"/>
+                <rect x="12" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+                <rect x="84" y="47" width="4" height="6" fill="${c}" opacity="0.5"/>
+            </svg>`,
+            'C': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-c"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000f08" stroke="#0a4030" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-c)" opacity="0.8"/>
+                <line x1="5" y1="44" x2="14" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="5" y1="56" x2="14" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="95" y1="44" x2="86" y2="44" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <line x1="95" y1="56" x2="86" y2="56" stroke="${c}" stroke-width="1" opacity="0.6"/>
+                <rect x="3" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                <rect x="94" y="42" width="3" height="3" fill="${c}" opacity="0.8"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-c)">${l}</text>
+                <polygon points="50,8 53,14 47,14" fill="${c}" opacity="0.8"/>
+                <polygon points="50,92 53,86 47,86" fill="${c}" opacity="0.8"/>
+                <polygon points="14,28 20,31 17,37" fill="${c}" opacity="0.7"/>
+                <polygon points="86,28 80,31 83,37" fill="${c}" opacity="0.7"/>
+                <polygon points="14,72 20,69 17,63" fill="${c}" opacity="0.7"/>
+                <polygon points="86,72 80,69 83,63" fill="${c}" opacity="0.7"/>
+            </svg>`,
+            'B': `<svg class="rk-badge" viewBox="0 0 100 100">
+                <defs><filter id="glow-b"><feGaussianBlur stdDeviation="3" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#000510" stroke="#0a2a5a" stroke-width="1.5"/>
+                <polygon points="50,14 80,31 80,69 50,86 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#glow-b)" opacity="0.9"/>
+                <polyline points="6,34 2,50 6,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                <polyline points="94,34 98,50 94,66" fill="none" stroke="${c}" stroke-width="1.5" opacity="0.7"/>
+                <rect x="0" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                <rect x="96" y="48" width="4" height="4" fill="${c}" opacity="0.9"/>
+                <line x1="14" y1="50" x2="86" y2="50" stroke="${c}" stroke-width="0.3" opacity="0.15" stroke-dasharray="2,8"/>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.1">${l}</text>
+                <text x="50" y="50%" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-b)">${l}</text>
+                <polygon points="50,8 54,15 46,15" fill="${c}" opacity="0.9"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+                <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+            </svg>`,
+            'A': `<svg class="rk-badge" viewBox="0 0 100 106">
+                <defs><filter id="glow-a"><feGaussianBlur stdDeviation="3.5" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter></defs>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#080010" stroke="#3a0a6a" stroke-width="1.5"/>
+                <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.5" opacity="0.2"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.8" filter="url(#glow-a)" opacity="0.9"/>
+                <polygon points="11,27 4,44 4,56 11,73 15,69 9,55 9,45 15,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                <polygon points="89,27 96,44 96,56 89,73 85,69 91,55 91,45 85,31" fill="#080010" stroke="${c}" stroke-width="1.2" opacity="0.85"/>
+                <rect x="2" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                <rect x="94" y="47" width="4" height="6" fill="${c}" opacity="0.9"/>
+                <polygon points="50,1 46,8 54,8" fill="${c}" filter="url(#glow-a)"/>
+                <polygon points="50,1 46,8 54,8" fill="#ee88ff"/>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" opacity="0.12">${l}</text>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="${c}" filter="url(#glow-a)">${l}</text>
+                <polygon points="14,28 21,32 18,38" fill="${c}" opacity="0.8"/>
+                <polygon points="86,28 79,32 82,38" fill="${c}" opacity="0.8"/>
+                <polygon points="14,72 21,68 18,62" fill="${c}" opacity="0.8"/>
+                <polygon points="86,72 79,68 82,62" fill="${c}" opacity="0.8"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" opacity="0.9"/>
+            </svg>`,
+            'S': `<svg class="rk-badge" viewBox="0 0 100 108">
+                <defs>
+                    <filter id="glow-s"><feGaussianBlur stdDeviation="4" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                    <filter id="glow-s2"><feGaussianBlur stdDeviation="6" result="blur"/><feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+                </defs>
+                <polygon points="50,2 70,11 87,27 94,50 87,73 70,89 50,98 30,89 13,73 6,50 13,27 30,11" fill="none" stroke="${c}" stroke-width="0.6" stroke-dasharray="2,6" opacity="0.35"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="#0f0500" stroke="#6a2a00" stroke-width="1.5"/>
+                <polygon points="50,15 80,31 80,69 50,85 20,69 20,31" fill="none" stroke="${c}" stroke-width="0.6" opacity="0.25"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="#ff6600" stroke-width="2" filter="url(#glow-s2)" opacity="0.6"/>
+                <polygon points="50,8 86,28 86,72 50,92 14,72 14,28" fill="none" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="1"/>
+                <polygon points="10,26 3,43 3,57 10,74 14,70 8,55 8,45 14,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="0.9"/>
+                <polygon points="90,26 97,43 97,57 90,74 86,70 92,55 92,45 86,30" fill="#0f0500" stroke="${c}" stroke-width="1.5" filter="url(#glow-s)" opacity="0.9"/>
+                <polyline points="12,38 9,50 12,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                <polyline points="88,38 91,50 88,62" fill="none" stroke="${c}" stroke-width="0.8" opacity="0.6"/>
+                <polygon points="3,50 6,46 10,50 6,54" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="97,50 94,46 90,50 94,54" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="50,0 46,8 54,8" fill="${c}" filter="url(#glow-s2)"/>
+                <polygon points="50,0 46,8 54,8" fill="#ffe066"/>
+                <polygon points="40,4 37,10 43,10" fill="#ff8800" opacity="0.9" filter="url(#glow-s)"/>
+                <polygon points="60,4 57,10 63,10" fill="#ff8800" opacity="0.9" filter="url(#glow-s)"/>
+                <polygon points="20,28 16,24 20,20 24,24" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="80,28 76,24 80,20 84,24" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="20,72 16,76 20,80 24,76" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="80,72 76,76 80,80 84,76" fill="${c}" filter="url(#glow-s)"/>
+                <polygon points="50,92 54,85 46,85" fill="${c}" filter="url(#glow-s)"/>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ff6600" opacity="0.2" filter="url(#glow-s2)">${l}</text>
+                <text x="50" y="50" dominant-baseline="central" text-anchor="middle" font-family="Orbitron,sans-serif" font-size="30" font-weight="900" fill="#ffe066" filter="url(#glow-s)">${l}</text>
+            </svg>`,
+        };
+        rankHex.style.cssText = `position:relative;display:flex;align-items:center;justify-content:center;width:100px;height:100px;background:transparent;border:none;`;
+        rankHex.innerHTML = rankBadges[l] || rankBadges['E'];
+    }
 
     // Quests Screen Updates
     const qLevel = document.getElementById('quests-player-level');
@@ -937,7 +1425,38 @@ function updateStats() {
     if(levelsLeft) levelsLeft.textContent = currentRankIndex >= 5 ? 'Max Rank Reached' : `${levelsToNext} Levels to Promotion`;
 
     const rankFill = document.getElementById('dash-rank-fill');
-    if(rankFill) rankFill.style.width = `${rankProgressPercent}%`;
+    if(rankFill) { rankFill.style.width = `${rankProgressPercent}%`; rankFill.style.background = currentRank.color; rankFill.style.boxShadow = `0 0 10px ${currentRank.color}88`; }
+    const rpcPillCurrEl = document.getElementById('dash-pill-current');
+    if(rpcPillCurrEl) { rpcPillCurrEl.style.color = currentRank.color; rpcPillCurrEl.style.borderColor = currentRank.color + '66'; rpcPillCurrEl.style.background = currentRank.color + '18'; }
+    const rpcPillNextEl = document.getElementById('dash-pill-next');
+    if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
+    const dashMiniHexEl = document.getElementById('dash-mini-hex');
+    if(dashMiniHexEl) {
+        dashMiniHexEl.innerHTML = rankHex ? rankHex.innerHTML : '';
+    }
+    const rankColors = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
+const cardTheme = localStorage.getItem('cardTheme') || 'default';
+const themeColor = cardTheme === 'default' ? '#38bdf8' : (rankColors[cardTheme] || '#38bdf8');
+document.documentElement.style.setProperty('--rank-color', themeColor);
+document.documentElement.style.setProperty('--rank-color-glow', themeColor + '66');
+document.documentElement.style.setProperty('--rank-color-dim', themeColor + '22');
+const rankThresholdsCheck = { E: 0, D: 7, C: 15, B: 24, A: 34, S: 45 };
+const rankLabels = { default: 'DEFAULT', E: 'E-RANK', D: 'D-RANK', C: 'C-RANK', B: 'B-RANK', A: 'A-RANK', S: 'S-RANK' };
+document.querySelectorAll('.theme-opt-btn').forEach(b => {
+    const t = b.dataset.theme;
+    const locked = t !== 'default' && rankThresholdsCheck[t] !== undefined && systemState.level < rankThresholdsCheck[t];
+    b.classList.toggle('active', t === cardTheme);
+    if (locked) {
+        b.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="#555" stroke="#555" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`;
+        b.style.color = '#555';
+        b.style.borderColor = '#333';
+        b.style.opacity = '0.5';
+        b.style.cursor = 'not-allowed';
+    } else {
+        b.innerHTML = `<div class="theme-dot"></div>${rankLabels[t] || t}`;
+        b.style.cursor = 'pointer';
+    }
+});
 
     // --- APPLY TO LEVEL MODULE ---
     const levelTarget = document.getElementById('dash-level-target');
@@ -952,27 +1471,40 @@ function updateStats() {
     const levelFill = document.getElementById('dash-level-fill');
     if(levelFill) levelFill.style.width = `${levelProgressPercent}%`;
 
+    // Shared header level meter
+    const headerFill = document.getElementById('header-level-fill');
+    if(headerFill) headerFill.style.width = `${levelProgressPercent}%`;
+
+    const headerTarget = document.getElementById('header-level-target');
+    if(headerTarget) headerTarget.innerHTML = currentRankIndex >= 5 ? `MAX LEVEL` : `LEVEL ${systemState.level}`;
+
+    const headerExpLabel = document.getElementById('header-exp-label');
+    if(headerExpLabel) headerExpLabel.textContent = currentRankIndex >= 5 ? `MAX EXP` : `${xpIntoCurrentLevel} / ${expNeeded} EXP`;
+
     // --- STREAK UPDATES ---
     const claimedToday = systemState.streakIncrementedToday === true;
-
+    const hasStreak = systemState.streak > 0;
     // Home header streak badge
     const streakBadgeHome = document.querySelector('#shared-header .streak-badge');
     if (streakBadgeHome) {
         streakBadgeHome.style.background = claimedToday
             ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
             : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
-        streakBadgeHome.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
-        streakBadgeHome.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        streakBadgeHome.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(63,68,79,0.6)';
+        streakBadgeHome.style.color = claimedToday ? 'var(--neon-gold)' : '#3f444f';
         streakBadgeHome.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
         const svgStroke = streakBadgeHome.querySelector('svg');
-        if (svgStroke) svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        if (svgStroke) {
+            svgStroke.style.stroke = claimedToday ? 'var(--neon-gold)' : '#3f444f';
+            svgStroke.classList.toggle('burning', claimedToday);
+        }
     }
     const bonusBanner = document.getElementById('daily-bonus-banner');
     const bonusStatLabel = document.getElementById('bonus-stat-label');
     const bonusEmojiEl = document.getElementById('bonus-emoji');
     if (bonusBanner) {
         if (systemState.dailyBonusClaimed) {
-            if (bonusStatLabel) { bonusStatLabel.textContent = '+150 XP Claimed'; bonusStatLabel.style.color = '#34d399'; }
+            if (bonusStatLabel) { bonusStatLabel.textContent = `+${systemState._lastBonusXp || 0} XP Claimed`; bonusStatLabel.style.color = '#34d399'; }
             if (bonusEmojiEl) bonusEmojiEl.innerHTML = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#34d399" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>`;
             bonusBanner.style.borderColor = 'rgba(52,211,153,0.4)';
             bonusBanner.style.background = 'rgba(52,211,153,0.06)';
@@ -997,12 +1529,15 @@ function updateStats() {
     if (streakBadgeDash) {
         streakBadgeDash.style.background = claimedToday
             ? 'linear-gradient(90deg, rgba(251,191,36,0.2), rgba(251,191,36,0.05))'
-            : 'linear-gradient(90deg, rgba(100,100,100,0.15), rgba(100,100,100,0.05))';
-        streakBadgeDash.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(150,150,150,0.3)';
-        streakBadgeDash.style.color = claimedToday ? 'var(--neon-gold)' : '#64748b';
+            : 'linear-gradient(90deg, rgba(63,68,79,0.15), rgba(63,68,79,0.05))';
+        streakBadgeDash.style.borderColor = claimedToday ? 'rgba(251,191,36,0.5)' : 'rgba(63,68,79,0.6)';
+        streakBadgeDash.style.color = claimedToday ? 'var(--neon-gold)' : '#3f444f';
         streakBadgeDash.style.boxShadow = claimedToday ? '0 0 10px rgba(251,191,36,0.2)' : 'none';
         const svgFill = streakBadgeDash.querySelector('svg');
-        if (svgFill) svgFill.style.fill = claimedToday ? 'var(--neon-gold)' : '#64748b';
+        if (svgFill) {
+            svgFill.style.fill = claimedToday ? 'var(--neon-gold)' : '#3f444f';
+            svgFill.classList.toggle('burning', claimedToday);
+        }
     }
     const dashStreak = document.getElementById('dash-streak');
     if (dashStreak) dashStreak.textContent = `${systemState.streak} Days`;
@@ -1013,10 +1548,80 @@ function updateStats() {
 
 // --- Navigation ---
 // We define the exact order of tabs to calculate which way to swipe
-const tabsOrder = ['home', 'quests', 'analytics', 'profile'];
+const tabsOrder = ['home', 'quests', 'analytics', 'arcade', 'profile'];
+
+// --- SWIPE TO SWITCH TABS ---
+(function() {
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let touchStartTime = 0;
+    const SWIPE_THRESHOLD = 60;    // min horizontal px to count as a swipe
+    const ANGLE_THRESHOLD = 35;    // max degrees off horizontal
+    const TIME_LIMIT = 400;        // ms max for a swipe gesture
+
+    document.addEventListener('touchstart', (e) => {
+        touchStartX = e.touches[0].clientX;
+        touchStartY = e.touches[0].clientY;
+        touchStartTime = Date.now();
+    }, { passive: true });
+
+    document.addEventListener('touchend', (e) => {
+        // Ignore if any modal/overlay is open
+        // Block swipe if the arcade game panel is open
+        const gamePanel = document.getElementById('arcade-game-panel');
+        if (gamePanel && gamePanel.classList.contains('open')) return;
+
+        const openOverlays = [
+            'add-quest-modal', 'filter-modal', 'confirm-delete-modal',
+            'registration-warning-modal', 'sys-dialog-overlay',
+            'sl-streak-up-modal', 'sl-streak-lost-modal', 'sl-penalty-modal',
+            'sl-welcome-back-modal',
+            'achievements-sheet-overlay'
+        ];
+        if (openOverlays.some(id => {
+            const el = document.getElementById(id);
+            return el && window.getComputedStyle(el).display !== 'none';
+        })) return;
+
+        const dx = e.changedTouches[0].clientX - touchStartX;
+        const dy = e.changedTouches[0].clientY - touchStartY;
+        const elapsed = Date.now() - touchStartTime;
+
+        // Must be fast enough, long enough horizontally, and mostly horizontal
+        if (elapsed > TIME_LIMIT) return;
+        if (Math.abs(dx) < SWIPE_THRESHOLD) return;
+        const angle = Math.abs(Math.atan2(Math.abs(dy), Math.abs(dx)) * 180 / Math.PI);
+        if (angle > ANGLE_THRESHOLD) return;
+
+        // Find the current active tab
+        const currentTab = tabsOrder.find(tab => {
+            const el = document.getElementById(`view-${tab}`);
+            return el && el.classList.contains('active');
+        });
+        if (!currentTab) return;
+
+        const currentIndex = tabsOrder.indexOf(currentTab);
+        if (dx < 0) {
+            // Swiped left → go to next tab
+            if (currentIndex < tabsOrder.length - 1) switchTab(tabsOrder[currentIndex + 1]);
+        } else {
+            // Swiped right → go to previous tab
+            if (currentIndex > 0) switchTab(tabsOrder[currentIndex - 1]);
+        }
+    }, { passive: true });
+})();
+function updateArcadeComingSoon() {
+    const overlay = document.querySelector('.arcade-coming-soon-overlay');
+    if (!overlay) return;
+    overlay.style.display = ARCADE_COMING_SOON === 1 ? 'flex' : 'none';
+}
 
 function switchTab(tabId) {
     if (tabId === 'profile') { renderAchievements(); }
+    if (tabId === 'arcade') { setTimeout(arcadeOnEnter, 80); updateArcadeComingSoon(); }
+    // Exit arcade if leaving it
+    const wasArcade = document.getElementById('view-arcade')?.classList.contains('active');
+    if (wasArcade && tabId !== 'arcade') arcadeOnExit();
     // Check if the user is registered. If not, block navigation and show warning.
     if (tabId !== 'profile' && !localStorage.getItem('hunterName')) {
         document.getElementById('registration-warning-modal').style.display = 'flex';
@@ -1039,6 +1644,7 @@ function switchTab(tabId) {
             sharedHeader.classList.add('hidden');
         }
     }
+    
 
     const targetIndex = tabsOrder.indexOf(tabId);
 
@@ -1064,6 +1670,7 @@ function switchTab(tabId) {
     
     // Update Nav UI safely
     document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
     
     // Find the button that matches this tab and highlight it
     const activeNavBtn = document.querySelector(`.nav-item[onclick="switchTab('${tabId}')"]`);
@@ -1073,6 +1680,35 @@ function switchTab(tabId) {
 // ==========================================
 // --- ETHIOPIAN CALENDAR SYSTEM ---
 // ==========================================
+function ethToGregorian(ethYear, ethMonth, ethDay) {
+    const anchorEth = { y: 2018, m: 6, d: 2 };
+    const anchorGC  = new Date(2026, 1, 9);
+    let totalDays = 0;
+    let y = anchorEth.y, m = anchorEth.m, d = anchorEth.d;
+
+    const isAfter = ethYear > anchorEth.y || (ethYear === anchorEth.y && ethMonth > anchorEth.m) || (ethYear === anchorEth.y && ethMonth === anchorEth.m && ethDay > anchorEth.d);
+    const isBefore = ethYear < anchorEth.y || (ethYear === anchorEth.y && ethMonth < anchorEth.m) || (ethYear === anchorEth.y && ethMonth === anchorEth.m && ethDay < anchorEth.d);
+
+    if (isAfter) {
+        while (!(y === ethYear && m === ethMonth && d === ethDay)) {
+            d++;
+            totalDays++;
+            const dim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30;
+            if (d > dim) { d = 1; m++; if (m > 13) { m = 1; y++; } }
+        }
+    } else if (isBefore) {
+        while (!(y === ethYear && m === ethMonth && d === ethDay)) {
+            d--;
+            totalDays--;
+            if (d < 1) { m--; if (m < 1) { m = 13; y--; } const pdim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30; d = pdim; }
+        }
+    }
+
+    const result = new Date(anchorGC);
+    result.setDate(result.getDate() + totalDays);
+    return result;
+}
+
 function getLiveEthDate() {
     const anchorGC = new Date("2026-02-09T00:00:00"); 
     const anchorEth = { y: 2018, m: 6, d: 2 }; 
@@ -1189,7 +1825,9 @@ function renderEthCalendar() {
             // Keep the Tooltip logic so they can hover/press to read what the events are
             const tip = document.createElement('div');
             tip.className = 'cal-tooltip';
-            tip.innerHTML = daysEvents.map(ev => `
+            const _greg = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
+            const _gregStr = _greg.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            tip.innerHTML = `<div class="tooltip-greg-date">${_gregStr}</div>` + daysEvents.map(ev => `
                 <div class="tooltip-item"><div class="tooltip-dot" style="background:${ev.color}"></div><span>${ev.title}</span></div>
             `).join('');
             div.appendChild(tip);
@@ -1204,6 +1842,12 @@ function renderEthCalendar() {
                 clickIndex = (clickIndex + 1) % daysEvents.length;
             };
         } else {
+            const _gregEmpty = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
+            const _gregEmptyStr = _gregEmpty.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            const emptyTip = document.createElement('div');
+            emptyTip.className = 'cal-tooltip';
+            emptyTip.innerHTML = `<div class="tooltip-greg-date">${_gregEmptyStr}</div>`;
+            div.appendChild(emptyTip);
             div.onclick = () => {
                 resetCalForm();
                 document.getElementById('evt-day').value = d;
@@ -1401,7 +2045,7 @@ function saveProfileData() {
     if (!localStorage.getItem('dateJoined')) {
         const options = { year: 'numeric', month: 'long', day: 'numeric' };
         localStorage.setItem('dateJoined', new Date().toLocaleDateString('en-US', options));
-        localStorage.setItem('lastLoginDate', new Date().toDateString());
+        window._justImported = true;
     }
 
     // Apply the saved changes to all screens!
@@ -1425,13 +2069,16 @@ async function requestNotificationPermission() {
 
         // 2. If granted, set up the Native Channels & Listeners
         if (permStatus.display === 'granted') {
+            // Delete first so Android is forced to re-read the sound on every install
+            await Capacitor.Plugins.LocalNotifications.deleteChannel({ id: 'system_alerts' }).catch(() => {});
             await Capacitor.Plugins.LocalNotifications.createChannel({
                 id: 'system_alerts',
                 name: 'System Alerts',
                 description: 'Time-sensitive Quest Notifications',
-                importance: 5, 
-                visibility: 1, 
-                vibration: true
+                importance: 5,
+                visibility: 1,
+                vibration: true,
+                sound: 'mysound' // No .mp3 extension — Android requires this
             });
 
             await Capacitor.Plugins.LocalNotifications.registerActionTypes({
@@ -1523,7 +2170,7 @@ async function scheduleNativeWorkManager(quest) {
                             futureTasks.push({
                                 title: quest.title,
                                 body: quest.notes || "A daily task requires your attention.",
-                                id: parseInt(`${quest.id}${remIdx}${daysScheduled}`), 
+                                id: parseInt(`${quest.id}0${remIdx}0${daysScheduled}`.slice(0, 9)), 
                                 schedule: { at: checkDate, allowWhileIdle: true }, // <--- FORCES ANDROID TO WAKE UP
                                 channelId: 'system_alerts',
                                 actionTypeId: 'QUEST_ACTIONS',
@@ -1579,7 +2226,11 @@ function applySavedDataToUI() {
     const dateJoined = localStorage.getItem('dateJoined');
 
     if (savedName) {
-        document.getElementById('home-username').textContent = savedName;
+        const homeUsernameEl = document.getElementById('home-username');
+        if (homeUsernameEl) {
+            homeUsernameEl.textContent = savedName;
+            homeUsernameEl.setAttribute('data-text', savedName);
+        }
         const dashUser = document.getElementById('dash-username');
         if(dashUser) dashUser.textContent = savedName;
         const nameInput = document.getElementById('profile-name-input');
@@ -1591,7 +2242,8 @@ function applySavedDataToUI() {
 
     if (savedAvatar) {
         const bgUrl = `url(${savedAvatar})`;
-        document.getElementById('home-avatar').style.backgroundImage = bgUrl;
+        const homeAv = document.getElementById('home-avatar');
+        if (homeAv) homeAv.style.backgroundImage = bgUrl;
         const dashAv = document.getElementById('dash-avatar');
         if(dashAv) dashAv.style.backgroundImage = bgUrl;
         const profAv = document.getElementById('profile-avatar-preview');
@@ -1739,8 +2391,93 @@ function updateScheduleSummary() {
 // --- ADD / EDIT QUEST SYSTEM ---
 // ==========================================
 
+let tempChecklist = []; // [{text, done}]
+
+function addChecklistItem(text = '') {
+    tempChecklist.push({ text, done: false });
+    renderChecklistEditor();
+}
+
+function removeChecklistItem(index) {
+    tempChecklist.splice(index, 1);
+    renderChecklistEditor();
+}
+
+function renderChecklistEditor() {
+    const container = document.getElementById('checklist-items');
+    if (!container) return;
+    container.innerHTML = '';
+    tempChecklist.forEach((item, i) => {
+        const row = document.createElement('div');
+        row.className = 'checklist-item';
+        row.setAttribute('data-index', i);
+        row.innerHTML = `
+            <div class="checklist-drag-handle">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+                    <circle cx="9" cy="6" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="6" r="1.5" fill="currentColor"/>
+                    <circle cx="9" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="12" r="1.5" fill="currentColor"/>
+                    <circle cx="9" cy="18" r="1.5" fill="currentColor"/>
+                    <circle cx="15" cy="18" r="1.5" fill="currentColor"/>
+                </svg>
+            </div>
+            <input type="text" placeholder="Checklist item..." value="${item.text.replace(/"/g, '&quot;')}"
+                oninput="tempChecklist[${i}].text = this.value"
+                onfocus="setTimeout(() => this.scrollIntoView({behavior:'smooth',block:'center'}), 300)">
+            <button class="checklist-item-remove" onclick="removeChecklistItem(${i})">×</button>
+        `;
+        container.appendChild(row);
+    });
+
+    if (window._checklistSortable) window._checklistSortable.destroy();
+    window._checklistSortable = Sortable.create(container, {
+        animation: 150,
+        handle: '.checklist-drag-handle',
+        onEnd: function(evt) {
+            const moved = tempChecklist.splice(evt.oldIndex, 1)[0];
+            tempChecklist.splice(evt.newIndex, 0, moved);
+            renderChecklistEditor();
+        }
+    });
+}
+
+function toggleChecklistItem(questId, index) {
+    const quest = systemState.quests.find(q => q.id === questId);
+    if (!quest || !quest.checklist) return;
+    const item = quest.checklist[index];
+    if (item.done) {
+        // Unchecking — deduct XP
+        item.done = false;
+        const xpEarned = getChecklistItemXp(quest);
+        systemState.todayXp = Math.max(0, systemState.todayXp - xpEarned);
+        systemState.totalXp = Math.max(0, systemState.totalXp - xpEarned);
+    } else {
+        // Checking — award XP
+        item.done = true;
+        const xpEarned = getChecklistItemXp(quest);
+        systemState.todayXp += xpEarned;
+        systemState.totalXp += xpEarned;
+    }
+    levelUpSound.currentTime = 0;
+    levelUpSound.play().catch(e => console.log("Audio blocked"));
+    saveGameState();
+    updateStats();
+    renderQuests();
+    const area = document.getElementById(`cl-area-${questId}`);
+    if (area) {
+        area.style.display = 'flex';
+        area.style.flexDirection = 'column';
+    }
+}
+
+function getChecklistItemXp(quest) {
+    const base = { trivial: 2, easy: 6, medium: 10, hard: 16 };
+    return base[quest.difficulty] || 6;
+}
+
 function openAddQuestModal(type = 'daily') {
-    editingQuestId = null; 
+    editingQuestId = null;
     currentQuestType = type;
     document.getElementById('modal-title').textContent = type === 'daily' ? 'CREATE DAILY' : 'CREATE QUEST';
     document.getElementById('new-quest-title').value = '';
@@ -1753,6 +2490,8 @@ function openAddQuestModal(type = 'daily') {
     document.getElementById('quest-due-date').value = '';
     tempReminders = [];
     renderReminders();
+    tempChecklist = [];
+    renderChecklistEditor();
     document.getElementById('schedule-type').value = 'daily';
     document.getElementById('schedule-interval').value = 1;
     document.getElementById('schedule-start-date').value = new Date().toISOString().split('T')[0];
@@ -1761,7 +2500,6 @@ function openAddQuestModal(type = 'daily') {
     toggleDayPicker();
 
     selectDifficulty('easy');
-    // This clears the blue circles when you make a NEW quest
     selectedScheduleDays = [];
     document.querySelectorAll('.day-circle').forEach(c => c.classList.remove('active'));
     document.getElementById('schedule-type').value = 'daily';
@@ -1785,6 +2523,8 @@ function openEditQuestModal(id) {
     document.getElementById('quest-due-date').value = quest.dueDate || '';
     tempReminders = quest.reminders ? [...quest.reminders] : [];
     renderReminders();
+    tempChecklist = quest.checklist ? quest.checklist.map(i => ({...i})) : [];
+    renderChecklistEditor();
     if (quest.schedule) {
         document.getElementById('schedule-type').value = quest.schedule.type || 'daily';
         document.getElementById('schedule-interval').value = quest.schedule.interval || 1;
@@ -1837,6 +2577,7 @@ function saveQuest() {
         quest.difficulty = currentDifficulty;
         quest.dueDate = document.getElementById('quest-due-date').value;
         quest.reminders = tempReminders.filter(r => r !== '');
+        quest.checklist = tempChecklist.filter(i => i.text.trim() !== '');
     } else {
         const newId = systemState.quests.length > 0 ? Math.max(...systemState.quests.map(q => q.id)) + 1 : 1;
         
@@ -1847,7 +2588,8 @@ function saveQuest() {
             days: [...selectedScheduleDays]
         } : null;
 
-        systemState.quests.unshift({
+        const pinnedCount = systemState.quests.filter(q => q.pinned).length;
+        systemState.quests.splice(pinnedCount, 0, {
             id: newId,
             title: title,
             notes: notes,
@@ -1857,7 +2599,12 @@ function saveQuest() {
             type: currentQuestType,
             schedule: scheduleObj,
             dueDate: document.getElementById('quest-due-date').value,
-            reminders: tempReminders.filter(r => r !== '')
+            reminders: tempReminders.filter(r => r !== ''),
+            createdAt: Date.now(),
+            dailyStreak: 0,
+            lastStreakDate: null,
+            pinned: false,
+            checklist: tempChecklist.filter(i => i.text.trim() !== '')
         });
     }
     
@@ -1949,6 +2696,21 @@ const ACH_ICONS = {
     strategist:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>`,
     bonus_hunter:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 12 20 22 4 22 4 12"/><rect x="2" y="7" width="20" height="5"/><line x1="12" y1="22" x2="12" y2="7"/><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z"/></svg>`,
     perfectionist: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+
+    // --- TITLES ---
+    early_bird:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></svg>`,
+    night_owl:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>`,
+    the_relentless: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/><circle cx="18" cy="5" r="3"/></svg>`,
+    solo_player:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><line x1="12" y1="11" x2="12" y2="16"/><line x1="9" y1="14" x2="15" y2="14"/></svg>`,
+    ghost_protocol: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a8 8 0 0 1 8 8v10l-3-2-2 2-2-2-2 2-2-2-3 2V10a8 8 0 0 1 8-8z"/><line x1="9" y1="10" x2="9.01" y2="10"/><line x1="15" y1="10" x2="15.01" y2="10"/></svg>`,
+    chain_breaker:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/><line x1="2" y1="2" x2="22" y2="22"/></svg>`,
+    dawn_hunter:    `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>`,
+    iron_body:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4v6a6 6 0 0 0 12 0V4"/><line x1="4" y1="20" x2="20" y2="20"/></svg>`,
+    hoarder:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>`,
+    completionist:  `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M8 12l3 3 5-5"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg>`,
+    silent_blade:   `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 17.5L3 6V3h3l11.5 11.5"/><path d="M13 19l6-6"/><path d="M16 16l4 4"/><path d="M19 21l2-2"/></svg>`,
+    awakened:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/><path d="M12 5V2M12 22v-3M5 12H2M22 12h-3"/></svg>`,
+    monarch_shadow: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/><circle cx="12" cy="7" r="1" fill="currentColor"/></svg>`,
 };
 
 const ACHIEVEMENTS = [
@@ -1977,6 +2739,27 @@ const ACHIEVEMENTS = [
     { id: 'strategist',    label: 'Strategist',        desc: 'Have 25 active/created quests',        color: '#6366f1', check: s => s.quests.length >= 25 },
     { id: 'bonus_hunter',  label: 'Bonus Hunter',      desc: 'Claim a daily bonus reward',           color: '#f472b6', check: s => s.dailyBonusClaimed },
     { id: 'perfectionist', label: 'Perfectionist',     desc: 'Complete all daily quests in one day', color: '#67e8f9', check: s => { const d = s.quests.filter(q => q.type==='daily'||!q.type); return d.length>0&&d.every(q=>q.completed); } },
+
+    // --- TITLES: Time-based ---
+    { id: 'early_bird',     label: 'Early Bird',        desc: 'Complete a daily quest before 7:00 AM',                         color: '#fbbf24', check: s => s._titleFlags && s._titleFlags.early_bird },
+    { id: 'night_owl',      label: 'Night Owl',         desc: 'Complete a daily quest after 11:00 PM',                         color: '#818cf8', check: s => s._titleFlags && s._titleFlags.night_owl },
+    { id: 'dawn_hunter',    label: 'Dawn Hunter',       desc: 'Complete a daily quest before 6:00 AM',                        color: '#fb923c', check: s => s._titleFlags && s._titleFlags.dawn_hunter },
+
+    // --- TITLES: Streak-based ---
+    { id: 'the_relentless', label: 'The Relentless',    desc: 'Maintain a 14-day streak without missing a single day',         color: '#f43f5e', check: s => s.streak >= 14 },
+    { id: 'chain_breaker',  label: 'Chain Breaker',     desc: 'Rebuild your streak to 7 after losing it',                     color: '#94a3b8', check: s => s._titleFlags && s._titleFlags.chain_breaker },
+    { id: 'iron_body',      label: 'Iron Body',         desc: 'Keep the same daily quest active for 30 consecutive completions',color: '#22d3ee', check: s => s.quests.some(q => (q.dailyStreak ?? 0) >= 30) },
+    { id: 'awakened',       label: 'Awakened',          desc: 'Keep the same daily quest active for 100 consecutive completions',color: '#a78bfa', check: s => s.quests.some(q => (q.dailyStreak ?? 0) >= 100) },
+
+    // --- TITLES: Completion-based ---
+    { id: 'solo_player',    label: 'Solo Player',       desc: 'Complete 50 total quests (daily + normal combined)',            color: '#34d399', check: s => { const done = s.quests.filter(q=>q.completed).length + (s._titleFlags&&s._titleFlags.totalCompleted||0); return (s._titleFlags&&s._titleFlags.totalCompleted||0) >= 50; } },
+    { id: 'completionist',  label: 'Completionist',     desc: 'Complete 200 total quests',                                    color: '#f472b6', check: s => s._titleFlags && s._titleFlags.totalCompleted >= 200 },
+    { id: 'silent_blade',   label: 'Silent Blade',      desc: 'Complete 500 total quests',                                    color: '#e2e8f0', check: s => s._titleFlags && s._titleFlags.totalCompleted >= 500 },
+
+    // --- TITLES: Misc ---
+    { id: 'ghost_protocol', label: 'Ghost Protocol',    desc: 'Have 5 quests with active reminders at the same time',         color: '#64748b', check: s => s.quests.filter(q => q.reminders && q.reminders.length > 0).length >= 5 },
+    { id: 'hoarder',        label: 'The Hoarder',       desc: 'Have 50 quests created at the same time',                      color: '#a16207', check: s => s.quests.length >= 50 },
+    { id: 'monarch_shadow', label: 'Monarch of Shadows',desc: 'Unlock every other achievement',                               color: '#ffd700', check: s => { const others = ACHIEVEMENTS.filter(a => a.id !== 'monarch_shadow'); return others.every(a => (s.achievements||[]).includes(a.id)); } },
 ];
 
 // ==========================================
@@ -2049,7 +2832,7 @@ function renderAchievements() {
         <div style="background:${isUnlocked ? `linear-gradient(135deg,rgba(15,23,42,0.98),rgba(30,41,59,0.9))` : 'rgba(22,30,52,0.88)'};border:1px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.08)'};border-radius:16px;padding:18px 14px 16px;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;${isUnlocked ? `box-shadow:0 0 18px ${ach.color}44,inset 0 0 20px ${ach.color}0a;` : 'box-shadow:0 4px 12px rgba(0,0,0,0.4);'}">
             <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.1)'};background:${isUnlocked ? `${ach.color}18` : 'rgba(15,23,42,0.6)'};box-shadow:${isUnlocked ? `0 0 16px ${ach.color}44` : 'none'};flex-shrink:0;">${isUnlocked ? `<div style="width:30px;height:30px;color:${ach.color};">${ACH_ICONS[ach.id] || ''}</div>` : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#707070" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`}</div>
             <div style="font-size:16px;font-weight:900;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.25;letter-spacing:0.3px;">${isUnlocked ? ach.label : '<span style="color:#7a8a9a;">???</span>'}</div>
-            <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : 'Keep playing to unlock'}</div>
+            <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : ach.desc}</div>
             ${isUnlocked ? `<div style="font-size:10px;letter-spacing:2px;color:${ach.color};font-weight:800;background:${ach.color}18;border:1px solid ${ach.color}44;padding:3px 10px;border-radius:20px;margin-top:2px;">✔ UNLOCKED</div>` : `<div style="font-size:10px;letter-spacing:2px;color:#7a8a9a;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(120,138,154,0.25);">LOCKED</div>`}
         </div>`;
     }).join('');
@@ -2057,7 +2840,30 @@ function renderAchievements() {
 
 function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
+    syncWidgetData();
 }
+
+function syncWidgetData() {
+    try {
+        if (!window.Capacitor || !Capacitor.Plugins.Preferences) return;
+        const today = getLiveEthDate(); // reuse your existing Ethiopian date function
+        const payload = JSON.stringify({
+            todayEthDay:   today.day,
+            todayEthMonth: today.month,
+            todayEthYear:  today.year,
+            events: (systemState.events || []).map(e => ({
+                day: e.day,
+                month: e.month,
+                year: e.year || 0,
+                title: e.title,
+                color: e.color || '#8b5cf6',
+                recurrence: e.recurrence || 'yearly'
+            }))
+        });
+        Capacitor.Plugins.Preferences.set({ key: 'widget_data', value: payload });
+    } catch(e) { /* browser or plugin missing, skip silently */ }
+}
+
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
@@ -2065,11 +2871,11 @@ function sanitizeSystemState(loadedState) {
     
     // 1. Define the absolute baseline for a new account (Including Achievements!)
     const defaults = {
-        level: 0, totalXp: 0, todayXp: 0, streak: 0,
+        level: 1, totalXp: 0, todayXp: 0, streak: 0,
         quests: [], streakIncrementedToday: false,
         lastCompletedDate: null, weeklyHistory: [],
         events: [], dailyBonus: null, dailyBonusClaimed: false,
-        achievements: []
+        achievements: [], _titleFlags: {}
     };
 
     // 2. Merge them. The loaded save will overwrite the defaults, 
@@ -2124,7 +2930,13 @@ function importData(event) {
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
-            if (loadedData.lastLoginDate) localStorage.setItem('lastLoginDate', loadedData.lastLoginDate);
+            const todayStr = new Date().toDateString();
+            localStorage.setItem('lastLoginDate', todayStr);
+            if (!systemState.lastCompletedDate) {
+                systemState.lastCompletedDate = todayStr;
+            }
+            window._justImported = true;
+            setTimeout(() => { window._justImported = false; }, 3000);
             
             saveGameState();
             renderQuests();
@@ -2163,7 +2975,7 @@ function reloadSaveFile() {
             if (loadedData.hunterName) localStorage.setItem('hunterName', loadedData.hunterName);
             if (loadedData.hunterAvatar) localStorage.setItem('hunterAvatar', loadedData.hunterAvatar);
             if (loadedData.dateJoined) localStorage.setItem('dateJoined', loadedData.dateJoined);
-            if (loadedData.lastLoginDate) localStorage.setItem('lastLoginDate', loadedData.lastLoginDate);
+            localStorage.setItem('lastLoginDate', new Date().toDateString());
             
             // Save and refresh UI
             saveGameState();
@@ -2192,82 +3004,290 @@ function reloadSaveFile() {
 // ==========================================
 // --- DAILY RESET & STREAK SYSTEM ---
 // ==========================================
+// ====== CUSTOM RESET TIME ======
+function getResetTime() {
+    const saved = localStorage.getItem('resetTime') || '00:00';
+    const [h, m] = saved.split(':').map(Number);
+    return { h, m };
+}
+function setCardTheme(theme) {
+    const rankThresholds = { E: 0, D: 7, C: 15, B: 24, A: 34, S: 45 };
+    const rankColors     = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
+
+    if (theme !== 'default' && rankThresholds[theme] !== undefined) {
+        const required = rankThresholds[theme];
+        if (systemState.level < required) {
+            showFloatingMsg(
+                `Locked. Reach Level ${required} to unlock.`,
+                rankColors[theme]
+            );
+            return;
+        }
+    }
+    localStorage.setItem('cardTheme', theme);
+    updateStats();
+}
+
+function showFloatingMsg(msg, color = '#00f0ff') {
+    let el = document.getElementById('floating-theme-msg');
+    if (!el) {
+        el = document.createElement('div');
+        el.id = 'floating-theme-msg';
+        document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    el.style.cssText = `
+        position: fixed;
+        bottom: 100px;
+        left: 50%;
+        transform: translateX(-50%) translateY(6px);
+        background: rgba(8,12,24,0.96);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-top: 1px solid ${color}55;
+        color: rgba(255,255,255,0.75);
+        padding: 9px 16px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.8px;
+        font-family: 'Orbitron', sans-serif;
+        text-align: center;
+        max-width: 75vw;
+        z-index: 9999;
+        opacity: 0;
+        transition: opacity 0.25s ease, transform 0.25s ease;
+        pointer-events: none;
+    `;
+    requestAnimationFrame(() => {
+        el.style.opacity = '1';
+        el.style.transform = 'translateX(-50%) translateY(0)';
+    });
+    clearTimeout(el._hideTimer);
+    el._hideTimer = setTimeout(() => {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(-50%) translateY(6px)';
+    }, 2400);
+}
+function saveResetTime() {
+    const input = document.getElementById('reset-time-input');
+    if (!input) return;
+    localStorage.setItem('resetTime', input.value);
+    _sfx('success');
+    sysAlert(`Daily reset time set to ${input.value}.`, { title: 'SYSTEM UPDATE', icon: '✔', color: 'blue' });
+}
+// ===============================
+
 function checkDailyReset() {
     // If the user hasn't registered yet, do nothing.
     if (!localStorage.getItem('hunterName')) return;
 
-    const today = new Date().toDateString(); // Grabs today's date as a simple text string
+    const { h: resetH, m: resetM } = getResetTime();
+    const now = new Date();
+    const resetToday = new Date(now);
+    if (now.getHours() < resetH || (now.getHours() === resetH && now.getMinutes() < resetM)) {
+        resetToday.setDate(resetToday.getDate() - 1);
+    }
+    const today = resetToday.toDateString();
     const lastLogin = localStorage.getItem('lastLoginDate');
 
-    // If the last login isn't today, a new day has started!
     if (!systemState.dailyBonus || systemState.dailyBonus.date !== today) {
         systemState.dailyBonus = { date: today };
         systemState.dailyBonusClaimed = false;
         saveGameState();
     }
 
-    // If the last login isn't today, a new day has started!
-    if (lastLogin !== today) {
-        
+    if (lastLogin !== today && !window._justImported) {
+
+        let deferFinish = false;
+
         if (lastLogin) {
-            const yesterday = new Date();
-            yesterday.setDate(yesterday.getDate() - 1);
-            
-            // --- STREAK LOGIC: The Penalty ---
-            // Did they actually complete a task yesterday?
-            if (systemState.lastCompletedDate === yesterday.toDateString() || systemState.lastCompletedDate === today) {
-                // They did the work. Streak is safe.
-            } else {
-                // They didn't do the work. Penalty applied!
+            const lastLoginDate = new Date(lastLogin);
+            const daysDiff = Math.round((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
+
+            if (daysDiff >= 2) {
+                // Missed a full game-day — penalty applies
                 if (systemState.streak > 0) {
-                    // Triggers the punishment sequence!
-                    window.showPenaltySequence = true; 
+                    window.showPenaltySequence = true;
                 }
                 systemState.streak = 0;
+                if (!systemState._titleFlags) systemState._titleFlags = {};
+                systemState._titleFlags._hadStreakReset = true;
+            } else if (daysDiff === 1) {
+                const lastLoginDateStr = new Date(lastLogin).toDateString();
+                const yesterday = new Date(Date.now() - 86400000);
+                const anyDueYesterdayCompleted = systemState.quests.some(q => {
+                    const isDaily = q.type === 'daily' || !q.type;
+                    return isDaily && isQuestActiveOnDate(q, yesterday) && q.lastStreakDate === lastLoginDateStr;
+                });
+                const streakSafe = (
+                    systemState.lastCompletedDate === lastLogin ||
+                    systemState.lastCompletedDate === lastLoginDateStr ||
+                    systemState.lastCompletedDate === today ||
+                    anyDueYesterdayCompleted
+                );
+
+                if (!streakSafe) {
+                    const missedQuests = systemState.quests.filter(q => {
+                        const isDaily = q.type === 'daily' || !q.type;
+                        return isDaily && isQuestActiveOnDate(q, yesterday) && !q.completed;
+                    });
+
+                   if (missedQuests.length > 0) {
+                        // Give the player a chance to retroactively check off missed Dailies
+                        deferFinish = true;
+                        window._pendingFinishToday = today;
+                        window._welcomeBackYesterdayStr = lastLoginDateStr;
+                        queuePopup('welcomeBack', (done) => {
+                            window._currentPopupDone = done;
+                            openWelcomeBackModal(missedQuests);
+                        });
+                    } else {
+                        if (systemState.streak > 0) {
+                            window.showPenaltySequence = true;
+                        }
+                        systemState.streak = 0;
+                        if (!systemState._titleFlags) systemState._titleFlags = {};
+                        systemState._titleFlags._hadStreakReset = true;
+                    }
+                }
             }
+            // daysDiff === 0 means reset time moved back slightly — same game-day, no penalty
         } else {
             // First time ever opening the app!
             systemState.streak = 0;
         }
 
         if (window.showPenaltySequence) {
+            window.showPenaltySequence = false;
             queuePopup('streakLost', (done) => {
                 window._currentPopupDone = done;
                 document.getElementById('sl-streak-lost-modal').style.display = 'flex';
             });
         }
 
-        // RESET ONLY DAILY QUESTS & TODAY'S XP
-        systemState.quests.forEach(q => {
-            if (q.type === 'daily' || !q.type) {
-                q.completed = false;
-            }
-        });
-        
-        // --- FEATURE 1: Save today's XP to History before resetting ---
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const dayLabel = yesterdayDate.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
-        
-        if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
-        systemState.weeklyHistory.push({ day: dayLabel, xp: systemState.todayXp });
-        
-        // Keep only the last 7 days
-        if (systemState.weeklyHistory.length > 7) {
-            systemState.weeklyHistory.shift();
+        if (!deferFinish) {
+            finishDailyReset(today);
         }
-
-        systemState.todayXp = 0;
-        systemState.streakIncrementedToday = false;
-        systemState.dailyBonusClaimed = false;
-        systemState.dailyBonus = { date: today };
-
-        // Save the new "last login" date to the backpack
-        localStorage.setItem('lastLoginDate', today);
-        
-        // Save the reset quests and new streak to the backpack
-        saveGameState();
     }
+}
+
+// --- Runs the actual reset of dailies / XP history / lastLoginDate ---
+// Called immediately by checkDailyReset(), OR later by confirmWelcomeBack()
+// once the player has reviewed missed Dailies.
+function finishDailyReset(today) {
+    // RESET ONLY DAILY QUESTS & TODAY'S XP
+    systemState.quests.forEach(q => {
+        if (q.type === 'daily' || !q.type) {
+            // If it was due yesterday and wasn't completed, reset streak
+            if (!q.completed) {
+                const wasActive = isQuestActiveOnDate(q, new Date(Date.now() - 86400000));
+                if (wasActive) {
+                    q.dailyStreak = 0;
+                    q.lastStreakDate = null;
+                }
+            }
+            q.completed = false;
+            if (q.checklist && q.checklist.length > 0) {
+                q.checklist.forEach(item => { item.done = false; });
+            }
+        }
+    });
+
+    // --- Save yesterday's XP to History before resetting ---
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const dayLabel = yesterdayDate.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
+
+    if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
+    systemState.weeklyHistory.push({ day: dayLabel, xp: systemState.todayXp });
+
+    if (systemState.weeklyHistory.length > 7) {
+        systemState.weeklyHistory.shift();
+    }
+
+    systemState.todayXp = 0;
+    systemState.streakIncrementedToday = false;
+    systemState.dailyBonusClaimed = false;
+    systemState.dailyBonus = { date: today };
+
+    localStorage.setItem('lastLoginDate', today);
+    saveGameState();
+}
+
+// ==========================================
+// --- WELCOME BACK (MISSED DAILIES) MODAL ---
+// ==========================================
+
+let _welcomeBackItems = [];
+
+function openWelcomeBackModal(missedQuests) {
+    _welcomeBackItems = missedQuests.map(q => ({ id: q.id, checked: false }));
+    renderWelcomeBackList();
+    document.getElementById('sl-welcome-back-modal').style.display = 'flex';
+}
+
+function renderWelcomeBackList() {
+    const container = document.getElementById('welcome-back-list');
+    if (!container) return;
+    container.innerHTML = '';
+    _welcomeBackItems.forEach(item => {
+        const quest = systemState.quests.find(q => q.id === item.id);
+        if (!quest) return;
+        const row = document.createElement('div');
+        row.className = 'wb-item' + (item.checked ? ' checked' : '');
+        row.onclick = () => toggleWelcomeBackItem(item.id);
+        row.innerHTML = `
+            <div class="wb-checkbox${item.checked ? ' checked' : ''}"></div>
+            <div class="wb-title">${quest.title}</div>
+        `;
+        container.appendChild(row);
+    });
+}
+
+function toggleWelcomeBackItem(id) {
+    const item = _welcomeBackItems.find(i => i.id === id);
+    if (!item) return;
+    item.checked = !item.checked;
+    _sfx('tap');
+    renderWelcomeBackList();
+}
+
+function confirmWelcomeBack() {
+    const yesterdayStr = window._welcomeBackYesterdayStr;
+    const checkedItems = _welcomeBackItems.filter(i => i.checked);
+
+    checkedItems.forEach(item => {
+        const quest = systemState.quests.find(q => q.id === item.id);
+        if (!quest) return;
+        quest.dailyStreak = (quest.dailyStreak ?? 0) + 1;
+        quest.lastStreakDate = yesterdayStr;
+        quest.completed = true; // protects it from the dailyStreak reset in finishDailyReset
+    });
+
+    if (checkedItems.length > 0) {
+        // At least one Daily was retroactively completed — streak is safe, no penalty
+        systemState.lastCompletedDate = yesterdayStr;
+    } else {
+        // Nothing was checked — penalty applies, same as before
+        if (systemState.streak > 0) {
+            queuePopup('streakLost', (done) => {
+                window._currentPopupDone = done;
+                document.getElementById('sl-streak-lost-modal').style.display = 'flex';
+            });
+        }
+        systemState.streak = 0;
+        if (!systemState._titleFlags) systemState._titleFlags = {};
+        systemState._titleFlags._hadStreakReset = true;
+    }
+
+    finishDailyReset(window._pendingFinishToday);
+
+    closeSLModal('sl-welcome-back-modal', () => {
+        _sfx('success');
+        renderQuests();
+        updateStats();
+        if (window._currentPopupDone) { window._currentPopupDone(); window._currentPopupDone = null; }
+    });
 }
 
 // ==========================================
@@ -2406,8 +3426,11 @@ function proceedPenalty() {
     levelUpSound.currentTime = 0;
     levelUpSound.play().catch(e => console.log("Audio blocked"));
     
-    // Deduct 5 Levels worth of XP (XP_PER_LEVEL is 500, so 5 * 500 = 2500)
-    const penaltyXP = 5 * XP_PER_LEVEL;
+    // Deduct 5 levels worth of XP based on actual current level scaling
+    let penaltyXP = 0;
+    for (let i = 0; i < 5; i++) {
+        penaltyXP += getXpForLevel(Math.max(1, systemState.level - i));
+    }
     systemState.totalXp -= penaltyXP;
     
     // Ensure XP never goes below 0 (Can't drop below Level 0)
@@ -2443,3 +3466,588 @@ function closeAchievementsSheet(e) {
     sheet.style.transform = 'translateY(100%)';
     setTimeout(() => { overlay.style.display = 'none'; }, 350);
 }
+
+// ============================================================
+// ARCADE — VOID HUNTER (Space Shooter)
+// ============================================================
+let _arcadeLoop = null;
+let _arcadeRunning = false;
+
+const ARCADE = {
+    canvas: null, ctx: null,
+    W: 0, H: 0,
+    score: 0, bestScore: 0,
+    cores: 0,           // cores earned THIS run (trickle)
+    coreTimer: 0,       // frames since last trickle
+    player: null,
+    bullets: [], enemies: [], particles: [], stars: [],
+    enemyTimer: 0, enemyInterval: 90,
+    frame: 0,
+    touchX: null,
+    upgrades: { speed: 1, fireRate: 1, shield: 0 },
+    shieldHp: 0,
+    fireTimer: 0,
+};
+
+function arcadeUpdateCoresDisplay() {
+    const el = document.getElementById('arcade-cores-display');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+}
+
+function arcadeInit() {
+    ARCADE.canvas = document.getElementById('game-canvas');
+    if (!ARCADE.canvas) return;
+    ARCADE.ctx = ARCADE.canvas.getContext('2d');
+    arcadeResize();
+    arcadeUpdateCoresDisplay();
+    ARCADE.bestScore = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    document.getElementById('arcade-best-score').textContent = ARCADE.bestScore;
+
+    // Touch controls
+    ARCADE.canvas.addEventListener('touchstart', e => {
+        e.preventDefault();
+        const t = e.touches[0];
+        ARCADE.touchX = t.clientX;
+        if (!_arcadeRunning) arcadeStartGame();
+    }, { passive: false });
+    ARCADE.canvas.addEventListener('touchmove', e => {
+        e.preventDefault();
+        ARCADE.touchX = e.touches[0].clientX;
+    }, { passive: false });
+    ARCADE.canvas.addEventListener('touchend', () => { ARCADE.touchX = null; }, { passive: false });
+
+    // Mouse controls (desktop)
+    ARCADE.canvas.addEventListener('mousemove', e => {
+        if (_arcadeRunning) ARCADE.touchX = e.clientX;
+    });
+    ARCADE.canvas.addEventListener('click', () => {
+        if (!_arcadeRunning) arcadeStartGame();
+    });
+}
+
+function arcadeResize() {
+    const c = ARCADE.canvas;
+    if (!c) return;
+    c.width  = window.innerWidth;
+    c.height = window.innerHeight - 52; // subtract panel top bar height
+    ARCADE.W = c.width;
+    ARCADE.H = c.height;
+}
+
+function arcadeStartGame() {
+    arcadeResize();
+    const overlay = document.getElementById('game-overlay');
+    overlay.style.opacity = '0';
+    overlay.style.pointerEvents = 'none';
+    setTimeout(() => { overlay.style.display = 'none'; }, 300);
+
+    ARCADE.score = 0;
+    ARCADE.cores = 0;
+    ARCADE.coreTimer = 0;
+    ARCADE.frame = 0;
+    ARCADE.bullets = [];
+    ARCADE.enemies = [];
+    ARCADE.particles = [];
+    ARCADE.enemyTimer = 0;
+    ARCADE.enemyInterval = 90;
+    ARCADE.fireTimer = 0;
+    ARCADE.touchX = null;
+
+    // Stars
+    ARCADE.stars = Array.from({ length: 80 }, () => ({
+        x: Math.random() * ARCADE.W,
+        y: Math.random() * ARCADE.H,
+        r: Math.random() * 1.5 + 0.3,
+        speed: Math.random() * 1.5 + 0.3,
+        opacity: Math.random() * 0.7 + 0.2,
+    }));
+
+    // Player
+    const lvl = systemState.level || 1;
+    ARCADE.upgrades.speed    = 1 + Math.min(lvl * 0.05, 1.5);
+    ARCADE.upgrades.fireRate = 1 + Math.min(lvl * 0.04, 1.2);
+    ARCADE.upgrades.shield   = lvl >= 10 ? 1 : 0;
+    ARCADE.shieldHp = ARCADE.upgrades.shield ? 1 : 0;
+
+    ARCADE.player = {
+        x: ARCADE.W / 2,
+        y: ARCADE.H - 90,
+        w: 32, h: 38,
+        hp: 3 + ARCADE.upgrades.shield,
+        maxHp: 3 + ARCADE.upgrades.shield,
+        invFrames: 0,
+    };
+
+    _arcadeRunning = true;
+    if (_arcadeLoop) cancelAnimationFrame(_arcadeLoop);
+    _arcadeLoop = requestAnimationFrame(arcadeLoop);
+}
+
+function arcadeLoop() {
+    if (!_arcadeRunning) return;
+    arcadeUpdate();
+    arcadeDraw();
+    _arcadeLoop = requestAnimationFrame(arcadeLoop);
+}
+
+function arcadeUpdate() {
+    const A = ARCADE;
+    A.frame++;
+
+    // Move player toward touch
+    if (A.touchX !== null && A.player) {
+        const rect = A.canvas.getBoundingClientRect();
+        const targetX = A.touchX - rect.left;
+        const dx = targetX - A.player.x;
+        const spd = 5 * A.upgrades.speed;
+        if (Math.abs(dx) > spd) A.player.x += dx > 0 ? spd : -spd;
+        else A.player.x = targetX;
+        A.player.x = Math.max(A.player.w / 2, Math.min(A.W - A.player.w / 2, A.player.x));
+    }
+
+    // Invincibility frames
+    if (A.player && A.player.invFrames > 0) A.player.invFrames--;
+
+    // Auto-fire
+    const fireInterval = Math.max(8, Math.round(18 / A.upgrades.fireRate));
+    A.fireTimer++;
+    if (A.fireTimer >= fireInterval && A.player) {
+        A.fireTimer = 0;
+        A.bullets.push({ x: A.player.x, y: A.player.y - 20, w: 4, h: 12, speed: 10, dmg: 1 });
+    }
+
+    // Scroll stars
+    A.stars.forEach(s => {
+        s.y += s.speed;
+        if (s.y > A.H) { s.y = 0; s.x = Math.random() * A.W; }
+    });
+
+    // Spawn enemies — get harder over time
+    A.enemyTimer++;
+    const minInterval = Math.max(28, 90 - Math.floor(A.score / 3));
+    if (A.enemyTimer >= minInterval) {
+        A.enemyTimer = 0;
+        const type = A.score > 40 && Math.random() < 0.25 ? 'tank' : (Math.random() < 0.3 ? 'fast' : 'normal');
+        const cfg = {
+            normal: { w: 28, h: 28, speed: 1.4, hp: 1, color: '#f87171' },
+            fast:   { w: 22, h: 22, speed: 2.6, hp: 1, color: '#fb923c' },
+            tank:   { w: 36, h: 36, speed: 0.8, hp: 3, color: '#c084fc' },
+        }[type];
+        A.enemies.push({
+            x: Math.random() * (A.W - 40) + 20,
+            y: -30, type, ...cfg, maxHp: cfg.hp,
+        });
+    }
+
+    // Move bullets
+    A.bullets = A.bullets.filter(b => b.y > -20);
+    A.bullets.forEach(b => { b.y -= b.speed; });
+
+    // Move enemies
+    A.enemies = A.enemies.filter(e => e.y < A.H + 40);
+    A.enemies.forEach(e => { e.y += e.speed; });
+
+    // Bullet-enemy collision
+    for (let bi = A.bullets.length - 1; bi >= 0; bi--) {
+        const b = A.bullets[bi];
+        for (let ei = A.enemies.length - 1; ei >= 0; ei--) {
+            const e = A.enemies[ei];
+            if (Math.abs(b.x - e.x) < (e.w / 2 + b.w / 2) &&
+                Math.abs(b.y - e.y) < (e.h / 2 + b.h / 2)) {
+                A.bullets.splice(bi, 1);
+                e.hp -= b.dmg;
+                if (e.hp <= 0) {
+                    A.score++;
+                    arcadeSpawnParticles(e.x, e.y, e.color, e.type === 'tank' ? 12 : 7);
+                    A.enemies.splice(ei, 1);
+                } else {
+                    arcadeSpawnParticles(e.x, e.y, e.color, 3);
+                }
+                break;
+            }
+        }
+    }
+
+    // Enemy-player collision
+    if (A.player && A.player.invFrames === 0) {
+        for (let ei = A.enemies.length - 1; ei >= 0; ei--) {
+            const e = A.enemies[ei];
+            if (Math.abs(e.x - A.player.x) < (e.w / 2 + A.player.w / 2 - 4) &&
+                Math.abs(e.y - A.player.y) < (e.h / 2 + A.player.h / 2 - 4)) {
+                A.enemies.splice(ei, 1);
+                A.player.hp--;
+                A.player.invFrames = 60;
+                arcadeSpawnParticles(A.player.x, A.player.y, '#38bdf8', 10);
+                if (A.player.hp <= 0) { arcadeGameOver(); return; }
+                break;
+            }
+        }
+    }
+
+    // Particles
+    A.particles = A.particles.filter(p => p.life > 0);
+    A.particles.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        p.vy += 0.06;
+        p.life--;
+        p.opacity = p.life / p.maxLife;
+    });
+
+    // Core trickle — 1 core every ~10 seconds of play
+    A.coreTimer++;
+    if (A.coreTimer >= 600) {
+        A.coreTimer = 0;
+        A.cores += 1;
+    }
+
+    // Score display
+    const scoreEl = document.querySelector('.arcade-hud-center');
+    if (scoreEl) scoreEl.innerHTML = `<span class="arcade-title-text">SCORE: ${A.score}</span>`;
+}
+
+function arcadeSpawnParticles(x, y, color, count) {
+    for (let i = 0; i < count; i++) {
+        const life = 20 + Math.random() * 20;
+        ARCADE.particles.push({
+            x, y,
+            vx: (Math.random() - 0.5) * 4,
+            vy: (Math.random() - 0.5) * 4 - 1,
+            color, life, maxLife: life,
+            r: Math.random() * 3 + 1,
+            opacity: 1,
+        });
+    }
+}
+
+function arcadeGameOver() {
+    _arcadeRunning = false;
+    cancelAnimationFrame(_arcadeLoop);
+
+    const A = ARCADE;
+    const earned = A.cores;
+
+    // Save best score
+    if (A.score > A.bestScore) {
+        A.bestScore = A.score;
+        localStorage.setItem('arcadeBestScore', A.bestScore);
+        document.getElementById('arcade-best-score').textContent = A.bestScore;
+    }
+
+    // Deposit trickle cores into main wallet
+    if (!systemState.energyCores) systemState.energyCores = 0;
+    systemState.energyCores += earned;
+    saveGameState();
+    arcadeUpdateCoresDisplay();
+
+    // Show overlay
+    const overlay = document.getElementById('game-overlay');
+    const title    = document.getElementById('overlay-title');
+    const sub      = document.getElementById('overlay-subtitle');
+    const scoreRow = document.getElementById('overlay-score-row');
+    const finalSc  = document.getElementById('overlay-final-score');
+    const rewardRow= document.getElementById('overlay-reward-row');
+    const rewardTx = document.getElementById('overlay-reward-text');
+    const btn      = document.getElementById('overlay-btn');
+
+    title.textContent = 'GAME OVER';
+    sub.textContent   = A.score > A.bestScore ? '★ NEW BEST!' : 'MISSION FAILED';
+    finalSc.textContent = A.score;
+    scoreRow.style.display = 'flex';
+    rewardRow.style.display = earned > 0 ? 'flex' : 'none';
+    rewardTx.textContent = `+${earned} ⚡ CORES EARNED`;
+    btn.textContent = 'RETRY';
+
+    overlay.style.display = 'flex';
+    overlay.style.opacity = '0';
+    requestAnimationFrame(() => {
+        requestAnimationFrame(() => { overlay.style.opacity = '1'; });
+    });
+}
+
+function arcadeDraw() {
+    const A = ARCADE;
+    const ctx = A.ctx;
+    if (!ctx) return;
+
+    // Background
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, A.W, A.H);
+
+    // Stars
+    A.stars.forEach(s => {
+        ctx.globalAlpha = s.opacity;
+        ctx.fillStyle = '#e0f2fe';
+        ctx.beginPath();
+        ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+    });
+    ctx.globalAlpha = 1;
+
+    // Enemies
+    A.enemies.forEach(e => {
+        const pulse = 0.85 + 0.15 * Math.sin(A.frame * 0.12);
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        // Glow
+        ctx.shadowColor = e.color;
+        ctx.shadowBlur = 14;
+        ctx.strokeStyle = e.color;
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = pulse;
+        // Enemy shape: diamond
+        const s = e.w / 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -s); ctx.lineTo(s, 0);
+        ctx.lineTo(0, s);  ctx.lineTo(-s, 0);
+        ctx.closePath();
+        ctx.stroke();
+        if (e.type === 'tank') {
+            ctx.globalAlpha = 0.3 * pulse;
+            ctx.fillStyle = e.color;
+            ctx.fill();
+        }
+        // HP pips for tank
+        if (e.type === 'tank' && e.hp > 1) {
+            ctx.globalAlpha = 1;
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = e.color;
+            for (let i = 0; i < e.hp; i++) {
+                ctx.beginPath();
+                ctx.arc(-4 + i * 4, s + 6, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+    });
+
+    // Bullets
+    A.bullets.forEach(b => {
+        ctx.save();
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#7dd3fc';
+        ctx.beginPath();
+        ctx.roundRect(b.x - b.w / 2, b.y - b.h / 2, b.w, b.h, 3);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Particles
+    A.particles.forEach(p => {
+        ctx.save();
+        ctx.globalAlpha = p.opacity;
+        ctx.shadowColor = p.color;
+        ctx.shadowBlur = 8;
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    // Player
+    if (A.player && (A.player.invFrames === 0 || Math.floor(A.frame / 4) % 2 === 0)) {
+        const p = A.player;
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.shadowColor = '#38bdf8';
+        ctx.shadowBlur = 20;
+        // Ship body
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(0, -p.h / 2);
+        ctx.lineTo(p.w / 2, p.h / 2);
+        ctx.lineTo(p.w / 4, p.h / 3);
+        ctx.lineTo(-p.w / 4, p.h / 3);
+        ctx.lineTo(-p.w / 2, p.h / 2);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Engine glow
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 16;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(-p.w / 4, p.h / 3);
+        ctx.lineTo(0, p.h / 2 + 6 + Math.random() * 5);
+        ctx.lineTo(p.w / 4, p.h / 3);
+        ctx.stroke();
+        ctx.restore();
+
+        // HP bar
+        const barW = 40, barH = 4;
+        const bx = p.x - barW / 2, by = p.y + p.h / 2 + 8;
+        ctx.fillStyle = 'rgba(0,0,0,0.5)';
+        ctx.fillRect(bx, by, barW, barH);
+        const pct = p.hp / p.maxHp;
+        ctx.fillStyle = pct > 0.5 ? '#34d399' : pct > 0.25 ? '#fbbf24' : '#f87171';
+        ctx.shadowColor = ctx.fillStyle;
+        ctx.shadowBlur = 6;
+        ctx.fillRect(bx, by, barW * pct, barH);
+        ctx.shadowBlur = 0;
+    }
+
+    // Score HUD (bottom of canvas)
+    ctx.fillStyle = 'rgba(56,189,248,0.08)';
+    ctx.fillRect(0, A.H - 38, A.W, 38);
+    ctx.strokeStyle = 'rgba(56,189,248,0.2)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, A.H - 38); ctx.lineTo(A.W, A.H - 38); ctx.stroke();
+    ctx.fillStyle = 'rgba(56,189,248,0.6)';
+    ctx.font = '700 11px Rajdhani, sans-serif';
+    ctx.letterSpacing = '2px';
+    ctx.textAlign = 'left';
+    ctx.fillText('⚡ ' + ((systemState.energyCores || 0) + A.cores), 12, A.H - 14);
+    ctx.textAlign = 'right';
+    ctx.fillText('HP ' + (A.player ? A.player.hp : 0) + ' / ' + (A.player ? A.player.maxHp : 0), A.W - 12, A.H - 14);
+}
+
+// Called when arcade tab becomes visible
+function arcadeOnEnter() {
+    arcadeUpdateCoresDisplay();
+    // Update best score on card
+    const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    const cardBest = document.getElementById('card-best-voidhunter');
+    if (cardBest) cardBest.textContent = best;
+    // Draw card preview animation
+    arcadeDrawCardPreview();
+}
+
+function arcadeOnExit() {
+    if (_arcadeRunning) {
+        _arcadeRunning = false;
+        cancelAnimationFrame(_arcadeLoop);
+    }
+    // Also close the game panel if open
+    const panel = document.getElementById('arcade-game-panel');
+    if (panel) panel.classList.remove('open');
+}
+
+function arcadeOpenGame(gameId) {
+    const panel = document.getElementById('arcade-game-panel');
+    const titleEl = document.getElementById('arcade-panel-title');
+    if (!panel) return;
+
+    // Set panel title based on game
+    const titles = { voidhunter: 'VOID HUNTER' };
+    if (titleEl) titleEl.textContent = titles[gameId] || gameId.toUpperCase();
+
+    // Slide panel up
+    panel.classList.add('open');
+
+    // Init the canvas after panel is visible
+    setTimeout(() => {
+        arcadeInit();
+        arcadeUpdatePanelCores();
+    }, 80);
+}
+
+function arcadeCloseGame() {
+    // Stop game if running
+    if (_arcadeRunning) {
+        _arcadeRunning = false;
+        cancelAnimationFrame(_arcadeLoop);
+    }
+    // Slide panel back down
+    const panel = document.getElementById('arcade-game-panel');
+    if (panel) panel.classList.remove('open');
+
+    // Refresh lobby best score
+    const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
+    const cardBest = document.getElementById('card-best-voidhunter');
+    if (cardBest) cardBest.textContent = best;
+
+    arcadeUpdateCoresDisplay();
+}
+
+function arcadeUpdatePanelCores() {
+    const el = document.getElementById('arcade-panel-cores');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+}
+
+// Animated preview on lobby card
+function arcadeDrawCardPreview() {
+    const c = document.getElementById('preview-voidhunter');
+    if (!c) return;
+    const ctx = c.getContext('2d');
+    const W = c.width, H = c.height;
+    let frame = 0;
+    const stars = Array.from({ length: 30 }, () => ({
+        x: Math.random() * W, y: Math.random() * H,
+        r: Math.random() * 1.2 + 0.3, speed: Math.random() * 0.6 + 0.2,
+    }));
+    const enemies = [
+        { x: W * 0.3, y: -10 }, { x: W * 0.7, y: -40 }, { x: W * 0.5, y: -70 }
+    ];
+
+    function drawFrame() {
+        // Only animate while arcade view is active and panel closed
+        const panel = document.getElementById('arcade-game-panel');
+        if (panel && panel.classList.contains('open')) return;
+
+        ctx.fillStyle = '#020617';
+        ctx.fillRect(0, 0, W, H);
+
+        // Stars
+        stars.forEach(s => {
+            s.y += s.speed;
+            if (s.y > H) { s.y = 0; s.x = Math.random() * W; }
+            ctx.globalAlpha = 0.6;
+            ctx.fillStyle = '#e0f2fe';
+            ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        // Enemies drifting down
+        enemies.forEach((e, i) => {
+            e.y += 0.5;
+            if (e.y > H + 20) e.y = -20;
+            ctx.save();
+            ctx.translate(e.x, e.y);
+            ctx.shadowColor = '#f87171'; ctx.shadowBlur = 8;
+            ctx.strokeStyle = '#f87171'; ctx.lineWidth = 1.5;
+            const s = 8;
+            ctx.beginPath();
+            ctx.moveTo(0,-s); ctx.lineTo(s,0); ctx.lineTo(0,s); ctx.lineTo(-s,0);
+            ctx.closePath(); ctx.stroke();
+            ctx.restore();
+        });
+
+        // Mini ship
+        const px = W / 2 + Math.sin(frame * 0.04) * 12;
+        const py = H - 20;
+        ctx.save();
+        ctx.translate(px, py);
+        ctx.shadowColor = '#38bdf8'; ctx.shadowBlur = 12;
+        ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0,-10); ctx.lineTo(8,10); ctx.lineTo(4,7); ctx.lineTo(-4,7); ctx.lineTo(-8,10);
+        ctx.closePath(); ctx.stroke();
+        // Engine
+        ctx.shadowColor = '#fbbf24'; ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(-4,7); ctx.lineTo(0, 14 + Math.random()*3); ctx.lineTo(4,7);
+        ctx.stroke();
+        ctx.restore();
+
+        frame++;
+        requestAnimationFrame(drawFrame);
+    }
+    drawFrame();
+}
+
+// Also update panel cores whenever cores change
+const _origArcadeUpdateCoresDisplay = arcadeUpdateCoresDisplay;
+function arcadeUpdateCoresDisplay() {
+    const el = document.getElementById('arcade-cores-display');
+    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+    arcadeUpdatePanelCores();
+}
+// ============================================================
+// END ARCADE
+// ============================================================
