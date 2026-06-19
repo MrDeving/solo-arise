@@ -5,6 +5,7 @@ const ARCADE_COMING_SOON = 1;
 // Priority order (lower number = higher priority, fires first):
 // 9=sysDialog, 1=streakUp, 6=dailyBonus, 4=levelUp, 5=rankUp, 2=streakLost, 3=penalty, 7=achievement, 8=toast
 const POPUP_PRIORITY = {
+    welcomeBack: 0,
     sysDialog:   1,
     streakUp:    2,
     dailyBonus:  3,
@@ -1574,6 +1575,7 @@ const tabsOrder = ['home', 'quests', 'analytics', 'arcade', 'profile'];
             'add-quest-modal', 'filter-modal', 'confirm-delete-modal',
             'registration-warning-modal', 'sys-dialog-overlay',
             'sl-streak-up-modal', 'sl-streak-lost-modal', 'sl-penalty-modal',
+            'sl-welcome-back-modal',
             'achievements-sheet-overlay'
         ];
         if (openOverlays.some(id => {
@@ -3081,8 +3083,6 @@ function checkDailyReset() {
 
     const { h: resetH, m: resetM } = getResetTime();
     const now = new Date();
-    // "Today" from the system's perspective: the calendar date after the reset time has passed.
-    // If current time is before reset time, we're still in yesterday's "game day".
     const resetToday = new Date(now);
     if (now.getHours() < resetH || (now.getHours() === resetH && now.getMinutes() < resetM)) {
         resetToday.setDate(resetToday.getDate() - 1);
@@ -3090,21 +3090,19 @@ function checkDailyReset() {
     const today = resetToday.toDateString();
     const lastLogin = localStorage.getItem('lastLoginDate');
 
-    // If the last login isn't today, a new day has started!
     if (!systemState.dailyBonus || systemState.dailyBonus.date !== today) {
         systemState.dailyBonus = { date: today };
         systemState.dailyBonusClaimed = false;
         saveGameState();
     }
 
-    // If the last login isn't today, a new day has started!
     if (lastLogin !== today && !window._justImported) {
-        
+
+        let deferFinish = false;
+
         if (lastLogin) {
-            // --- STREAK LOGIC: The Penalty ---
-            // Only penalize if lastLogin was more than 1 game-day ago
             const lastLoginDate = new Date(lastLogin);
-            const daysDiff = Math.round((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
+            const daysDiff = Math.floor((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
 
             if (daysDiff >= 2) {
                 // Missed a full game-day — penalty applies
@@ -3115,21 +3113,41 @@ function checkDailyReset() {
                 if (!systemState._titleFlags) systemState._titleFlags = {};
                 systemState._titleFlags._hadStreakReset = true;
             } else if (daysDiff === 1) {
-                // Normal new day — check if they completed something
                 const lastLoginDateStr = new Date(lastLogin).toDateString();
                 const yesterday = new Date(Date.now() - 86400000);
                 const anyDueYesterdayCompleted = systemState.quests.some(q => {
                     const isDaily = q.type === 'daily' || !q.type;
                     return isDaily && isQuestActiveOnDate(q, yesterday) && q.lastStreakDate === lastLoginDateStr;
                 });
-                if (
+                const anyDueYesterdayStreaked = systemState.quests.some(q => {
+                    const isDaily = q.type === 'daily' || !q.type;
+                    return isDaily && isQuestActiveOnDate(q, yesterday) && q.lastStreakDate === lastLoginDateStr;
+                });
+                const streakSafe = (
                     systemState.lastCompletedDate === lastLogin ||
                     systemState.lastCompletedDate === lastLoginDateStr ||
                     systemState.lastCompletedDate === today ||
-                    anyDueYesterdayCompleted
-                ) {
-                    // They did the work. Streak is safe.
-                } else {
+                    systemState.lastCompletedDate === new Date().toDateString() ||
+                    anyDueYesterdayCompleted ||
+                    anyDueYesterdayStreaked
+                );
+
+                const missedQuests = systemState.quests.filter(q => {
+                    const isDaily = q.type === 'daily' || !q.type;
+                    return isDaily && isQuestActiveOnDate(q, yesterday) && !q.completed;
+                });
+
+                if (missedQuests.length > 0) {
+                    // Always show Welcome Back if there are any uncompleted dailies from yesterday
+                    deferFinish = true;
+                    window._pendingFinishToday = today;
+                    window._welcomeBackYesterdayStr = lastLoginDateStr;
+                    queuePopup('welcomeBack', (done) => {
+                        window._currentPopupDone = done;
+                        openWelcomeBackModal(missedQuests);
+                    });
+                } else if (!streakSafe) {
+                    // No missed quests to review — apply penalty immediately
                     if (systemState.streak > 0) {
                         window.showPenaltySequence = true;
                     }
@@ -3152,48 +3170,219 @@ function checkDailyReset() {
             });
         }
 
-        // RESET ONLY DAILY QUESTS & TODAY'S XP
-        systemState.quests.forEach(q => {
-            if (q.type === 'daily' || !q.type) {
-                // If it was due yesterday and wasn't completed, reset streak
-                if (!q.completed) {
-                    const wasActive = isQuestActiveOnDate(q, new Date(Date.now() - 86400000));
-                    if (wasActive) {
-                        q.dailyStreak = 0;
-                        q.lastStreakDate = null;
-                    }
-                }
-                q.completed = false;
-                if (q.checklist && q.checklist.length > 0) {
-                    q.checklist.forEach(item => { item.done = false; });
+        if (!deferFinish) {
+            finishDailyReset(today);
+        }
+    }
+}
+
+// --- Runs the actual reset of dailies / XP history / lastLoginDate ---
+// Called immediately by checkDailyReset(), OR later by confirmWelcomeBack()
+// once the player has reviewed missed Dailies.
+function finishDailyReset(today) {
+    // RESET ONLY DAILY QUESTS & TODAY'S XP
+    systemState.quests.forEach(q => {
+        if (q.type === 'daily' || !q.type) {
+            // If it was due yesterday and wasn't completed, reset streak
+            if (!q.completed) {
+                const wasActive = isQuestActiveOnDate(q, new Date(Date.now() - 86400000));
+                if (wasActive) {
+                    q.dailyStreak = 0;
+                    q.lastStreakDate = null;
                 }
             }
-        });
-        
-        // --- FEATURE 1: Save today's XP to History before resetting ---
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const dayLabel = yesterdayDate.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
-        
-        if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
-        systemState.weeklyHistory.push({ day: dayLabel, xp: systemState.todayXp });
-        
-        // Keep only the last 7 days
-        if (systemState.weeklyHistory.length > 7) {
-            systemState.weeklyHistory.shift();
+            q.completed = false;
+            if (q.checklist && q.checklist.length > 0) {
+                q.checklist.forEach(item => { item.done = false; });
+            }
         }
+    });
 
-        systemState.todayXp = 0;
-        systemState.streakIncrementedToday = false;
-        systemState.dailyBonusClaimed = false;
-        systemState.dailyBonus = { date: today };
+    // --- Save yesterday's XP to History before resetting ---
+    const yesterdayDate = new Date();
+    yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+    const dayLabel = yesterdayDate.toLocaleDateString('en-US', { weekday: 'short' }).charAt(0);
 
-        // Save the new "last login" date to the backpack
-        localStorage.setItem('lastLoginDate', today);
-        
-        // Save the reset quests and new streak to the backpack
-        saveGameState();
+    if (!systemState.weeklyHistory) systemState.weeklyHistory = [];
+    systemState.weeklyHistory.push({ day: dayLabel, xp: systemState.todayXp });
+
+    if (systemState.weeklyHistory.length > 7) {
+        systemState.weeklyHistory.shift();
     }
+
+    systemState.todayXp = 0;
+    systemState.streakIncrementedToday = false;
+    systemState.dailyBonusClaimed = false;
+    systemState.dailyBonus = { date: today };
+
+    localStorage.setItem('lastLoginDate', today);
+    saveGameState();
+}
+
+// ==========================================
+// --- WELCOME BACK (MISSED DAILIES) MODAL ---
+// ==========================================
+
+let _welcomeBackItems = [];
+
+function openWelcomeBackModal(missedQuests) {
+    _welcomeBackItems = missedQuests.map(q => ({ id: q.id, checked: false, checkedSteps: [] }));
+    renderWelcomeBackList();
+    document.getElementById('sl-welcome-back-modal').style.display = 'flex';
+}
+
+function renderWelcomeBackList() {
+    const container = document.getElementById('welcome-back-list');
+    if (!container) return;
+    container.innerHTML = '';
+    _welcomeBackItems.forEach(item => {
+        const quest = systemState.quests.find(q => q.id === item.id);
+        if (!quest) return;
+        const row = document.createElement('div');
+        row.className = 'wb-item' + (item.checked ? ' checked' : '');
+        row.dataset.questId = item.id;
+        const hasChecklist = quest.checklist && quest.checklist.length > 0;
+        row.innerHTML = `
+            <div class="wb-checkbox${item.checked ? ' checked' : ''}"></div>
+            <div class="wb-quest-info">
+                <div class="wb-title">${quest.title}</div>
+                ${hasChecklist ? `
+                <div class="wb-checklist-toggle">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                    ${quest.checklist.length} steps
+                </div>
+                <div class="wb-checklist">
+                    ${quest.checklist.map((c, idx) => {
+                        const stepDone = item.checkedSteps && item.checkedSteps.includes(idx);
+                        return `<div class="wb-checklist-item${stepDone ? ' wb-step-checked' : ''}" data-quest-id="${quest.id}" data-idx="${idx}">
+                            <span class="wb-cl-mini-check${stepDone ? ' checked' : ''}"></span>${c.text}
+                        </div>`;
+                    }).join('')}
+                </div>` : ''}
+            </div>
+        `;
+        // Wire up toggle on the checklist expand button
+        const toggleBtn = row.querySelector('.wb-checklist-toggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', e => {
+                e.stopPropagation();
+                row.querySelector('.wb-checklist').classList.toggle('open');
+            });
+        }
+        // Wire up each checklist step
+        row.querySelectorAll('.wb-checklist-item').forEach(stepEl => {
+            stepEl.addEventListener('click', e => {
+                e.stopPropagation();
+                const qid = stepEl.dataset.questId;
+                const idx = parseInt(stepEl.dataset.idx);
+                const it = _welcomeBackItems.find(i => i.id === qid);
+                if (!it) return;
+                if (!it.checkedSteps) it.checkedSteps = [];
+                const pos = it.checkedSteps.indexOf(idx);
+                const miniCheck = stepEl.querySelector('.wb-cl-mini-check');
+                if (pos === -1) {
+                    it.checkedSteps.push(idx);
+                    stepEl.classList.add('wb-step-checked');
+                    if (miniCheck) miniCheck.classList.add('checked');
+                } else {
+                    it.checkedSteps.splice(pos, 1);
+                    stepEl.classList.remove('wb-step-checked');
+                    if (miniCheck) miniCheck.classList.remove('checked');
+                }
+                _sfx('tap');
+            });
+        });
+        // Wire up quest row toggle ONLY on the checkbox and title, not the whole row
+        const cbEl = row.querySelector('.wb-checkbox');
+        const titleEl = row.querySelector('.wb-title');
+        [cbEl, titleEl].forEach(el => {
+            if (el) el.addEventListener('click', e => {
+                e.stopPropagation();
+                toggleWelcomeBackItem(item.id);
+            });
+        });
+        container.appendChild(row);
+    });
+}
+function toggleWelcomeBackStep() {} // kept for safety, logic moved inline above
+function toggleWelcomeBackItem(id) {
+    const item = _welcomeBackItems.find(i => i.id === id);
+    if (!item) return;
+    item.checked = !item.checked;
+    _sfx('tap');
+    // patch DOM directly — no re-render so checklists stay open
+    const container = document.getElementById('welcome-back-list');
+    container.querySelectorAll('.wb-item').forEach(row => {
+        if (row.dataset.questId !== id) return;
+        row.classList.toggle('checked', item.checked);
+        const cb = row.querySelector('.wb-checkbox');
+        if (cb) cb.classList.toggle('checked', item.checked);
+    });
+}
+
+function confirmWelcomeBack() {
+    const yesterdayStr = window._welcomeBackYesterdayStr;
+    const checkedItems = _welcomeBackItems.filter(i => i.checked);
+
+    // Count quests where the whole quest OR at least one checklist item was checked
+    let anyDone = checkedItems.length > 0;
+
+    checkedItems.forEach(item => {
+        const quest = systemState.quests.find(q => q.id === item.id);
+        if (!quest) return;
+        quest.dailyStreak = (quest.dailyStreak ?? 0) + 1;
+        quest.lastStreakDate = yesterdayStr;
+        quest.completed = true; // protects it from the dailyStreak reset in finishDailyReset
+    });
+
+    // Also check: any quest where individual checklist items were ticked (but full quest not checked)
+    _welcomeBackItems.filter(i => !i.checked).forEach(item => {
+        const quest = systemState.quests.find(q => q.id === item.id);
+        if (!quest || !quest.checklist) return;
+        const anyChecklistDone = item.checkedSteps && item.checkedSteps.length > 0;
+        if (anyChecklistDone) {
+            anyDone = true;
+            // Apply checklist progress retroactively
+            item.checkedSteps.forEach(stepIdx => {
+                if (quest.checklist[stepIdx]) quest.checklist[stepIdx].done = true;
+            });
+            // Award per-quest streak for partial checklist completion too
+            quest.dailyStreak = (quest.dailyStreak ?? 0) + 1;
+            quest.lastStreakDate = yesterdayStr;
+            quest.completed = true;
+        }
+    });
+
+    if (anyDone) {
+        // At least one Daily or checklist item was retroactively completed — streak is safe
+        systemState.lastCompletedDate = yesterdayStr;
+        systemState.streak = (systemState.streak ?? 0) + 1;
+        queuePopup('streakUp', (done) => {
+            window._currentPopupDone = done;
+            document.getElementById('sl-streak-display').textContent = systemState.streak;
+            document.getElementById('sl-streak-up-modal').style.display = 'flex';
+        });
+    } else {
+        // Nothing was checked — penalty applies
+        if (systemState.streak > 0) {
+            queuePopup('streakLost', (done) => {
+                window._currentPopupDone = done;
+                document.getElementById('sl-streak-lost-modal').style.display = 'flex';
+            });
+        }
+        systemState.streak = 0;
+        if (!systemState._titleFlags) systemState._titleFlags = {};
+        systemState._titleFlags._hadStreakReset = true;
+    }
+
+    finishDailyReset(window._pendingFinishToday);
+
+    closeSLModal('sl-welcome-back-modal', () => {
+        _sfx('success');
+        renderQuests();
+        updateStats();
+        if (window._currentPopupDone) { window._currentPopupDone(); window._currentPopupDone = null; }
+    });
 }
 
 // ==========================================
