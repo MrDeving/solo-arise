@@ -3275,7 +3275,7 @@ function renderWelcomeBackList() {
                 e.stopPropagation();
                 const qid = stepEl.dataset.questId;
                 const idx = parseInt(stepEl.dataset.idx);
-                const it = _welcomeBackItems.find(i => i.id === qid);
+                const it = _welcomeBackItems.find(i => String(i.id) === qid);
                 if (!it) return;
                 if (!it.checkedSteps) it.checkedSteps = [];
                 const pos = it.checkedSteps.indexOf(idx);
@@ -3313,7 +3313,7 @@ function toggleWelcomeBackItem(id) {
     // patch DOM directly — no re-render so checklists stay open
     const container = document.getElementById('welcome-back-list');
     container.querySelectorAll('.wb-item').forEach(row => {
-        if (row.dataset.questId !== id) return;
+        if (row.dataset.questId !== String(id)) return;
         row.classList.toggle('checked', item.checked);
         const cb = row.querySelector('.wb-checkbox');
         if (cb) cb.classList.toggle('checked', item.checked);
