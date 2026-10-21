@@ -3103,8 +3103,11 @@ function checkDailyReset() {
         if (lastLogin) {
             const lastLoginDate = new Date(lastLogin);
             const daysDiff = Math.floor((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
+            const _yDay = new Date(resetToday);
+            _yDay.setDate(_yDay.getDate() - 1);
+            const _scoredYesterday = systemState.lastCompletedDate === _yDay.toDateString();
 
-            if (daysDiff >= 2) {
+            if (daysDiff >= 2 && !_scoredYesterday) {
                 // Missed a full game-day — penalty applies
                 if (systemState.streak > 0) {
                     window.showPenaltySequence = true;
@@ -3142,6 +3145,7 @@ function checkDailyReset() {
                     deferFinish = true;
                     window._pendingFinishToday = today;
                     window._welcomeBackYesterdayStr = lastLoginDateStr;
+                    window._welcomeBackStreakSafe = streakSafe;
                     queuePopup('welcomeBack', (done) => {
                         window._currentPopupDone = done;
                         openWelcomeBackModal(missedQuests);
@@ -3353,7 +3357,9 @@ function confirmWelcomeBack() {
         }
     });
 
-    if (anyDone) {
+    if (window._welcomeBackStreakSafe) {
+        // Yesterday's streak was already earned: do NOT add it twice and do NOT penalize
+    } else if (anyDone) {
         // At least one Daily or checklist item was retroactively completed — streak is safe
         systemState.lastCompletedDate = yesterdayStr;
         systemState.streak = (systemState.streak ?? 0) + 1;
