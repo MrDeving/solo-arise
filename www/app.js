@@ -2536,6 +2536,13 @@ function openEditQuestModal(id) {
             else c.classList.remove('active');
         });
         toggleDayPicker();
+    } else {
+        document.getElementById('schedule-type').value = 'daily';
+        document.getElementById('schedule-interval').value = 1;
+        document.getElementById('schedule-start-date').value = new Date().toISOString().split('T')[0];
+        selectedScheduleDays = [];
+        document.querySelectorAll('.day-circle').forEach(c => c.classList.remove('active'));
+        toggleDayPicker();
     }
     
     document.getElementById('add-quest-modal').style.display = 'flex';
@@ -2578,6 +2585,14 @@ function saveQuest() {
         quest.dueDate = document.getElementById('quest-due-date').value;
         quest.reminders = tempReminders.filter(r => r !== '');
         quest.checklist = tempChecklist.filter(i => i.text.trim() !== '');
+        if ((quest.type || 'daily') === 'daily') {
+            quest.schedule = {
+                type: document.getElementById('schedule-type').value,
+                interval: parseInt(document.getElementById('schedule-interval').value) || 1,
+                startDate: document.getElementById('schedule-start-date').value,
+                days: [...selectedScheduleDays]
+            };
+        }
     } else {
         const newId = systemState.quests.length > 0 ? Math.max(...systemState.quests.map(q => q.id)) + 1 : 1;
         
@@ -3103,8 +3118,11 @@ function checkDailyReset() {
         if (lastLogin) {
             const lastLoginDate = new Date(lastLogin);
             const daysDiff = Math.floor((resetToday - lastLoginDate) / (1000 * 60 * 60 * 24));
+            const _yDay = new Date(resetToday);
+            _yDay.setDate(_yDay.getDate() - 1);
+            const _scoredYesterday = systemState.lastCompletedDate === _yDay.toDateString();
 
-            if (daysDiff >= 2) {
+            if (daysDiff >= 2 && !_scoredYesterday) {
                 // Missed a full game-day — penalty applies
                 if (systemState.streak > 0) {
                     window.showPenaltySequence = true;
@@ -3142,6 +3160,7 @@ function checkDailyReset() {
                     deferFinish = true;
                     window._pendingFinishToday = today;
                     window._welcomeBackYesterdayStr = lastLoginDateStr;
+                    window._welcomeBackStreakSafe = streakSafe;
                     queuePopup('welcomeBack', (done) => {
                         window._currentPopupDone = done;
                         openWelcomeBackModal(missedQuests);
@@ -3275,7 +3294,7 @@ function renderWelcomeBackList() {
                 e.stopPropagation();
                 const qid = stepEl.dataset.questId;
                 const idx = parseInt(stepEl.dataset.idx);
-                const it = _welcomeBackItems.find(i => String(i.id) === qid);
+                const it = _welcomeBackItems.find(i => i.id === qid);
                 if (!it) return;
                 if (!it.checkedSteps) it.checkedSteps = [];
                 const pos = it.checkedSteps.indexOf(idx);
@@ -3313,7 +3332,7 @@ function toggleWelcomeBackItem(id) {
     // patch DOM directly — no re-render so checklists stay open
     const container = document.getElementById('welcome-back-list');
     container.querySelectorAll('.wb-item').forEach(row => {
-        if (row.dataset.questId !== String(id)) return;
+        if (row.dataset.questId !== id) return;
         row.classList.toggle('checked', item.checked);
         const cb = row.querySelector('.wb-checkbox');
         if (cb) cb.classList.toggle('checked', item.checked);
@@ -3353,7 +3372,9 @@ function confirmWelcomeBack() {
         }
     });
 
-    if (anyDone) {
+    if (window._welcomeBackStreakSafe) {
+        // Yesterday's streak was already earned: do NOT add it twice and do NOT penalize
+    } else if (anyDone) {
         // At least one Daily or checklist item was retroactively completed — streak is safe
         systemState.lastCompletedDate = yesterdayStr;
         systemState.streak = (systemState.streak ?? 0) + 1;
