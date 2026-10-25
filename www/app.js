@@ -299,6 +299,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 8. CRITICAL: Re-register native listeners on boot!
     requestNotificationPermission();
+    setTimeout(scheduleEventNotifications, 2500);
 
     // 9. UNIVERSAL PHONE HARDWARE BACK BUTTON INTERCEPTOR
     // This helper checks if anything is open and closes it. Returns true if something was closed.
@@ -2856,6 +2857,77 @@ function renderAchievements() {
 function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
     syncWidgetData();
+    scheduleEventNotificationsDebounced();
+}
+
+// ==========================================
+// --- CALENDAR EVENT NOTIFICATIONS ---
+// ==========================================
+const EVENT_NOTIFY_HOUR = 8;          // hour the notification fires (24h)
+const EVENT_NOTIFY_MIN = 0;           // minute
+const EVENT_NOTIFY_DAYS_AHEAD = 60;   // how many days ahead to schedule
+const EVENT_NOTIF_BASE = 1500000000;  // reserved ID range so it never clashes with quest reminders
+
+let _evNotifTimer = null;
+function scheduleEventNotificationsDebounced() {
+    clearTimeout(_evNotifTimer);
+    _evNotifTimer = setTimeout(scheduleEventNotifications, 1500);
+}
+
+async function scheduleEventNotifications() {
+    try {
+        if (!window.Capacitor || !Capacitor.Plugins.LocalNotifications) return;
+        const LN = Capacitor.Plugins.LocalNotifications;
+
+        const perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') return;
+
+        // 1. Clear previously scheduled event notifications
+        const pending = await LN.getPending();
+        const old = pending.notifications.filter(n => n.id >= EVENT_NOTIF_BASE && n.id < EVENT_NOTIF_BASE + 100000);
+        if (old.length > 0) await LN.cancel({ notifications: old });
+
+        const events = systemState.events || [];
+        if (events.length === 0) return;
+
+        // 2. Walk forward day by day, tracking both Ethiopian and Gregorian dates
+        const eth = getLiveEthDate();
+        let d = eth.day, m = eth.month, y = eth.year;
+        const toSchedule = [];
+
+        for (let i = 0; i < EVENT_NOTIFY_DAYS_AHEAD; i++) {
+            const when = new Date();
+            when.setDate(when.getDate() + i);
+            when.setHours(EVENT_NOTIFY_HOUR, EVENT_NOTIFY_MIN, 0, 0);
+
+            if (when.getTime() > Date.now()) {
+                const todays = events.filter(ev => isEventActive(ev, d, m, y)).slice(0, 99);
+                const gcStr = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const ecStr = `${ETH_MONTHS[m]} ${d}, ${y}`;
+
+                todays.forEach((ev, k) => {
+                    toSchedule.push({
+                        title: ev.title,
+                        body: `E.C. ${ecStr}  •  G.C. ${gcStr}`,
+                        id: EVENT_NOTIF_BASE + (i * 100) + k,
+                        schedule: { at: when, allowWhileIdle: true },
+                        channelId: 'system_alerts'
+                    });
+                });
+            }
+
+            // Advance the Ethiopian date by one day
+            d++;
+            const dim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30;
+            if (d > dim) { d = 1; m++; if (m > 13) { m = 1; y++; } }
+        }
+
+        if (toSchedule.length > 0) {
+            await LN.schedule({ notifications: toSchedule });
+        }
+    } catch (e) {
+        console.log("Event notifications skipped (browser or plugin missing).");
+    }
 }
 
 function syncWidgetData() {
