@@ -2301,8 +2301,17 @@ function openFilterModal() {
 
 function closeFilterModal(event) {
     // Only close if clicking the dark background outside the panel
-    if (event && event.target !== document.getElementById('filter-modal')) return;
-    document.getElementById('filter-modal').style.display = 'none';
+    const m = document.getElementById('filter-modal');
+    if (event && event.target !== m) return;
+    if (!m || m.style.display === 'none' || m.classList.contains('hiding')) return;
+    const sheet = m.querySelector('.filter-content');
+    m.classList.add('hiding');
+    if (sheet) sheet.classList.add('closing');
+    setTimeout(() => {
+        m.style.display = 'none';
+        m.classList.remove('hiding');
+        if (sheet) sheet.classList.remove('closing');
+    }, 220);
 }
 
 function setFilter(type) {
@@ -2318,9 +2327,7 @@ function setFilter(type) {
     renderQuests(); // Redraw the UI
     
     // Close modal if it's open
-    setTimeout(() => {
-        document.getElementById('filter-modal').style.display = 'none';
-    }, 150); // Small delay feels smoother
+    setTimeout(() => closeFilterModal(), 150);
 }
 
 // ==========================================
@@ -2550,7 +2557,13 @@ function openEditQuestModal(id) {
 }
 
 function closeQuestModal() {
-    document.getElementById('add-quest-modal').style.display = 'none';
+    const modal = document.getElementById('add-quest-modal');
+    if (!modal || modal.style.display === 'none' || modal.classList.contains('closing')) return;
+    modal.classList.add('closing');
+    setTimeout(() => {
+        modal.style.display = 'none';
+        modal.classList.remove('closing');
+    }, 220);
 }
 
 function selectDifficulty(level) {

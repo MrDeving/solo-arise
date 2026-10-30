@@ -3012,3 +3012,93 @@ button[onclick="openAchievementsSheet()"] {
     border: 1px solid var(--glass-edge);
     border-radius: var(--r-md);
 }
+
+/* ============================================================
+   SMOOTH MOTION  (delete this block to revert)
+   ============================================================ */
+:root { --ease-out: cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* ---- Tab switching: slide + fade + slight scale ---- */
+.view {
+    transition: transform 0.38s var(--ease-out), opacity 0.28s ease, visibility 0.38s;
+    transform: translate3d(12%, 0, 0) scale(0.985);
+}
+.view.off-left  { transform: translate3d(-12%, 0, 0) scale(0.985); }
+.view.off-right { transform: translate3d(12%, 0, 0) scale(0.985); }
+.view.active    { transform: translate3d(0, 0, 0) scale(1); }
+.shared-header  { transition: opacity 0.3s ease, visibility 0.3s; }
+
+/* ---- Edit / add quest screen: rises in, sinks out ---- */
+.fullscreen-modal { animation: modalIn 0.34s var(--ease-out) both; }
+.fullscreen-modal.closing { animation: modalOut 0.22s ease-in both; }
+@keyframes modalIn {
+    from { opacity: 0; transform: translateY(40px) scale(0.97); }
+    to   { opacity: 1; transform: none; }
+}
+@keyframes modalOut {
+    from { opacity: 1; transform: none; }
+    to   { opacity: 0; transform: translateY(40px) scale(0.97); }
+}
+
+/* ---- 3-dot menu: grows diagonally out of its corner ---- */
+.quest-dropdown.open {
+    transform-origin: top right;
+    animation: menuPop 0.22s var(--ease-out) both;
+}
+@keyframes menuPop {
+    from { opacity: 0; transform: scale(0.4) translate(12px, -12px); }
+    to   { opacity: 1; transform: scale(1) translate(0, 0); }
+}
+.quest-dropdown-item { transition: background 0.15s ease, color 0.15s ease; }
+
+/* ---- Filter sheet: slides up and back down ---- */
+.modal-overlay { animation: overlayIn 0.25s ease both; }
+.modal-overlay.hiding { animation: overlayOut 0.22s ease both; }
+.filter-content { animation: sheetUp 0.38s var(--ease-out) both; }
+.filter-content.closing { animation: sheetDown 0.22s ease-in both; }
+@keyframes sheetUp   { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes sheetDown { from { transform: translateY(0); } to { transform: translateY(100%); } }
+
+/* ---- Press feedback ---- */
+.system-panel.quest-item {
+    transition: transform 0.18s var(--ease-out), background 0.25s ease, opacity 0.3s ease;
+}
+.system-panel.quest-item:active { transform: scale(0.985); }
+.action-btn, .filter-btn, .sci-fi-btn, .sl-btn-new, .theme-opt-btn {
+    transition: transform 0.18s var(--ease-out), background 0.25s ease,
+                color 0.25s ease, border-color 0.25s ease;
+}
+.action-btn:active, .filter-btn:active, .sci-fi-btn:active, .sl-btn-new:active { transform: scale(0.95); }
+.nav-item:active { transform: scale(0.94); }
+.nav-item svg { transition: transform 0.3s var(--ease-out), color 0.25s ease; }
+.nav-item.active svg { transform: translateY(-1px) scale(1.12); }
+
+/* Never let transitions fight the drag-and-drop */
+.sortable-drag, .sortable-drag * { transition: none !important; }
+
+/* Respect "reduce motion" accessibility setting */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+
+/* ============================================================
+   LOCK PAGE + NO OVERSCROLL  (delete this block to revert)
+   ============================================================ */
+html, body {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden !important;
+    overscroll-behavior: none;
+}
+#app {
+    overflow: hidden;
+    overscroll-behavior: none;
+}
+.view, .tasks-scroll-container, .fullscreen-modal .quest-body, #achievements-sheet > div {
+    overscroll-behavior: none;
+}
+/* Waiting tabs can't be scrolled to or touched */
+.view:not(.active) { overflow: hidden !important; }
+.bottom-nav { transform: translateZ(0); }
