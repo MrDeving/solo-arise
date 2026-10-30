@@ -1,9 +1,9 @@
 :root {
-    --bg-dark: #020617; /* Deeper space background */
-    --panel-bg: rgba(15, 23, 42, 0.4); /* Glassmorphism base */
-    --panel-border: rgba(56, 189, 248, 0.3); /* Subtle cyan border */
+    --bg-dark: #050816; /* Deeper space background */
+    --panel-bg: rgba(255, 255, 255, 0.06); /* Frosted glass base */
+    --panel-border: rgba(255, 255, 255, 0.14); /* Light glass edge */
     --text-main: #f8fafc;
-    --text-muted: #94a3b8;
+    --text-muted: #a5b0c5;
     --neon-blue: #38bdf8; /* Brighter HUD Cyan */
     --neon-blue-glow: rgba(56, 189, 248, 0.5);
     --neon-green: #34d399;
@@ -2693,4 +2693,361 @@ button.sci-fi-btn.filter-opt.active {
 }
 *::-webkit-scrollbar {
     display: none; /* Chrome/Safari/Android WebView */
+}
+
+/* ============================================================
+   GLASSMORPHISM THEME  (delete this whole block to revert)
+   ============================================================ */
+
+/* ---- Fonts: cleaner system font instead of the techy one ---- */
+* { font-family: system-ui, -apple-system, 'Roboto', 'Inter', sans-serif; }
+.theme-opt-btn, .notif-app-name { font-family: inherit; }
+
+/* ---- Aurora background (tinted by your rank color) ---- */
+html { background: #050816 !important; }
+body { background: none !important; }
+body::before {
+    content: '';
+    position: fixed;
+    inset: -10%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+        radial-gradient(40vmax 40vmax at 12% 8%,  color-mix(in srgb, var(--rank-color, #38bdf8) 38%, transparent), transparent 70%),
+        radial-gradient(45vmax 45vmax at 90% 30%, rgba(139, 92, 246, 0.30), transparent 70%),
+        radial-gradient(50vmax 50vmax at 30% 95%, rgba(236, 72, 153, 0.18), transparent 70%),
+        radial-gradient(40vmax 40vmax at 85% 90%, rgba(20, 184, 166, 0.20), transparent 70%);
+    animation: auroraDrift 28s ease-in-out infinite alternate;
+}
+@keyframes auroraDrift {
+    from { transform: translate3d(0, 0, 0) scale(1); }
+    to   { transform: translate3d(-3%, 2%, 0) scale(1.12); }
+}
+
+/* ---- Glass cards (all panels) ---- */
+.system-panel {
+    background: linear-gradient(135deg, rgba(255,255,255,0.10), rgba(255,255,255,0.04));
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 22px;
+    backdrop-filter: blur(18px) saturate(150%);
+    -webkit-backdrop-filter: blur(18px) saturate(150%);
+    box-shadow: 0 8px 32px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.system-panel::before { display: none; }
+
+/* Header card */
+.system-panel.hud-card {
+    background: linear-gradient(135deg,
+        color-mix(in srgb, var(--rank-color, #38bdf8) 16%, rgba(255,255,255,0.08)),
+        rgba(255,255,255,0.04)) !important;
+    border: 1px solid color-mix(in srgb, var(--rank-color, #38bdf8) 35%, rgba(255,255,255,0.12)) !important;
+    border-radius: 24px;
+    box-shadow: 0 10px 36px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.2) !important;
+}
+.hud-name { text-shadow: none; font-weight: 700; }
+.hud-timer-block {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 14px;
+}
+.hud-timer-value { text-shadow: none; }
+.hud-bar-track { background: rgba(255,255,255,0.10); }
+.hud-bar-fill { box-shadow: none; }
+
+/* ---- Section titles ---- */
+.section-header h3, .glow-title {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.85);
+    text-shadow: none;
+}
+
+/* ---- Quest cards ---- */
+.quest-swipe-wrapper { border-radius: 20px; margin-bottom: 12px; }
+.quest-delete-action { border-radius: 20px; }
+.system-panel.quest-item {
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.04));
+    backdrop-filter: blur(12px) saturate(140%);
+    -webkit-backdrop-filter: blur(12px) saturate(140%);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.14);
+}
+.quest-age-slab {
+    width: 4px;
+    top: 18%;
+    bottom: 18%;
+    border-radius: 0 4px 4px 0;
+    opacity: 1;
+}
+.quest-checkbox {
+    width: 24px;
+    height: 24px;
+    border-radius: 50% !important;
+    background: rgba(255,255,255,0.06) !important;
+    border: 2px solid rgba(255,255,255,0.35) !important;
+}
+.quest-item.completed { opacity: 0.55; filter: none; }
+.quest-item.completed .quest-checkbox {
+    background: var(--rank-color, var(--neon-blue)) !important;
+    border-color: var(--rank-color, var(--neon-blue)) !important;
+}
+.quest-item.completed .quest-checkbox::after { color: #fff; font-size: 13px; }
+.quest-item.completed .quest-title { text-decoration: line-through; }
+.quest-title { font-size: 15px; }
+.quest-notes { color: rgba(255,255,255,0.55); }
+.cl-indicator { background: rgba(255,255,255,0.08); border-radius: 10px; }
+.quest-checklist-row { border-top: 1px solid rgba(255,255,255,0.08); }
+
+/* Views: let lists scroll underneath the floating nav */
+#view-home, #view-quests { padding-bottom: 0 !important; }
+.tasks-scroll-container { padding-bottom: 110px; }
+
+/* ---- Floating glass nav ---- */
+.bottom-nav {
+    left: 12px;
+    right: 12px;
+    bottom: calc(10px + env(safe-area-inset-bottom));
+    width: auto;
+    height: 64px;
+    padding: 0 6px;
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 26px;
+    background: rgba(255,255,255,0.08);
+    backdrop-filter: blur(24px) saturate(170%);
+    -webkit-backdrop-filter: blur(24px) saturate(170%);
+    box-shadow: 0 10px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.18);
+}
+.nav-item {
+    flex: 1;
+    width: auto;
+    height: 52px;
+    justify-content: center;
+    gap: 3px;
+    border-radius: 20px;
+    color: rgba(255,255,255,0.55);
+}
+.nav-item span { font-size: 10px; font-weight: 600; letter-spacing: 0.5px; }
+.nav-item.active {
+    transform: none;
+    background: rgba(255,255,255,0.14);
+    color: #fff;
+}
+.nav-item.active svg {
+    color: var(--rank-color, var(--neon-blue));
+    filter: drop-shadow(0 0 6px color-mix(in srgb, var(--rank-color, #38bdf8) 60%, transparent));
+}
+
+/* ---- Buttons ---- */
+.action-btn {
+    border-radius: 999px;
+    padding: 8px 14px;
+    background: color-mix(in srgb, var(--rank-color, #38bdf8) 18%, rgba(255,255,255,0.06));
+    border: 1px solid color-mix(in srgb, var(--rank-color, #38bdf8) 45%, rgba(255,255,255,0.1));
+    color: #fff;
+    box-shadow: none;
+}
+.action-btn:active { background: var(--rank-color, var(--neon-blue)); color: #020617; }
+.filter-btn {
+    border: 1px solid rgba(255,255,255,0.16);
+    background: rgba(255,255,255,0.06);
+    border-radius: 50%;
+    color: rgba(255,255,255,0.75);
+}
+.sci-fi-btn {
+    border-radius: 14px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.16);
+    color: #fff;
+    box-shadow: none;
+}
+.sci-fi-btn.outline { background: transparent; color: rgba(255,255,255,0.7); }
+button.sci-fi-btn.filter-opt.active {
+    background: color-mix(in srgb, var(--rank-color, #38bdf8) 22%, rgba(255,255,255,0.06)) !important;
+    border-color: var(--rank-color, var(--neon-blue)) !important;
+    color: #fff !important;
+    box-shadow: none !important;
+}
+.upload-btn { border-radius: 14px; background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.3); color: #fff; }
+.save-btn { background: var(--rank-color, var(--neon-blue)); color: #020617; border-color: transparent; }
+
+/* ---- Inputs ---- */
+.clean-input, .sci-fi-input {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 14px;
+    box-shadow: none;
+}
+.clean-input:focus, .sci-fi-input:focus {
+    border-color: var(--rank-color, var(--neon-blue));
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--rank-color, #38bdf8) 22%, transparent);
+}
+
+/* ---- Add / Edit quest screen ---- */
+.fullscreen-modal {
+    background:
+        radial-gradient(60vmax 60vmax at 10% 0%,  color-mix(in srgb, var(--rank-color, #38bdf8) 28%, transparent), transparent 70%),
+        radial-gradient(60vmax 60vmax at 100% 100%, rgba(139, 92, 246, 0.22), transparent 70%),
+        #050816;
+}
+.quest-header {
+    background: rgba(255,255,255,0.06);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255,255,255,0.12);
+}
+.schedule-box {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 18px;
+    box-shadow: none;
+}
+.schedule-box::before { display: none; }
+.diff-box {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 16px;
+}
+.diff-box.active {
+    background: color-mix(in srgb, var(--rank-color, #38bdf8) 20%, rgba(255,255,255,0.06));
+    border-color: var(--rank-color, var(--neon-blue));
+    color: #fff;
+    box-shadow: none;
+}
+.diff-box.active svg { filter: none; }
+.diff-option span.active { color: #fff; text-shadow: none; }
+.day-circle { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.16); }
+.day-circle.active {
+    background: color-mix(in srgb, var(--rank-color, #38bdf8) 25%, rgba(255,255,255,0.06));
+    border-color: var(--rank-color, var(--neon-blue));
+    color: #fff;
+    box-shadow: none;
+}
+.clean-add-btn {
+    background: rgba(255,255,255,0.05);
+    border: 1px dashed rgba(255,255,255,0.25);
+    border-radius: 14px;
+    color: rgba(255,255,255,0.8);
+}
+.reminder-row, .checklist-item {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+}
+
+/* ---- Calendar ---- */
+.cal-cell {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+}
+.cal-cell.is-today {
+    border: 2px solid var(--rank-color, var(--neon-blue));
+    box-shadow: none;
+}
+.cal-tooltip {
+    background: rgba(15,23,42,0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 10px;
+}
+.event-item-row {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+}
+.segmented-control {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 999px;
+}
+.segment { border-radius: 999px; }
+.segment.active { background: rgba(255,255,255,0.16); color: #fff; }
+
+/* ---- Profile ---- */
+.rank-progress-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.04));
+    border: 1px solid rgba(255,255,255,0.14);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.16);
+}
+.level-rank-pill {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.18);
+    box-shadow: none;
+}
+.dash-name { text-shadow: none; font-weight: 700; }
+.streak-badge { box-shadow: none; }
+.theme-opt-btn { border-radius: 14px; }
+
+/* ---- Arcade ---- */
+.arcade-game-card {
+    background: linear-gradient(135deg, rgba(255,255,255,0.09), rgba(255,255,255,0.04));
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 20px;
+}
+.arcade-card-play-btn { border-radius: 999px; border-color: rgba(255,255,255,0.25); color: #fff; text-shadow: none; }
+
+/* ---- Popups (level up, streak, penalty, welcome back...) ---- */
+.sl-modal-overlay {
+    background: rgba(5, 8, 22, 0.55);
+    backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%);
+}
+.sl-system-box {
+    background: linear-gradient(135deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05));
+    border: 1px solid rgba(255,255,255,0.20);
+    border-radius: 26px;
+    backdrop-filter: blur(26px) saturate(160%);
+    -webkit-backdrop-filter: blur(26px) saturate(160%);
+    box-shadow: 0 24px 60px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.22);
+}
+.sl-system-box::before { display: none; }
+.holo-corner { display: none; }
+.sl-icon { transform: none; border-radius: 50%; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.22); box-shadow: none; }
+.sl-icon svg { transform: none; filter: none; }
+.sl-box-header { text-shadow: none; letter-spacing: 3px; }
+.sl-body-text { color: rgba(255,255,255,0.8); }
+.sl-btn-new { border-radius: 999px; background: rgba(255,255,255,0.08); border-color: rgba(255,255,255,0.22); color: #fff; }
+.sl-btn-new:active { background: rgba(255,255,255,0.2); box-shadow: none; }
+.wb-item { background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12); border-radius: 14px; }
+.wb-item.checked { background: color-mix(in srgb, var(--rank-color, #38bdf8) 18%, rgba(255,255,255,0.06)); border-color: var(--rank-color, var(--neon-blue)); }
+
+/* ---- Notification toast ---- */
+.notification-toast {
+    outline: none;
+    border: 1px solid rgba(255,255,255,0.20);
+    border-radius: 22px;
+    overflow: hidden;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.2);
+}
+.notification-toast::before, .notification-toast::after,
+.notification-toast .notif-corner-tl, .notification-toast .notif-corner-tr,
+.notification-toast .notif-corner-bl, .notification-toast .notif-corner-br,
+.notification-toast .notif-notch-l, .notification-toast .notif-notch-r { display: none; }
+.notif-title-box { border-radius: 12px; border-color: rgba(255,255,255,0.18); background: rgba(255,255,255,0.06); }
+.notif-app-name { text-shadow: none; }
+.notif-icon-box svg { filter: none; }
+.notif-complete-btn { text-shadow: none; }
+
+/* ---- Bottom sheets / banners (use inline styles, so need !important) ---- */
+#achievements-sheet {
+    background: rgba(15, 23, 42, 0.65) !important;
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
+    border-top: 1px solid rgba(255,255,255,0.18) !important;
+}
+#daily-bonus-banner {
+    border-radius: 18px !important;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+}
+.quest-dropdown {
+    background: rgba(15, 23, 42, 0.8);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.16);
+    border-radius: 14px;
 }
