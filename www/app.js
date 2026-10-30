@@ -2863,8 +2863,9 @@ function saveGameState() {
 // ==========================================
 // --- CALENDAR EVENT NOTIFICATIONS ---
 // ==========================================
-const EVENT_NOTIFY_HOUR = 8;          // hour the notification fires (24h)
+const EVENT_NOTIFY_HOUR = 19;         // hour the notification fires (24h) -> 7 PM
 const EVENT_NOTIFY_MIN = 0;           // minute
+const EVENT_NOTIFY_DAYS_BEFORE = 1;   // 1 = the day before, 0 = same day
 const EVENT_NOTIFY_DAYS_AHEAD = 60;   // how many days ahead to schedule
 const EVENT_NOTIF_BASE = 1500000000;  // reserved ID range so it never clashes with quest reminders
 
@@ -2896,19 +2897,23 @@ async function scheduleEventNotifications() {
         const toSchedule = [];
 
         for (let i = 0; i < EVENT_NOTIFY_DAYS_AHEAD; i++) {
-            const when = new Date();
-            when.setDate(when.getDate() + i);
+            const eventDate = new Date();
+            eventDate.setDate(eventDate.getDate() + i);
+
+            const when = new Date(eventDate);
+            when.setDate(when.getDate() - EVENT_NOTIFY_DAYS_BEFORE);
             when.setHours(EVENT_NOTIFY_HOUR, EVENT_NOTIFY_MIN, 0, 0);
 
             if (when.getTime() > Date.now()) {
                 const todays = events.filter(ev => isEventActive(ev, d, m, y)).slice(0, 99);
-                const gcStr = when.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+                const gcStr = eventDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
                 const ecStr = `${ETH_MONTHS[m]} ${d}, ${y}`;
+                const prefix = EVENT_NOTIFY_DAYS_BEFORE === 1 ? 'Tomorrow  •  ' : '';
 
                 todays.forEach((ev, k) => {
                     toSchedule.push({
                         title: ev.title,
-                        body: `E.C. ${ecStr}  •  G.C. ${gcStr}`,
+                        body: `${prefix}E.C. ${ecStr}  •  G.C. ${gcStr}`,
                         id: EVENT_NOTIF_BASE + (i * 100) + k,
                         schedule: { at: when, allowWhileIdle: true },
                         channelId: 'system_alerts'
