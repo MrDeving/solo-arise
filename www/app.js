@@ -1647,6 +1647,11 @@ function switchTab(tabId) {
     }
     
 
+    // Performance: disable blur while the tabs slide
+    document.body.classList.add('tab-switching');
+    clearTimeout(window._tabSwitchTimer);
+    window._tabSwitchTimer = setTimeout(() => document.body.classList.remove('tab-switching'), 260);
+
     const targetIndex = tabsOrder.indexOf(tabId);
 
     // Hide all views and apply directional swipe classes
@@ -4191,10 +4196,15 @@ function arcadeDrawCardPreview() {
         { x: W * 0.3, y: -10 }, { x: W * 0.7, y: -40 }, { x: W * 0.5, y: -70 }
     ];
 
+    if (window._previewRunning) return;
+    window._previewRunning = true;
     function drawFrame() {
-        // Only animate while arcade view is active and panel closed
+        const arcadeView = document.getElementById('view-arcade');
         const panel = document.getElementById('arcade-game-panel');
-        if (panel && panel.classList.contains('open')) return;
+        if ((panel && panel.classList.contains('open')) || !arcadeView || !arcadeView.classList.contains('active')) {
+            window._previewRunning = false;
+            return;
+        }
 
         ctx.fillStyle = '#020617';
         ctx.fillRect(0, 0, W, H);

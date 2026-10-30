@@ -3102,3 +3102,29 @@ html, body {
 /* Waiting tabs can't be scrolled to or touched */
 .view:not(.active) { overflow: hidden !important; }
 .bottom-nav { transform: translateZ(0); }
+
+/* ============================================================
+   PERFORMANCE MODE  (delete this block to revert)
+   ============================================================ */
+
+/* Tab slide: move + fade only, no scaling, shorter */
+.view {
+    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease, visibility 0.24s;
+    transform: translate3d(8%, 0, 0);
+}
+.view.off-left  { transform: translate3d(-8%, 0, 0); }
+.view.off-right { transform: translate3d(8%, 0, 0); }
+.view.active    { transform: translate3d(0, 0, 0); }
+
+/* Static aurora instead of an endlessly animating one */
+body::before { animation: none; }
+
+/* Blur is the heaviest effect, so pause it while switching tabs */
+.tab-switching * {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+}
+.tab-switching .bottom-nav { background: rgba(8, 20, 34, 0.92); }
+
+/* Softer blur the rest of the time */
+:root { --blur: blur(10px) saturate(130%); }
