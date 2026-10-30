@@ -36,6 +36,25 @@ jobs:
       - name: Add Android Platform
         run: npx cap add android
 
+      - name: Disable WebView overscroll
+        run: |
+          cat > android/app/src/main/java/com/hunter/arisesolo/MainActivity.java << 'EOF'
+          package com.hunter.arisesolo;
+
+          import android.view.View;
+          import com.getcapacitor.BridgeActivity;
+
+          public class MainActivity extends BridgeActivity {
+              @Override
+              public void onStart() {
+                  super.onStart();
+                  if (getBridge() != null && getBridge().getWebView() != null) {
+                      getBridge().getWebView().setOverScrollMode(View.OVER_SCROLL_NEVER);
+                  }
+              }
+          }
+          EOF
+
       - name: Generate App Icons and Splash Screens
         run: npx @capacitor/assets generate --android
 
