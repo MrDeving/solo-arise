@@ -3200,3 +3200,37 @@ body::before { animation: none !important; will-change: auto; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
 }
+
+/* ============================================================
+   QUEST AGE SLAB (colored panel behind the check circle) - restored
+   Full-height tinted slab on the left that fades out softly to the right.
+   ============================================================ */
+.quest-age-slab {
+    left: 0 !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 52px !important;
+    border-radius: var(--r-lg) 0 0 var(--r-lg) !important;
+    opacity: 0.88 !important;
+    -webkit-mask-image: none !important;
+            mask-image: none !important;
+}
+.quest-item.completed .quest-age-slab { opacity: 0.45 !important; }
+
+/* Check button: rounded square, darker tone of the slab color */
+.quest-checkbox {
+    width: 24px !important;
+    height: 24px !important;
+    border-radius: 7px !important;
+    background: rgba(0, 0, 0, 0.32) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+.quest-item.completed .quest-checkbox {
+    background: rgba(0, 0, 0, 0.5) !important;
+    border: none !important;
+}
+.quest-item.completed .quest-checkbox::after {
+    color: rgba(255, 255, 255, 0.95);
+    font-size: 14px;
+}
