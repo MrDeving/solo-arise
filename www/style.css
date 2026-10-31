@@ -3104,27 +3104,99 @@ html, body {
 .bottom-nav { transform: translateZ(0); }
 
 /* ============================================================
-   PERFORMANCE MODE  (delete this block to revert)
+   PERFORMANCE v2  (lightweight: no blur, no filter animations)
    ============================================================ */
 
-/* Tab slide: move + fade only, no scaling, shorter */
-.view {
-    transition: transform 0.24s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease, visibility 0.24s;
-    transform: translate3d(8%, 0, 0);
-}
-.view.off-left  { transform: translate3d(-8%, 0, 0); }
-.view.off-right { transform: translate3d(8%, 0, 0); }
-.view.active    { transform: translate3d(0, 0, 0); }
-
-/* Static aurora instead of an endlessly animating one */
-body::before { animation: none; }
-
-/* Blur is the heaviest effect, so pause it while switching tabs */
-.tab-switching * {
+/* 1. Biggest win: no backdrop blur anywhere (it is re-computed every frame) */
+*, *::before, *::after {
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
 }
-.tab-switching .bottom-nav { background: rgba(8, 20, 34, 0.92); }
 
-/* Softer blur the rest of the time */
-:root { --blur: blur(10px) saturate(130%); }
+/* 2. Glass look WITHOUT blur: slightly more opaque tinted surfaces */
+:root {
+    --glass-card: linear-gradient(135deg, rgba(34,58,84,0.62), rgba(14,28,46,0.62));
+    --glass-inset: rgba(255,255,255,0.055);
+}
+.system-panel, .rank-progress-card, .arcade-game-card {
+    transform: none;
+    -webkit-transform: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.28), inset 0 1px 0 rgba(255,255,255,0.10);
+}
+.system-panel.hud-card {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 16%, rgba(26,46,68,0.78)), rgba(12,26,42,0.78)) !important;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.32), inset 0 1px 0 rgba(255,255,255,0.12) !important;
+}
+.bottom-nav {
+    background: rgba(8,20,34,0.94);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.45);
+}
+.sl-modal-overlay { background: rgba(3,11,22,0.82); }
+.sl-system-box {
+    background: linear-gradient(135deg, rgba(30,52,76,0.96), rgba(10,22,38,0.96));
+    box-shadow: 0 14px 36px rgba(0,0,0,0.5);
+}
+.notification-toast { background: rgba(10,24,40,0.97); box-shadow: 0 10px 28px rgba(0,0,0,0.5); }
+#achievements-sheet { background: rgba(10,24,40,0.98) !important; }
+.quest-header { background: rgba(8,20,34,0.96); }
+.quest-dropdown { background: rgba(10,24,40,0.98); }
+.cal-tooltip { background: rgba(6,16,28,0.97); }
+.arcade-coming-soon-overlay { background: rgba(5,10,25,0.85); }
+.game-overlay { background: rgba(2,6,23,0.88); }
+
+/* 3. Static background (painted once, never animated) */
+body::before { animation: none !important; will-change: auto; }
+
+/* 4. Tab switching: transform + opacity only, short, no scale */
+.view {
+    will-change: auto;
+    transition: transform 0.2s ease-out, opacity 0.16s ease-out, visibility 0.2s;
+    transform: translate3d(6%, 0, 0);
+}
+.view.off-left  { transform: translate3d(-6%, 0, 0); }
+.view.off-right { transform: translate3d(6%, 0, 0); }
+.view.active    { transform: translate3d(0, 0, 0); will-change: transform, opacity; }
+
+/* 5. Cheaper transitions (no "all", no scaling of whole screens) */
+.nav-item { transition: color 0.2s ease, background 0.2s ease; }
+.nav-item svg, .nav-item.active svg { transition: none; transform: none; }
+.quest-checkbox { transition: background 0.15s ease, border-color 0.15s ease; }
+.action-btn, .filter-btn, .sci-fi-btn, .sl-btn-new, .theme-opt-btn { transition: background 0.15s ease, color 0.15s ease; }
+.system-panel.quest-item { transition: opacity 0.2s ease; }
+.system-panel.quest-item:active { transform: none; }
+.quest-item.completed { filter: none; }
+
+/* 6. Filter-free keyframes (animating filter: blur() is very expensive) */
+@keyframes holoBoxIn  { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes holoBoxOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(10px) scale(0.97); } }
+@keyframes toastIn    { from { opacity: 0; transform: translateX(-50%) translateY(-24px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut   { from { opacity: 1; transform: translateX(-50%) translateY(0); } to { opacity: 0; transform: translateX(-50%) translateY(-14px); } }
+.sl-modal-overlay { animation-duration: 0.2s; }
+.sl-system-box { animation-duration: 0.28s; }
+
+/* Quest edit screen + sheets: lighter motion */
+.fullscreen-modal { animation: modalIn 0.24s ease-out both; }
+.fullscreen-modal.closing { animation: modalOut 0.16s ease-in both; }
+@keyframes modalIn  { from { opacity: 0; transform: translateY(28px); } to { opacity: 1; transform: none; } }
+@keyframes modalOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(28px); } }
+.filter-content { animation: sheetUp 0.26s ease-out both; }
+.filter-content.closing { animation: sheetDown 0.16s ease-in both; }
+.quest-dropdown.open { animation: menuPop 0.16s ease-out both; }
+
+/* 7. Remove always-running decorative animations that fight scrolling */
+.rk-badge { animation: none !important; }
+.arcade-coming-soon-text { animation: none !important; }
+.reward-xp-display::before { animation: none !important; display: none; }
+.flame-icon.burning { animation: none; }
+.ring-2 { animation: none; }
+.avatar-ring { animation-duration: 30s; }
+
+/* 8. Let the browser skip layout/paint work inside list items */
+.quest-swipe-wrapper { contain: layout paint; }
+
+/* Never let transitions fight the drag-and-drop */
+.sortable-drag, .sortable-drag * { transition: none !important; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

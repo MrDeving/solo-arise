@@ -505,7 +505,7 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '00')}`;
         
         const hTimer = document.getElementById('reset-timer');
-        if (hTimer) hTimer.textContent = timeStr;
+        if (hTimer && hTimer.textContent !== timeStr) hTimer.textContent = timeStr;
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
@@ -1268,7 +1268,8 @@ function updateStats() {
     if (statLevelEl) statLevelEl.textContent = systemState.level;
     
     const rankHex = document.querySelector('.rank-hexagon');
-    if (rankHex) {
+    if (rankHex && rankHex.dataset.rank !== currentRank.letter) {
+        rankHex.dataset.rank = currentRank.letter;
         const c = currentRank.color;
         const l = currentRank.letter;
         const glowColor = c + '99';
@@ -1433,7 +1434,10 @@ function updateStats() {
     if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
     const dashMiniHexEl = document.getElementById('dash-mini-hex');
     if(dashMiniHexEl) {
-        dashMiniHexEl.innerHTML = rankHex ? rankHex.innerHTML : '';
+        if (rankHex && dashMiniHexEl.dataset.rank !== rankHex.dataset.rank) {
+            dashMiniHexEl.dataset.rank = rankHex.dataset.rank;
+            dashMiniHexEl.innerHTML = rankHex.innerHTML;
+        }
     }
     const rankColors = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
 const cardTheme = localStorage.getItem('cardTheme') || 'default';
@@ -1618,7 +1622,7 @@ function updateArcadeComingSoon() {
 }
 
 function switchTab(tabId) {
-    if (tabId === 'profile') { renderAchievements(); }
+    if (tabId === 'profile') { setTimeout(renderAchievements, 320); }
     if (tabId === 'arcade') { setTimeout(arcadeOnEnter, 80); updateArcadeComingSoon(); }
     // Exit arcade if leaving it
     const wasArcade = document.getElementById('view-arcade')?.classList.contains('active');
@@ -1646,11 +1650,6 @@ function switchTab(tabId) {
         }
     }
     
-
-    // Performance: disable blur while the tabs slide
-    document.body.classList.add('tab-switching');
-    clearTimeout(window._tabSwitchTimer);
-    window._tabSwitchTimer = setTimeout(() => document.body.classList.remove('tab-switching'), 260);
 
     const targetIndex = tabsOrder.indexOf(tabId);
 
