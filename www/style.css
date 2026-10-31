@@ -3234,3 +3234,38 @@ body::before { animation: none !important; will-change: auto; }
     color: rgba(255, 255, 255, 0.95);
     font-size: 14px;
 }
+/* ===== EMPTY STATES ===== */
+.empty-state {
+    text-align: center;
+    padding: 70px 24px 40px;
+    pointer-events: none;
+}
+.empty-icon {
+    font-size: 34px;
+    color: var(--accent, #38bdf8);
+    text-shadow: 0 0 14px var(--accent, #38bdf8);
+    margin-bottom: 14px;
+    animation: emptyPulse 3s ease-in-out infinite;
+}
+.empty-title {
+    font-size: 15px;
+    font-weight: 800;
+    letter-spacing: 3px;
+    color: var(--accent, #38bdf8);
+    text-shadow: 0 0 10px var(--accent, #38bdf8);
+    margin-bottom: 8px;
+}
+.empty-sub {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.5);
+    line-height: 1.5;
+}
+.empty-done .empty-icon,
+.empty-done .empty-title {
+    color: var(--neon-green, #4ade80);
+    text-shadow: 0 0 12px var(--neon-green, #4ade80);
+}
+@keyframes emptyPulse {
+    0%, 100% { opacity: 0.55; }
+    50%      { opacity: 1; }
+}

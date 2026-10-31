@@ -505,7 +505,7 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         const timeStr = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '00')}`;
         
         const hTimer = document.getElementById('reset-timer');
-        if (hTimer && hTimer.textContent !== timeStr) hTimer.textContent = timeStr;
+        if (hTimer) hTimer.textContent = timeStr;
         
         const qTimer = document.getElementById('quests-reset-timer');
         if (qTimer) qTimer.textContent = timeStr;
@@ -769,6 +769,45 @@ function renderQuests() {
             mainContainer.appendChild(wrapperEl);
         }
     });
+
+    // --- EMPTY STATES ---
+    const makeEmpty = (icon, title, sub, done) => {
+        const el = document.createElement('div');
+        el.className = 'empty-state' + (done ? ' empty-done' : '');
+        el.innerHTML = `<div class="empty-icon">${icon}</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div>`;
+        return el;
+    };
+
+    if (homeContainer && homeContainer.children.length === 0) {
+        const dailies = systemState.quests.filter(q => q.type === 'daily' || !q.type);
+        const dueToday = dailies.filter(q => isQuestActiveOnDate(q, new Date()));
+        let el;
+        if (dailies.length === 0) {
+            el = makeEmpty('✦', 'NO DAILIES YET', 'Tap + to create your first daily.', false);
+        } else if (filters.home === 'done') {
+            el = makeEmpty('◇', 'NOTHING COMPLETED YET', 'Finish a daily and it will show up here.', false);
+        } else if (dueToday.length === 0) {
+            el = makeEmpty('☾', 'NOTHING DUE TODAY', 'No dailies are scheduled for today. Rest, Hunter.', false);
+        } else {
+            el = makeEmpty('✔', 'ALL DAILIES COMPLETE', 'The System acknowledges your effort. Well done, Hunter.', true);
+        }
+        homeContainer.appendChild(el);
+    }
+
+    if (mainContainer && mainContainer.children.length === 0) {
+        const quests = systemState.quests.filter(q => q.type && q.type !== 'daily');
+        let el;
+        if (quests.length === 0) {
+            el = makeEmpty('✦', 'NO QUESTS YET', 'Tap + to accept your first quest.', false);
+        } else if (filters.quests === 'done') {
+            el = makeEmpty('◇', 'NOTHING COMPLETED YET', 'Clear a quest and it will show up here.', false);
+        } else if (filters.quests === 'scheduled') {
+            el = makeEmpty('☾', 'NOTHING SCHEDULED', 'No quests have a due date or reminder.', false);
+        } else {
+            el = makeEmpty('✔', 'ALL QUESTS CLEARED', 'No active quests left. Take a breath, Hunter.', true);
+        }
+        mainContainer.appendChild(el);
+    }
 }
 function toggleQuestMenu(id, btn) {
     // Remove any existing floating dropdown
@@ -1268,8 +1307,7 @@ function updateStats() {
     if (statLevelEl) statLevelEl.textContent = systemState.level;
     
     const rankHex = document.querySelector('.rank-hexagon');
-    if (rankHex && rankHex.dataset.rank !== currentRank.letter) {
-        rankHex.dataset.rank = currentRank.letter;
+    if (rankHex) {
         const c = currentRank.color;
         const l = currentRank.letter;
         const glowColor = c + '99';
@@ -1434,10 +1472,7 @@ function updateStats() {
     if(rpcPillNextEl && currentRankIndex < 5) { rpcPillNextEl.style.color = nextRank.color; rpcPillNextEl.style.borderColor = nextRank.color + '66'; rpcPillNextEl.style.background = nextRank.color + '18'; }
     const dashMiniHexEl = document.getElementById('dash-mini-hex');
     if(dashMiniHexEl) {
-        if (rankHex && dashMiniHexEl.dataset.rank !== rankHex.dataset.rank) {
-            dashMiniHexEl.dataset.rank = rankHex.dataset.rank;
-            dashMiniHexEl.innerHTML = rankHex.innerHTML;
-        }
+        dashMiniHexEl.innerHTML = rankHex ? rankHex.innerHTML : '';
     }
     const rankColors = { E:'#b57a50', D:'#8faec6', C:'#00ffaa', B:'#00f0ff', A:'#cc44ff', S:'#ffb700' };
 const cardTheme = localStorage.getItem('cardTheme') || 'default';
@@ -1622,7 +1657,7 @@ function updateArcadeComingSoon() {
 }
 
 function switchTab(tabId) {
-    if (tabId === 'profile') { setTimeout(renderAchievements, 320); }
+    if (tabId === 'profile') { renderAchievements(); }
     if (tabId === 'arcade') { setTimeout(arcadeOnEnter, 80); updateArcadeComingSoon(); }
     // Exit arcade if leaving it
     const wasArcade = document.getElementById('view-arcade')?.classList.contains('active');
@@ -1650,6 +1685,11 @@ function switchTab(tabId) {
         }
     }
     
+
+    // Performance: disable blur while the tabs slide
+    document.body.classList.add('tab-switching');
+    clearTimeout(window._tabSwitchTimer);
+    window._tabSwitchTimer = setTimeout(() => document.body.classList.remove('tab-switching'), 260);
 
     const targetIndex = tabsOrder.indexOf(tabId);
 
