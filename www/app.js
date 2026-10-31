@@ -361,22 +361,31 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // --- SETUP FOR NATIVE APPS (Capacitor/Cordova) ---
+    let backTries = 0;
     const setupCapacitorBack = () => {
         if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
-            // Capacitor v8: use the globally registered plugin
-            const AppPlugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.App)
-                           || (window.CapacitorPlugins && window.CapacitorPlugins.App);
-            if (AppPlugin) {
-                AppPlugin.addListener('backButton', ({ canGoBack }) => {
-                    if (!handlePhoneBackButton()) {
-                        AppPlugin.exitApp();
+            let AppPlugin = (window.Capacitor.Plugins && window.Capacitor.Plugins.App)
+                         || (window.CapacitorPlugins && window.CapacitorPlugins.App);
+            if (!AppPlugin && window.Capacitor.registerPlugin) {
+                try { AppPlugin = window.Capacitor.registerPlugin('App'); } catch (e) {}
+            }
+            if (AppPlugin && AppPlugin.addListener) {
+                AppPlugin.addListener('backButton', () => {
+                    let closed = false;
+                    try { closed = handlePhoneBackButton(); } catch (e) { closed = false; }
+                    if (!closed) {
+                        if (AppPlugin.exitApp) AppPlugin.exitApp();
                     }
                 });
                 return;
             }
         }
-        // Fallback: retry after plugins finish loading (sometimes they load async)
-        setTimeout(setupCapacitorBack, 500);
+        backTries++;
+        if (backTries === 12 && window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+            // Plugin never showed up: tell the user instead of failing silently
+            alert('Back button handler is not active (App plugin missing). Rebuild the APK after adding @capacitor/app to package.json.');
+        }
+        if (backTries < 40) setTimeout(setupCapacitorBack, 500);
     };
     setupCapacitorBack();
 });
