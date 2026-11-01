@@ -3269,3 +3269,97 @@ body::before { animation: none !important; will-change: auto; }
     0%, 100% { opacity: 0.55; }
     50%      { opacity: 1; }
 }
+/* ===== CALENDAR POLISH ===== */
+/* Today: clean ring that works on top of any event color */
+.cal-cell.is-today {
+    border-width: 1px;
+    outline: 1.5px solid var(--accent);
+    outline-offset: 1px;
+    box-shadow: none;
+}
+.cal-cell.is-today > span:first-child { color: #fff; }
+
+/* Price-tag style "TODAY" label above the day */
+.cal-today-tag {
+    position: absolute;
+    top: -11px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--accent, #38bdf8);
+    color: #04101d;
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.8px;
+    line-height: 1;
+    padding: 3px 6px 3px 12px;
+    border-radius: 4px;
+    white-space: nowrap;
+    pointer-events: none;
+    z-index: 6;
+    text-shadow: none;
+}
+.cal-today-tag::before {          /* the little tag hole */
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 50%;
+    width: 4px;
+    height: 4px;
+    margin-top: -2px;
+    border-radius: 50%;
+    background: #04101d;
+    opacity: 0.55;
+}
+.cal-today-tag::after {           /* pointer under the tag */
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -3px;
+    width: 6px;
+    height: 6px;
+    margin-left: -3px;
+    background: var(--accent, #38bdf8);
+    transform: rotate(45deg);
+    border-radius: 1px;
+}
+
+/* Event dots for multi-event days */
+.cal-dots {
+    position: absolute;
+    bottom: 7px;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    pointer-events: none;
+}
+.cal-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.75);
+}
+
+/* Month number badge next to the month name */
+.cal-month-num {
+    display: inline-block;
+    margin-left: 6px;
+    min-width: 18px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    background: var(--accent-soft, rgba(56, 189, 248, 0.2));
+    border: 1px solid var(--accent, #38bdf8);
+    color: #fff;
+    font-size: 11px;
+    font-weight: 800;
+    line-height: 1.3;
+    text-align: center;
+    vertical-align: middle;
+}
+/* Multi-event days: paint the color split across the whole tile, border included */
+.cal-cell.multi-event {
+    background-origin: border-box !important;
+    background-clip: border-box !important;
+    background-repeat: no-repeat !important;
+}

@@ -1829,7 +1829,7 @@ function renderEthCalendar() {
     if(!container) return;
     container.innerHTML = '';
     
-    document.getElementById('cal-month-name').innerText = ETH_MONTHS[ethCurrentMonth];
+    document.getElementById('cal-month-name').innerHTML = ETH_MONTHS[ethCurrentMonth] + `<span class="cal-month-num">${ethCurrentMonth}</span>`;
     document.getElementById('cal-year-num').innerText = ethCurrentYear;
 
     let daysInMonth = (ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30;
@@ -1848,6 +1848,10 @@ function renderEthCalendar() {
         
         if (ethCurrentYear === TODAY_ETH.year && ethCurrentMonth === TODAY_ETH.month && d === TODAY_ETH.day) {
             div.classList.add('is-today');
+            const tag = document.createElement('div');
+            tag.className = 'cal-today-tag';
+            tag.textContent = 'TODAY';
+            div.appendChild(tag);
         }
 
         const numSpan = document.createElement('span');
@@ -1873,7 +1877,7 @@ function renderEthCalendar() {
                     gradient += `${ev.color} ${i * slice}% ${(i + 1) * slice}%${i < daysEvents.length - 1 ? ',' : ''}`;
                 });
                 gradient += ")";
-                div.style.background = gradient;
+                div.style.backgroundImage = gradient;
             }
 
             // Keep the Tooltip logic so they can hover/press to read what the events are
