@@ -4727,34 +4727,6 @@ function gearDraw() {
     ctx.restore();
     ctx.shadowBlur = 0;
 
-    // ready: show the two possible arcs (this is the exact trajectory of a tap)
-    if (G.state === 'idle' || G.state === 'ready') {
-        const vx = C.IMPULSE_X / C.MASS, vy = C.IMPULSE_Y / C.MASS;
-        ctx.save();
-        ctx.setLineDash([4 * dpr, 7 * dpr]); ctx.lineWidth = 2 * dpr;
-        ctx.strokeStyle = 'rgba(125,211,252,0.45)';
-        [-1, 1].forEach(dir => {
-            ctx.beginPath();
-            for (let t = 0; t <= 0.9; t += 0.02) {
-                const px = g.cx + dir * vx * t, py = g.cy + vy * t + 0.5 * C.GRAVITY * t * t;
-                if (t === 0) ctx.moveTo(sx(px), sy(py)); else ctx.lineTo(sx(px), sy(py));
-            }
-            ctx.stroke();
-        });
-        ctx.restore();
-        // tap zones
-        ctx.save();
-        ctx.fillStyle = 'rgba(148,163,184,0.7)';
-        ctx.font = '700 ' + (13 * dpr) + 'px Rajdhani, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('◀  TAP LEFT', G.cw * 0.25, G.ch * 0.84);
-        ctx.fillText('TAP RIGHT  ▶', G.cw * 0.75, G.ch * 0.84);
-        ctx.strokeStyle = 'rgba(148,163,184,0.18)'; ctx.lineWidth = 1 * dpr;
-        ctx.setLineDash([3 * dpr, 6 * dpr]);
-        ctx.beginPath(); ctx.moveTo(G.cw / 2, G.ch * 0.78); ctx.lineTo(G.cw / 2, G.ch * 0.9); ctx.stroke();
-        ctx.restore();
-    }
-
     // gear (when dying it falls straight down off the screen after the jolt)
     let gcy = g.cy;
     if (G.state === 'dying' && G.dyingT > 0.1 && G.dyingFall > 0) {
@@ -4858,8 +4830,14 @@ function gearOpen() {
     gearShowOverlay('start');
 }
 
+function gearShowPauseBtn(v) {
+    const b = document.getElementById('gear-pause-btn');
+    if (b) b.style.display = v ? 'flex' : 'none';
+}
+
 function gearBegin() {
     const G = GEARG;
+    gearShowPauseBtn(true);
     gearResize();
     gearReset();
     G.state = 'ready';
@@ -4870,6 +4848,7 @@ function gearBegin() {
 function gearStop() {
     const G = GEARG;
     gearStopLoop();
+    gearShowPauseBtn(false);
     G.state = 'idle';
 }
 
@@ -4888,6 +4867,7 @@ function gearResume() {
     const G = GEARG;
     if (G.state !== 'paused') return;
     G.state = G.prevState;
+    gearShowPauseBtn(true);
     gearHideOverlay();
     gearStartLoop();
 }
@@ -4922,6 +4902,8 @@ function gearShowOverlay(mode, earned) {
     const scoreRow = $('gear-overlay-score-row'), bestRow = $('gear-overlay-best-row'), rewardRow = $('gear-overlay-reward-row');
     if (!title) return;
     scoreRow.style.display = 'none'; bestRow.style.display = 'none'; rewardRow.style.display = 'none';
+    gearShowPauseBtn(false);
+    title.style.display = (mode === 'start') ? 'none' : '';   // no game name once you're inside the game
 
     if (mode === 'over') {
         title.textContent = 'GAME OVER';

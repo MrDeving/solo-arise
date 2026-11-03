@@ -711,6 +711,9 @@
 
             <!-- THE AMAZING GEAR: canvas + overlay -->
             <canvas id="gear-canvas"></canvas>
+            <button id="gear-pause-btn" class="gear-pause-btn" style="display:none;" onclick="gearPause()" aria-label="Pause">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>
+            </button>
             <div id="gear-overlay" class="game-overlay">
                 <div class="game-overlay-box">
                     <div class="holo-corner tl"></div><div class="holo-corner tr"></div>
@@ -726,6 +729,7 @@
                         <span id="gear-overlay-reward-text" class="overlay-reward-text">+0 ⚡ CORES EARNED</span>
                     </div>
                     <button class="arcade-launch-btn" id="gear-overlay-btn" onclick="gearOverlayAction()">START</button>
+                    <button class="arcade-launch-btn gear-exit-btn" onclick="arcadeCloseGame()">EXIT</button>
                 </div>
             </div>
         </div>

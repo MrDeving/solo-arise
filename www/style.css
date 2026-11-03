@@ -2672,6 +2672,26 @@ button.sci-fi-btn.filter-opt.active {
     user-select: none;
     -webkit-tap-highlight-color: transparent;
 }
+/* fullscreen: the Amazing Gear hides the top bar and uses the whole screen */
+.arcade-game-panel[data-game="amazinggear"] .arcade-panel-bar { display: none; }
+#gear-overlay { top: 0; }
+.gear-pause-btn {
+    position: absolute;
+    top: max(14px, env(safe-area-inset-top));
+    left: 14px;
+    width: 42px; height: 42px;
+    align-items: center; justify-content: center;
+    z-index: 20;
+    color: var(--text-main);
+    background: rgba(15,23,42,0.55);
+    border: 1px solid rgba(56,189,248,0.4);
+    border-radius: 50%;
+    padding: 0;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+}
+.gear-pause-btn:active { background: rgba(56,189,248,0.2); }
+.gear-exit-btn { margin-top: 0; border-color: rgba(148,163,184,0.35); color: var(--text-muted); text-shadow: none; box-shadow: none; }
 #gear-overlay-title {
     font-size: 19px;
     text-align: center;
