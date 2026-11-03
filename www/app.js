@@ -1,5 +1,5 @@
 // 0 = arcade live, 1 = coming soon
-const ARCADE_COMING_SOON = 1;
+const ARCADE_COMING_SOON = 0;
 
 // ====== GLOBAL POPUP QUEUE ENGINE (PRIORITY-SORTED) ======
 // Priority order (lower number = higher priority, fires first):
@@ -315,6 +315,13 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'sl-streak-lost-modal',      close: () => closeSLModal('sl-streak-lost-modal') },
             { id: 'sl-penalty-modal',          close: () => closeSLModal('sl-penalty-modal') }
         ];
+
+        // 0) Arcade game open: back closes the game, not the whole arcade tab
+        const arcadePanel = document.getElementById('arcade-game-panel');
+        if (arcadePanel && arcadePanel.classList.contains('open')) {
+            arcadeCloseGame();
+            return true;
+        }
 
         // A) Check Profile Edit Mode
         const setupView = document.getElementById('profile-setup-view');
@@ -4177,8 +4184,13 @@ function arcadeOnEnter() {
     const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
     const cardBest = document.getElementById('card-best-voidhunter');
     if (cardBest) cardBest.textContent = best;
-    // Draw card preview animation
+    gearRefreshCardBest();
+    // GAMES counter = playable (unlocked) games
+    const countEl = document.getElementById('arcade-game-count');
+    if (countEl) countEl.textContent = Object.values(ARCADE_GAMES).filter(g => !g.locked).length;
+    // Draw card preview animations
     arcadeDrawCardPreview();
+    gearDrawCardPreview();
 }
 
 function arcadeOnExit() {
@@ -4186,9 +4198,34 @@ function arcadeOnExit() {
         _arcadeRunning = false;
         cancelAnimationFrame(_arcadeLoop);
     }
+    gearStop();
     // Also close the game panel if open
     const panel = document.getElementById('arcade-game-panel');
     if (panel) panel.classList.remove('open');
+}
+
+// Game registry. locked:true => the card shows a lock and can't be opened.
+const ARCADE_GAMES = {
+    amazinggear: { title: 'THE AMAZING GEAR', locked: false },
+    voidhunter:  { title: 'VOID HUNTER',      locked: true  }   // set to false to unlock
+};
+
+let _arcadeLockToastTimer = null;
+function arcadeShowLockedToast(gameId) {
+    const game = ARCADE_GAMES[gameId];
+    const toast = document.getElementById('arcade-lock-toast');
+    if (toast) {
+        toast.textContent = '🔒 ' + (game ? game.title : 'GAME') + ' IS LOCKED';
+        toast.style.display = 'flex';
+        clearTimeout(_arcadeLockToastTimer);
+        _arcadeLockToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 1800);
+    }
+    const card = document.getElementById('card-' + gameId);
+    if (card) {
+        card.classList.remove('lock-shake');
+        void card.offsetWidth; // restart the animation
+        card.classList.add('lock-shake');
+    }
 }
 
 function arcadeOpenGame(gameId) {
@@ -4196,16 +4233,26 @@ function arcadeOpenGame(gameId) {
     const titleEl = document.getElementById('arcade-panel-title');
     if (!panel) return;
 
-    // Set panel title based on game
-    const titles = { voidhunter: 'VOID HUNTER' };
-    if (titleEl) titleEl.textContent = titles[gameId] || gameId.toUpperCase();
+    const game = ARCADE_GAMES[gameId];
+    if (!game) return;
+    // Locked games can't be opened
+    if (game.locked) { arcadeShowLockedToast(gameId); return; }
+
+    // Set panel title + which game's canvas/overlay is visible
+    if (titleEl) titleEl.textContent = game.title;
+    panel.setAttribute('data-game', gameId);
 
     // Slide panel up
     panel.classList.add('open');
 
     // Init the canvas after panel is visible
     setTimeout(() => {
-        arcadeInit();
+        if (!panel.classList.contains('open')) return;
+        if (gameId === 'amazinggear') {
+            gearOpen();
+        } else {
+            arcadeInit();
+        }
         arcadeUpdatePanelCores();
     }, 80);
 }
@@ -4216,6 +4263,7 @@ function arcadeCloseGame() {
         _arcadeRunning = false;
         cancelAnimationFrame(_arcadeLoop);
     }
+    gearStop();
     // Slide panel back down
     const panel = document.getElementById('arcade-game-panel');
     if (panel) panel.classList.remove('open');
@@ -4224,8 +4272,12 @@ function arcadeCloseGame() {
     const best = parseInt(localStorage.getItem('arcadeBestScore') || '0');
     const cardBest = document.getElementById('card-best-voidhunter');
     if (cardBest) cardBest.textContent = best;
+    gearRefreshCardBest();
 
     arcadeUpdateCoresDisplay();
+    // Lobby previews stop while a game is open: restart them
+    arcadeDrawCardPreview();
+    gearDrawCardPreview();
 }
 
 function arcadeUpdatePanelCores() {
@@ -4316,6 +4368,654 @@ function arcadeUpdateCoresDisplay() {
     if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
     arcadeUpdatePanelCores();
 }
+// ============================================================
+// ARCADE — THE AMAZING GEAR
+// Ported from the decompiled Android game (amazing-gear-tst).
+//  • The world is 64.28 units tall and 64.28 * (width / height) units wide.
+//  • Gravity is -150. A tap zeroes the gear's velocity, then applies the impulse
+//    (±70, 440) to a body of mass PI * 1.5^2 (density 1, radius 1.5),
+//    so the gear leaves with v = (±9.90, 62.25) units/s — that is the fixed arc.
+//  • EVERY obstacle is static. Only the gear moves; the camera follows it upward.
+//  • Touching a brick = game over. Touching the bottom of the screen = game over.
+//  • Flying through a gap (the sensor above each brick pair) scores +1.
+//  • Tapping the LEFT half of the screen jumps left, the RIGHT half jumps right.
+// ============================================================
+const GEAR_CFG = {
+    H: 64.28,                          // world height in units
+    GRAVITY: -150,
+    IMPULSE_X: 70,
+    IMPULSE_Y: 440,
+    DIAMETER: 3,                       // gear diameter (radius 1.5 is also the hitbox)
+    MASS: Math.PI * 1.5 * 1.5,         // density 1 * circle area
+    WALL_SLIDE: -16,                   // velocity applied while hugging a side wall
+    MAX_FALL: 120,                     // Box2D max translation (2 units/step @ 60fps)
+    LEFT_WALL: 0.01,
+    BRICK_H: 3.931,
+    GAP: 13,                           // width of the gap between a brick pair
+    BRICK_POS_MIN: 3.931 * 1.2,
+    ROW_STEP: 34.0344 + 3.931 / 2 + 3.931,   // distance between two brick rows
+    QUAD: 2.62,                        // small square obstacles
+    SPIN_DEG: 400,                     // gear spin after a tap (deg/s)
+    SPIN_TIME: 1,
+    START_BOTTOM: 32.14,               // gear's starting bottom edge
+    CAM_LINE: 29.14,                   // gear bottom stays at/below this screen height
+    STEP: 1 / 120,                     // physics sub-step
+    POINTS_PER_CORE: 5,                // score needed for +1 ⚡ energy core
+    COLORS: ['#38bdf8', '#a78bfa', '#f472b6', '#fbbf24', '#34d399'],
+};
+
+const GEARG = {
+    canvas: null, ctx: null, dpr: 1,
+    cw: 0, ch: 0, s: 1, W: 38.57,      // canvas px, px-per-unit, world width (units)
+    raf: 0, last: 0, running: false, bound: false, ovTok: 0,
+    state: 'idle',                     // idle | ready | playing | dying | over | paused
+    prevState: 'ready',
+    score: 0, best: 0, newBest: false,
+    camY: 0, maxBottom: 0, acc: 0, jumpFlag: false, time: 0,
+    gear: { cx: 0, cy: 0, vx: 0, vy: 0, angle: 0, spin: 0, spinT: 0 },
+    rows: [], nextRowY: 0, rowCount: 0,
+    dyingT: 0, dyingFall: 0, dyingDur: 0, dyingCy: 0, hitVx: 0, hitVy: 0,
+    stars: [],
+};
+
+// ---------- level generation (same formulas as the original) ----------
+function gearPercent(score) { return Math.min(1, (score * 2 + 60) / 100); }
+function gearColorIndex(score) { return Math.floor(((score + 2) % 20) / 4); }
+
+function gearRandomBrickX(W, score) {
+    const C = GEAR_CFG, p = gearPercent(score);
+    const start = -(W - C.GAP) + C.BRICK_POS_MIN;
+    const random = (W - C.GAP) - C.BRICK_POS_MIN * 2;
+    return start + ((1 - p) / 2) * random + Math.random() * (random * p);
+}
+function gearRandomQuadX(brickX, W, score) {
+    const C = GEAR_CFG, p = gearPercent(score);
+    const start = brickX + (W - C.GAP);
+    const random = C.GAP - C.QUAD;
+    const randomPercent = random * p;
+    const nr = Math.random() * randomPercent;
+    return nr < randomPercent / 2 ? start + nr : start + nr + (random - randomPercent);
+}
+function gearRandomQuadY(brickY, top, score) {
+    const C = GEAR_CFG, p = gearPercent(score);
+    const random = C.QUAD * 2;
+    let start;
+    if (top) start = C.BRICK_H + brickY + C.QUAD + ((1 - p) / 2) * random;
+    else     start = (brickY - C.QUAD * 4) - ((1 - p) / 2) * random;
+    return start + Math.random() * (random * p);
+}
+
+// A row = left brick + right brick with a GAP between them, a small square below and above.
+// All rectangles are [x0, y0, x1, y1] in world units (y grows upward).
+function gearMakeRow(y, first) {
+    const C = GEAR_CFG, G = GEARG;
+    const bw = G.W - C.GAP;
+    const x = gearRandomBrickX(G.W, G.score);
+    const rects = [
+        [x, y, x + bw, y + C.BRICK_H],                                   // left brick
+        [x + bw + C.GAP, y, x + bw + C.GAP + bw, y + C.BRICK_H],         // right brick
+    ];
+    if (!first) { // the very first row has no square below it (same as the original)
+        const qx = gearRandomQuadX(x, G.W, G.score), qy = gearRandomQuadY(y, false, G.score);
+        rects.push([qx, qy, qx + C.QUAD, qy + C.QUAD]);
+    }
+    const qx2 = gearRandomQuadX(x, G.W, G.score), qy2 = gearRandomQuadY(y, true, G.score);
+    rects.push([qx2, qy2, qx2 + C.QUAD, qy2 + C.QUAD]);
+    return {
+        y, x, bw,
+        color: C.COLORS[gearColorIndex(G.score)],
+        scored: false,
+        rects,
+        sensor: [x + bw, y + C.BRICK_H, x + bw + C.GAP, y + C.BRICK_H * 2],   // invisible score zone
+    };
+}
+
+function gearSpawnRows() {
+    const G = GEARG, C = GEAR_CFG;
+    while (G.nextRowY < G.camY + 110) {
+        G.rows.push(gearMakeRow(G.nextRowY, G.rowCount === 0));
+        G.rowCount++;
+        G.nextRowY += C.ROW_STEP;
+    }
+    while (G.rows.length && G.rows[0].y + 15 < G.camY) G.rows.shift();
+}
+
+function gearReset() {
+    const G = GEARG, C = GEAR_CFG, g = G.gear;
+    G.score = 0; G.newBest = false; G.acc = 0; G.jumpFlag = false; G.time = 0;
+    g.cx = G.W / 2;
+    g.cy = C.START_BOTTOM + C.DIAMETER / 2;
+    g.vx = 0; g.vy = 0; g.angle = 0; g.spin = 0; g.spinT = 0;
+    G.maxBottom = C.START_BOTTOM;
+    G.camY = C.START_BOTTOM - C.CAM_LINE;          // = 3: the camera starts 3 units up
+    G.rows = []; G.rowCount = 0;
+    G.nextRowY = C.DIAMETER + C.H;                 // first row sits just above the first screen
+    // the original keeps 3 rows alive: spawn them all up front
+    for (let i = 0; i < 3; i++) {
+        G.rows.push(gearMakeRow(G.nextRowY, G.rowCount === 0));
+        G.rowCount++;
+        G.nextRowY += C.ROW_STEP;
+    }
+    G.dyingT = 0;
+    if (!G.stars.length) {
+        for (let i = 0; i < 60; i++) G.stars.push({ x: Math.random(), y: Math.random() * C.H, r: Math.random() * 1.1 + 0.4, a: Math.random() * 0.5 + 0.15 });
+    }
+}
+
+// ---------- gameplay ----------
+function gearTap(left) {
+    const G = GEARG, C = GEAR_CFG, g = G.gear;
+    if (G.state === 'ready') G.state = 'playing';
+    if (G.state !== 'playing') return;
+    const posX = g.cx - C.DIAMETER / 2;
+    const rightWall = G.W - C.DIAMETER - 0.01;
+    // can't jump into the wall you're already touching (same rule as the original)
+    if ((posX > C.LEFT_WALL || !left) && (posX < rightWall || left)) {
+        g.vx = (left ? -1 : 1) * C.IMPULSE_X / C.MASS;
+        g.vy = C.IMPULSE_Y / C.MASS;
+        g.spin = left ? -C.SPIN_DEG : C.SPIN_DEG;     // left = counter-clockwise, right = clockwise
+        g.spinT = C.SPIN_TIME;
+        G.jumpFlag = true;
+    }
+}
+
+function gearCircleRect(cx, cy, r, rc) {
+    const nx = Math.max(rc[0], Math.min(cx, rc[2]));
+    const ny = Math.max(rc[1], Math.min(cy, rc[3]));
+    const dx = cx - nx, dy = cy - ny;
+    return dx * dx + dy * dy < r * r;
+}
+
+function gearPhysics(dt) {
+    const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2;
+    g.vy += C.GRAVITY * dt;
+    if (g.vy < -C.MAX_FALL) g.vy = -C.MAX_FALL;
+    g.cx += g.vx * dt;
+    g.cy += g.vy * dt;
+
+    // side walls
+    if (g.cx < R)            { g.cx = R;           g.vx = 0; g.spinT = 0; }
+    else if (g.cx > G.W - R) { g.cx = G.W - R;     g.vx = 0; g.spinT = 0; }
+
+    // bottom of the screen = game over
+    if (g.cy - R <= G.camY) { gearGameOver(); return; }
+
+    for (let i = 0; i < G.rows.length; i++) {
+        const row = G.rows[i];
+        if (g.cy + R < row.y - 12 || g.cy - R > row.y + 16) continue;   // far away
+        for (let k = 0; k < row.rects.length; k++) {
+            if (gearCircleRect(g.cx, g.cy, R, row.rects[k])) { gearHit(); return; }
+        }
+        if (!row.scored && gearCircleRect(g.cx, g.cy, R, row.sensor)) {
+            row.scored = true;
+            G.score++;
+        }
+    }
+}
+
+function gearUpdate(dt) {
+    const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2;
+    G.time += dt;
+
+    // spin is purely visual: 400 deg/s for up to 1s after a tap
+    if (g.spinT > 0) {
+        const d = Math.min(dt, g.spinT);
+        g.angle += g.spin * d;
+        g.spinT -= d;
+    }
+
+    if (G.state === 'playing') {
+        // Original render(): hugging a side wall (and not having just tapped) => v = (0, -16)
+        const posX = g.cx - R;
+        if (!G.jumpFlag && (posX <= C.LEFT_WALL || posX >= G.W - C.DIAMETER - 0.01)) {
+            g.vx = 0; g.vy = C.WALL_SLIDE; g.spinT = 0;
+        }
+        G.jumpFlag = false;
+
+        G.acc += dt;
+        let n = 0;
+        while (G.acc >= C.STEP && G.state === 'playing') {
+            gearPhysics(C.STEP);
+            G.acc -= C.STEP;
+            if (++n > 12) { G.acc = 0; break; }
+        }
+
+        // camera only ever moves up, following the highest point reached
+        G.maxBottom = Math.max(G.maxBottom, g.cy - R);
+        G.camY = Math.max(G.maxBottom, C.START_BOTTOM) - C.CAM_LINE;
+        gearSpawnRows();
+    } else if (G.state === 'dying') {
+        G.dyingT += dt;
+        if (G.dyingT >= G.dyingDur) gearFinish();
+    }
+}
+
+// Brick hit: obstacles freeze, the screen jolts, the gear drops off the bottom, then game over.
+function gearHit() {
+    const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2;
+    G.hitVx = g.vx; G.hitVy = g.vy;
+    G.dyingCy = g.cy;
+    const dist = (g.cy - R - G.camY) + C.DIAMETER * 1.2;            // distance to fall (units)
+    G.dyingFall = dist;
+    const fallTime = Math.min(0.5, 1.6 * dist / 60);
+    G.dyingDur = 0.1 + fallTime;                                     // 0.1s jolt + fall
+    G.dyingT = 0;
+    g.vx = 0; g.vy = 0; g.spinT = 0;
+    G.state = 'dying';
+}
+
+// Bottom of the screen: no animation, straight to game over.
+function gearGameOver() {
+    const G = GEARG;
+    G.gear.vx = 0; G.gear.vy = 0; G.gear.spinT = 0;
+    G.hitVx = 0; G.hitVy = 0;
+    G.dyingCy = G.gear.cy; G.dyingFall = 0;
+    G.dyingT = 0; G.dyingDur = 0.25;
+    G.state = 'dying';
+}
+
+function gearFinish() {
+    const G = GEARG;
+    G.state = 'over';
+    G.gear.cy = G.dyingCy - G.dyingFall;      // keep the fallen gear off-screen behind the overlay
+    gearStopLoop();
+
+    G.newBest = G.score > G.best;
+    if (G.newBest) {
+        G.best = G.score;
+        try { localStorage.setItem('amazingGearBest', String(G.best)); } catch (e) {}
+    }
+    // Reward: 1 ⚡ energy core per POINTS_PER_CORE points (same wallet Void Hunter pays into)
+    const earned = Math.floor(G.score / GEAR_CFG.POINTS_PER_CORE);
+    if (earned > 0) {
+        systemState.energyCores = (systemState.energyCores || 0) + earned;
+        saveGameState();
+    }
+    arcadeUpdateCoresDisplay();
+    gearRefreshCardBest();
+    gearDraw();
+    gearShowOverlay('over', earned);
+}
+
+// ---------- rendering ----------
+function gearRoundRectPath(ctx, x, y, w, h, r) {
+    if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); return; }
+    ctx.beginPath(); ctx.rect(x, y, w, h);
+}
+
+function gearHexToRgba(hex, a) {
+    const n = parseInt(hex.slice(1), 16);
+    return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
+}
+
+function gearDrawCog(ctx, x, y, r, angleDeg, color, dpr) {
+    const teeth = 8, step = Math.PI * 2 / teeth;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angleDeg * Math.PI / 180);
+    ctx.beginPath();
+    for (let i = 0; i < teeth; i++) {
+        const a = i * step;
+        const pts = [[a - step * 0.30, r * 0.74], [a - step * 0.17, r], [a + step * 0.17, r], [a + step * 0.30, r * 0.74]];
+        pts.forEach((p, j) => {
+            const px = Math.cos(p[0]) * p[1], py = Math.sin(p[0]) * p[1];
+            if (i === 0 && j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        });
+    }
+    ctx.closePath();
+    ctx.shadowColor = color; ctx.shadowBlur = 14 * dpr;
+    ctx.fillStyle = gearHexToRgba(color, 0.22);
+    ctx.fill();
+    ctx.lineWidth = 2 * dpr; ctx.strokeStyle = color; ctx.lineJoin = 'round';
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2);
+    ctx.lineWidth = 1.5 * dpr; ctx.stroke();
+    ctx.restore();
+}
+
+function gearDraw() {
+    const G = GEARG, C = GEAR_CFG, ctx = G.ctx;
+    if (!ctx) return;
+    const s = G.s, dpr = G.dpr, g = G.gear, W = G.W, H = C.H;
+    const sx = (x) => x * s;
+    const sy = (y) => (G.camY + H - y) * s;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#020617';
+    ctx.fillRect(0, 0, G.cw, G.ch);
+
+    // parallax stars (slow, so you feel the climb)
+    ctx.fillStyle = '#e0f2fe';
+    for (let i = 0; i < G.stars.length; i++) {
+        const st = G.stars[i];
+        const yy = (((st.y - G.camY * 0.25) % H) + H) % H;
+        ctx.globalAlpha = st.a;
+        ctx.beginPath(); ctx.arc(st.x * G.cw, yy * s, st.r * dpr, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    // side walls
+    ctx.strokeStyle = 'rgba(56,189,248,0.35)'; ctx.lineWidth = 2 * dpr;
+    ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(1, G.ch); ctx.moveTo(G.cw - 1, 0); ctx.lineTo(G.cw - 1, G.ch); ctx.stroke();
+
+    // screen jolt when a brick is hit (only the obstacles shake, like the original)
+    let jx = 0, jy = 0;
+    if (G.state === 'dying' && G.dyingT < 0.08) {
+        const keys = [1, 0, 0.5, 0], k = Math.min(3, Math.floor(G.dyingT / 0.02));
+        const f = keys[k] * (1 - (G.dyingT % 0.02) / 0.02) + keys[Math.min(3, k + 1)] * ((G.dyingT % 0.02) / 0.02);
+        jx = G.hitVx / 30 * f * s; jy = -G.hitVy / 30 * f * s;
+    }
+
+    // obstacles
+    ctx.save();
+    ctx.translate(jx, jy);
+    for (let i = 0; i < G.rows.length; i++) {
+        const row = G.rows[i];
+        if (sy(row.y + 16) > G.ch || sy(row.y - 12) < 0) continue;       // off-screen
+        ctx.shadowColor = row.color; ctx.shadowBlur = 10 * dpr;
+        ctx.strokeStyle = row.color; ctx.lineWidth = 2 * dpr;
+        for (let k = 0; k < row.rects.length; k++) {
+            const rc = row.rects[k];
+            const x = sx(rc[0]), y = sy(rc[3]), w = (rc[2] - rc[0]) * s, h = (rc[3] - rc[1]) * s;
+            ctx.fillStyle = gearHexToRgba(row.color, 0.16);
+            gearRoundRectPath(ctx, x, y, w, h, 3 * dpr);
+            ctx.fill(); ctx.stroke();
+        }
+    }
+    ctx.restore();
+    ctx.shadowBlur = 0;
+
+    // ready: show the two possible arcs (this is the exact trajectory of a tap)
+    if (G.state === 'idle' || G.state === 'ready') {
+        const vx = C.IMPULSE_X / C.MASS, vy = C.IMPULSE_Y / C.MASS;
+        ctx.save();
+        ctx.setLineDash([4 * dpr, 7 * dpr]); ctx.lineWidth = 2 * dpr;
+        ctx.strokeStyle = 'rgba(125,211,252,0.45)';
+        [-1, 1].forEach(dir => {
+            ctx.beginPath();
+            for (let t = 0; t <= 0.9; t += 0.02) {
+                const px = g.cx + dir * vx * t, py = g.cy + vy * t + 0.5 * C.GRAVITY * t * t;
+                if (t === 0) ctx.moveTo(sx(px), sy(py)); else ctx.lineTo(sx(px), sy(py));
+            }
+            ctx.stroke();
+        });
+        ctx.restore();
+        // tap zones
+        ctx.save();
+        ctx.fillStyle = 'rgba(148,163,184,0.7)';
+        ctx.font = '700 ' + (13 * dpr) + 'px Rajdhani, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('◀  TAP LEFT', G.cw * 0.25, G.ch * 0.84);
+        ctx.fillText('TAP RIGHT  ▶', G.cw * 0.75, G.ch * 0.84);
+        ctx.strokeStyle = 'rgba(148,163,184,0.18)'; ctx.lineWidth = 1 * dpr;
+        ctx.setLineDash([3 * dpr, 6 * dpr]);
+        ctx.beginPath(); ctx.moveTo(G.cw / 2, G.ch * 0.78); ctx.lineTo(G.cw / 2, G.ch * 0.9); ctx.stroke();
+        ctx.restore();
+    }
+
+    // gear (when dying it falls straight down off the screen after the jolt)
+    let gcy = g.cy;
+    if (G.state === 'dying' && G.dyingT > 0.1 && G.dyingFall > 0) {
+        const f = Math.min(1, (G.dyingT - 0.1) / Math.max(0.0001, G.dyingDur - 0.1));
+        gcy = G.dyingCy - G.dyingFall * f;
+    }
+    gearDrawCog(ctx, sx(g.cx), sy(gcy), (C.DIAMETER / 2) * s, g.angle, '#38bdf8', dpr);
+
+    // score
+    ctx.save();
+    ctx.textAlign = 'center';
+    ctx.font = '900 ' + (56 * dpr) + 'px Rajdhani, sans-serif';
+    ctx.shadowColor = 'rgba(56,189,248,0.8)'; ctx.shadowBlur = 18 * dpr;
+    ctx.fillStyle = 'rgba(241,247,251,0.92)';
+    ctx.fillText(String(G.score), G.cw / 2, 64 * dpr);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(159,179,200,0.75)';
+    ctx.font = '700 ' + (12 * dpr) + 'px Rajdhani, sans-serif';
+    ctx.fillText('BEST ' + Math.max(G.best, G.score), G.cw / 2, 84 * dpr);
+    ctx.restore();
+}
+
+// ---------- loop / lifecycle ----------
+function gearFrame(t) {
+    const G = GEARG;
+    if (!G.running) return;
+    G.raf = requestAnimationFrame(gearFrame);
+    const dt = Math.min(0.05, Math.max(0, (t - G.last) / 1000));
+    G.last = t;
+    gearUpdate(dt);
+    gearDraw();
+}
+function gearStartLoop() {
+    const G = GEARG;
+    if (G.running) return;
+    G.running = true;
+    G.last = performance.now();
+    G.raf = requestAnimationFrame(gearFrame);
+}
+function gearStopLoop() {
+    GEARG.running = false;
+    cancelAnimationFrame(GEARG.raf);
+}
+
+function gearIsActive() {
+    const panel = document.getElementById('arcade-game-panel');
+    return !!(panel && panel.classList.contains('open') && panel.getAttribute('data-game') === 'amazinggear');
+}
+
+function gearResize() {
+    const G = GEARG, c = G.canvas;
+    if (!c) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+    const cw = c.clientWidth, ch = c.clientHeight;
+    if (!cw || !ch) return;
+    c.width = Math.round(cw * dpr);
+    c.height = Math.round(ch * dpr);
+    G.dpr = dpr; G.cw = c.width; G.ch = c.height;
+    G.s = G.ch / GEAR_CFG.H;
+    G.W = G.cw / G.s;
+}
+
+function gearBindInput() {
+    const G = GEARG;
+    if (G.bound) return;
+    G.bound = true;
+    G.canvas.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        const r = G.canvas.getBoundingClientRect();
+        gearTap((e.clientX - r.left) < r.width / 2);
+    });
+    window.addEventListener('keydown', (e) => {
+        if (!gearIsActive() || e.repeat) return;
+        if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { gearTap(true); e.preventDefault(); }
+        else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { gearTap(false); e.preventDefault(); }
+    });
+    document.addEventListener('visibilitychange', () => { if (document.hidden) gearPause(); });
+    window.addEventListener('resize', () => { if (gearIsActive() && G.state !== 'playing') { gearResize(); gearDraw(); } });
+}
+
+function gearRefreshCardBest() {
+    const el = document.getElementById('card-best-amazinggear');
+    let best = 0;
+    try { best = parseInt(localStorage.getItem('amazingGearBest') || '0') || 0; } catch (e) {}
+    if (el) el.textContent = best;
+}
+
+// Opening the panel: draw the scene and show the START overlay.
+function gearOpen() {
+    const G = GEARG;
+    G.canvas = document.getElementById('gear-canvas');
+    if (!G.canvas) return;
+    G.ctx = G.canvas.getContext('2d');
+    gearBindInput();
+    try { G.best = parseInt(localStorage.getItem('amazingGearBest') || '0') || 0; } catch (e) { G.best = 0; }
+    gearStopLoop();
+    gearResize();
+    gearReset();
+    G.state = 'idle';
+    gearDraw();
+    gearShowOverlay('start');
+}
+
+function gearBegin() {
+    const G = GEARG;
+    gearResize();
+    gearReset();
+    G.state = 'ready';
+    gearHideOverlay();
+    gearStartLoop();
+}
+
+function gearStop() {
+    const G = GEARG;
+    gearStopLoop();
+    G.state = 'idle';
+}
+
+function gearPause() {
+    const G = GEARG;
+    if (!gearIsActive()) return;
+    if (G.state !== 'ready' && G.state !== 'playing') return;
+    G.prevState = G.state;
+    G.state = 'paused';
+    gearStopLoop();
+    gearDraw();
+    gearShowOverlay('paused');
+}
+
+function gearResume() {
+    const G = GEARG;
+    if (G.state !== 'paused') return;
+    G.state = G.prevState;
+    gearHideOverlay();
+    gearStartLoop();
+}
+
+function gearOverlayAction() {
+    if (GEARG.state === 'paused') gearResume();
+    else gearBegin();
+}
+
+// ---------- overlay ----------
+function gearOverlayFade(visible) {
+    const ov = document.getElementById('gear-overlay');
+    if (!ov) return;
+    const tok = ++GEARG.ovTok;
+    if (visible) {
+        ov.style.display = 'flex';
+        ov.style.pointerEvents = 'auto';
+        ov.style.opacity = '0';
+        requestAnimationFrame(() => requestAnimationFrame(() => { if (tok === GEARG.ovTok) ov.style.opacity = '1'; }));
+    } else {
+        ov.style.opacity = '0';
+        ov.style.pointerEvents = 'none';
+        setTimeout(() => { if (tok === GEARG.ovTok) ov.style.display = 'none'; }, 300);
+    }
+}
+function gearHideOverlay() { gearOverlayFade(false); }
+
+function gearShowOverlay(mode, earned) {
+    const G = GEARG;
+    const $ = (id) => document.getElementById(id);
+    const title = $('gear-overlay-title'), sub = $('gear-overlay-subtitle'), btn = $('gear-overlay-btn');
+    const scoreRow = $('gear-overlay-score-row'), bestRow = $('gear-overlay-best-row'), rewardRow = $('gear-overlay-reward-row');
+    if (!title) return;
+    scoreRow.style.display = 'none'; bestRow.style.display = 'none'; rewardRow.style.display = 'none';
+
+    if (mode === 'over') {
+        title.textContent = 'GAME OVER';
+        sub.textContent = G.newBest ? '★ NEW BEST!' : 'THE GEAR FELL';
+        $('gear-overlay-final-score').textContent = G.score;
+        scoreRow.style.display = 'flex';
+        $('gear-overlay-best').textContent = G.best;
+        bestRow.style.display = 'block';
+        if (earned > 0) {
+            $('gear-overlay-reward-text').textContent = '+' + earned + ' ⚡ CORES EARNED';
+            rewardRow.style.display = 'flex';
+        }
+        btn.textContent = 'RETRY';
+    } else if (mode === 'paused') {
+        title.textContent = 'PAUSED';
+        sub.textContent = 'TAKE A BREATH';
+        btn.textContent = 'RESUME';
+    } else {
+        title.textContent = 'THE AMAZING GEAR';
+        sub.textContent = 'TAP LEFT OR RIGHT TO JUMP';
+        btn.textContent = 'START';
+    }
+    gearOverlayFade(true);
+}
+
+// ---------- lobby card preview: the gear climbing through a gap on the real arc ----------
+function gearDrawCardPreview() {
+    const c = document.getElementById('preview-amazinggear');
+    if (!c || window._gearPreviewRunning) return;
+    window._gearPreviewRunning = true;
+    const ctx = c.getContext('2d');
+    const CW = c.width, CH = c.height;
+    const s = CH / 40;                       // 40 world units visible
+    const WU = CW / s;
+    const C = GEAR_CFG, R = C.DIAMETER / 2;
+    const vx = C.IMPULSE_X / C.MASS, vy = C.IMPULSE_Y / C.MASS;
+    const gapX0 = WU / 2 - C.GAP / 2, gapX1 = WU / 2 + C.GAP / 2;
+    const rowStep = 26;
+    // a tiny scripted run: alternate left / right taps every 0.5s (net: straight up through the gap)
+    let cx = WU / 2 - 2.5, cy = 6, gvx = 0, gvy = 0, ang = 0, spin = 0, spinT = 0;
+    let tapT = 0, dirLeft = true, camY = 0, trail = [];
+    let last = performance.now();
+
+    function frame(now) {
+        const arcadeView = document.getElementById('view-arcade');
+        const panel = document.getElementById('arcade-game-panel');
+        if ((panel && panel.classList.contains('open')) || !arcadeView || !arcadeView.classList.contains('active')) {
+            window._gearPreviewRunning = false;
+            return;
+        }
+        const dt = Math.min(0.05, (now - last) / 1000); last = now;
+        tapT -= dt;
+        if (tapT <= 0) {
+            tapT = 0.5; dirLeft = !dirLeft;
+            gvx = (dirLeft ? -1 : 1) * vx; gvy = vy;
+            spin = dirLeft ? -C.SPIN_DEG : C.SPIN_DEG; spinT = C.SPIN_TIME;
+        }
+        gvy += C.GRAVITY * dt; cx += gvx * dt; cy += gvy * dt;
+        if (spinT > 0) { const d = Math.min(dt, spinT); ang += spin * d; spinT -= d; }
+        camY = Math.max(camY, cy - 15);
+        trail.push([cx, cy]); if (trail.length > 36) trail.shift();
+
+        ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, CW, CH);
+        const X = (x) => x * s, Y = (y) => (camY + 40 - y) * s;
+
+        // static rows every `rowStep` units (a fixed gap in the middle)
+        const firstRow = Math.floor((camY - 18) / rowStep);
+        for (let k = firstRow; k < firstRow + 3; k++) {
+            const y = 14 + k * rowStep;
+            const col = C.COLORS[((k % 5) + 5) % 5];
+            ctx.save();
+            ctx.shadowColor = col; ctx.shadowBlur = 6; ctx.strokeStyle = col; ctx.lineWidth = 1.4;
+            ctx.fillStyle = gearHexToRgba(col, 0.16);
+            [[-2, gapX0], [gapX1, WU + 2]].forEach(b => {
+                ctx.beginPath(); ctx.rect(X(b[0]), Y(y + C.BRICK_H), (b[1] - b[0]) * s, C.BRICK_H * s); ctx.fill(); ctx.stroke();
+            });
+            ctx.restore();
+        }
+
+        // trail
+        ctx.save();
+        for (let i = 0; i < trail.length; i++) {
+            ctx.globalAlpha = (i / trail.length) * 0.5;
+            ctx.fillStyle = '#7dd3fc';
+            ctx.beginPath(); ctx.arc(X(trail[i][0]), Y(trail[i][1]), 1.2, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
+
+        gearDrawCog(ctx, X(cx), Y(cy), R * s, ang, '#38bdf8', 0.6);
+        window._gearPreviewRaf = requestAnimationFrame(frame);
+    }
+    window._gearPreviewRaf = requestAnimationFrame(frame);
+}
+
 // ============================================================
 // END ARCADE
 // ============================================================

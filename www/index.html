@@ -643,40 +643,48 @@
             <!-- Game Grid -->
             <div class="arcade-game-grid" id="arcade-game-grid">
 
-                <!-- CARD: Void Hunter -->
-                <div class="arcade-game-card" onclick="arcadeOpenGame('voidhunter')">
-                    <canvas class="arcade-card-preview" id="preview-voidhunter" width="150" height="90"></canvas>
+                <!-- CARD: The Amazing Gear (playable) -->
+                <div class="arcade-game-card" id="card-amazinggear" onclick="arcadeOpenGame('amazinggear')">
+                    <canvas class="arcade-card-preview" id="preview-amazinggear" width="150" height="90"></canvas>
+                    <div class="arcade-card-info">
+                        <div class="arcade-card-name">THE AMAZING GEAR</div>
+                        <div class="arcade-card-genre">ONE-TAP SKILL</div>
+                        <div class="arcade-card-best">BEST: <span id="card-best-amazinggear">0</span></div>
+                    </div>
+                    <div class="arcade-card-play-btn">PLAY</div>
+                </div>
+
+                <!-- CARD: Void Hunter (LOCKED — set locked:false in ARCADE_GAMES in app.js to unlock) -->
+                <div class="arcade-game-card is-locked" id="card-voidhunter" onclick="arcadeOpenGame('voidhunter')">
+                    <div class="arcade-card-preview-wrap">
+                        <canvas class="arcade-card-preview" id="preview-voidhunter" width="150" height="90"></canvas>
+                        <div class="arcade-card-lock-badge">
+                            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        </div>
+                    </div>
                     <div class="arcade-card-info">
                         <div class="arcade-card-name">VOID HUNTER</div>
                         <div class="arcade-card-genre">SHOOTER</div>
                         <div class="arcade-card-best">BEST: <span id="card-best-voidhunter">0</span></div>
                     </div>
-                    <div class="arcade-card-play-btn">PLAY</div>
-                </div>
-
-                <!-- LOCKED SLOT (placeholder for next game) -->
-                <div class="arcade-game-card locked">
-                    <div class="arcade-card-lock-icon">
-                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    </div>
-                    <div class="arcade-card-info">
-                        <div class="arcade-card-name" style="color:var(--text-muted)">COMING SOON</div>
-                        <div class="arcade-card-genre">???</div>
-                    </div>
+                    <div class="arcade-card-play-btn locked-btn">LOCKED</div>
                 </div>
 
             </div>
         </div>
 
+        <!-- Lock toast (shown when a locked game is tapped) -->
+        <div id="arcade-lock-toast" class="arcade-lock-toast" style="display:none;">GAME LOCKED</div>
+
         <!-- GAME PANEL — fullscreen overlay, slides up over lobby -->
-        <div id="arcade-game-panel" class="arcade-game-panel">
+        <div id="arcade-game-panel" class="arcade-game-panel" data-game="amazinggear">
             <!-- Panel Top Bar -->
             <div class="arcade-panel-bar">
                 <button class="arcade-exit-btn" onclick="arcadeCloseGame()">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
                     EXIT
                 </button>
-                <span class="arcade-panel-title" id="arcade-panel-title">VOID HUNTER</span>
+                <span class="arcade-panel-title" id="arcade-panel-title">THE AMAZING GEAR</span>
                 <div class="arcade-panel-cores">
                     <span id="arcade-panel-cores">0 ⚡</span>
                 </div>
@@ -698,6 +706,26 @@
                         <span id="overlay-reward-text" class="overlay-reward-text">+0 ⚡ CORES</span>
                     </div>
                     <button class="arcade-launch-btn" id="overlay-btn" onclick="arcadeStartGame()">LAUNCH</button>
+                </div>
+            </div>
+
+            <!-- THE AMAZING GEAR: canvas + overlay -->
+            <canvas id="gear-canvas"></canvas>
+            <div id="gear-overlay" class="game-overlay">
+                <div class="game-overlay-box">
+                    <div class="holo-corner tl"></div><div class="holo-corner tr"></div>
+                    <div class="holo-corner bl"></div><div class="holo-corner br"></div>
+                    <div id="gear-overlay-title" class="overlay-title">THE AMAZING GEAR</div>
+                    <div id="gear-overlay-subtitle" class="overlay-subtitle">TAP LEFT OR RIGHT TO JUMP</div>
+                    <div id="gear-overlay-score-row" class="overlay-score-row" style="display:none;">
+                        <span class="overlay-score-label">SCORE</span>
+                        <span id="gear-overlay-final-score" class="overlay-score-val">0</span>
+                    </div>
+                    <div id="gear-overlay-best-row" class="overlay-score-label" style="display:none;">BEST <span id="gear-overlay-best" style="color:var(--neon-blue);">0</span></div>
+                    <div id="gear-overlay-reward-row" class="overlay-reward-row" style="display:none;">
+                        <span id="gear-overlay-reward-text" class="overlay-reward-text">+0 ⚡ CORES EARNED</span>
+                    </div>
+                    <button class="arcade-launch-btn" id="gear-overlay-btn" onclick="gearOverlayAction()">START</button>
                 </div>
             </div>
         </div>
