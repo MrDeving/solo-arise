@@ -4199,7 +4199,6 @@ function arcadeOnExit() {
         cancelAnimationFrame(_arcadeLoop);
     }
     gearStop();
-    if (window.msStop) msStop();
     // Also close the game panel if open
     const panel = document.getElementById('arcade-game-panel');
     if (panel && panel.classList.contains('open')) arcadeSetFullscreen(false);
@@ -4229,7 +4228,6 @@ function arcadeSetFullscreen(on) {
 // Game registry. locked:true => the card shows a lock and can't be opened.
 const ARCADE_GAMES = {
     amazinggear: { title: 'THE AMAZING GEAR', locked: false },
-    minesweeper: { title: 'MINESWEEPER',      locked: false },
     voidhunter:  { title: 'VOID HUNTER',      locked: true  }   // set to false to unlock
 };
 
@@ -4274,8 +4272,6 @@ function arcadeOpenGame(gameId) {
         if (!panel.classList.contains('open')) return;
         if (gameId === 'amazinggear') {
             gearOpen();
-        } else if (gameId === 'minesweeper') {
-            msOpen();
         } else {
             arcadeInit();
         }
@@ -4290,7 +4286,6 @@ function arcadeCloseGame() {
         cancelAnimationFrame(_arcadeLoop);
     }
     gearStop();
-    if (window.msStop) msStop();
     // Slide panel back down (and leave fullscreen)
     arcadeSetFullscreen(false);
     const panel = document.getElementById('arcade-game-panel');
