@@ -4201,7 +4201,28 @@ function arcadeOnExit() {
     gearStop();
     // Also close the game panel if open
     const panel = document.getElementById('arcade-game-panel');
+    if (panel && panel.classList.contains('open')) arcadeSetFullscreen(false);
     if (panel) panel.classList.remove('open');
+}
+
+// Real fullscreen (like expanding a video): hides the Android status + navigation bars.
+// Native side = ImmersiveMode plugin (see build.yml). In a normal browser we use the Fullscreen API.
+function arcadeSetFullscreen(on) {
+    try {
+        const P = window.Capacitor && window.Capacitor.Plugins && window.Capacitor.Plugins.ImmersiveMode;
+        if (P) {
+            Promise.resolve(on ? P.enable() : P.disable()).catch(() => {});
+            return;
+        }
+        const el = document.documentElement;
+        if (on && el.requestFullscreen && !document.fullscreenElement) {
+            const r = el.requestFullscreen();
+            if (r && r.catch) r.catch(() => {});
+        } else if (!on && document.fullscreenElement && document.exitFullscreen) {
+            const r = document.exitFullscreen();
+            if (r && r.catch) r.catch(() => {});
+        }
+    } catch (e) {}
 }
 
 // Game registry. locked:true => the card shows a lock and can't be opened.
@@ -4242,7 +4263,8 @@ function arcadeOpenGame(gameId) {
     if (titleEl) titleEl.textContent = game.title;
     panel.setAttribute('data-game', gameId);
 
-    // Slide panel up
+    // Slide panel up (and go fullscreen)
+    arcadeSetFullscreen(true);
     panel.classList.add('open');
 
     // Init the canvas after panel is visible
@@ -4264,7 +4286,8 @@ function arcadeCloseGame() {
         cancelAnimationFrame(_arcadeLoop);
     }
     gearStop();
-    // Slide panel back down
+    // Slide panel back down (and leave fullscreen)
+    arcadeSetFullscreen(false);
     const panel = document.getElementById('arcade-game-panel');
     if (panel) panel.classList.remove('open');
 
@@ -4400,6 +4423,8 @@ const GEAR_CFG = {
     START_BOTTOM: 32.14,               // gear's starting bottom edge
     CAM_LINE: 29.14,                   // gear bottom stays at/below this screen height
     STEP: 1 / 120,                     // physics sub-step
+    HIT: 0.86,                         // collision radius vs. drawn radius (forgiving: near-misses feel fair)
+    CAM_EASE: 16,                      // how quickly the drawn camera catches up with the real one
     POINTS_PER_CORE: 5,                // score needed for +1 ⚡ energy core
     COLORS: ['#38bdf8', '#a78bfa', '#f472b6', '#fbbf24', '#34d399'],
 };
@@ -4415,7 +4440,8 @@ const GEARG = {
     gear: { cx: 0, cy: 0, vx: 0, vy: 0, angle: 0, spin: 0, spinT: 0 },
     rows: [], nextRowY: 0, rowCount: 0,
     dyingT: 0, dyingFall: 0, dyingDur: 0, dyingCy: 0, hitVx: 0, hitVy: 0,
-    stars: [],
+    stars: [], parts: [], trail: [],
+    viewY: 0, popT: 0, hitStop: 0,
 };
 
 // ---------- level generation (same formulas as the original) ----------
@@ -4450,7 +4476,8 @@ function gearRandomQuadY(brickY, top, score) {
 function gearMakeRow(y, first) {
     const C = GEAR_CFG, G = GEARG;
     const bw = G.W - C.GAP;
-    const x = gearRandomBrickX(G.W, G.score);
+    let x = gearRandomBrickX(G.W, G.score);
+    if (first) x = G.W / 2 - bw - C.GAP / 2 + (Math.random() - 0.5) * 3;   // warm-up row: gap roughly above the gear
     const rects = [
         [x, y, x + bw, y + C.BRICK_H],                                   // left brick
         [x + bw + C.GAP, y, x + bw + C.GAP + bw, y + C.BRICK_H],         // right brick
@@ -4489,6 +4516,7 @@ function gearReset() {
     G.maxBottom = C.START_BOTTOM;
     G.camY = C.START_BOTTOM - C.CAM_LINE;          // = 3: the camera starts 3 units up
     G.rows = []; G.rowCount = 0;
+    G.viewY = G.camY; G.popT = 0; G.parts = []; G.trail = []; G.hitStop = 0;
     G.nextRowY = C.DIAMETER + C.H;                 // first row sits just above the first screen
     // the original keeps 3 rows alive: spawn them all up front
     for (let i = 0; i < 3; i++) {
@@ -4499,6 +4527,55 @@ function gearReset() {
     G.dyingT = 0;
     if (!G.stars.length) {
         for (let i = 0; i < 60; i++) G.stars.push({ x: Math.random(), y: Math.random() * C.H, r: Math.random() * 1.1 + 0.4, a: Math.random() * 0.5 + 0.15 });
+    }
+}
+
+
+// ---------- feel: tiny synthesized sounds, shards, haptics ----------
+const GEAR_SOUND = true;          // set to false to silence the game
+let _gearAC = null;
+function gearSfx(kind) {
+    if (!GEAR_SOUND) return;
+    try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return;
+        if (!_gearAC) _gearAC = new AC();
+        const ac = _gearAC;
+        if (ac.state === 'suspended') ac.resume();
+        const t = ac.currentTime;
+        const tone = (f0, f1, dur, vol, type, delay) => {
+            const o = ac.createOscillator(), gn = ac.createGain();
+            const st = t + (delay || 0);
+            o.type = type || 'sine';
+            o.frequency.setValueAtTime(f0, st);
+            o.frequency.exponentialRampToValueAtTime(f1, st + dur);
+            gn.gain.setValueAtTime(0.0001, st);
+            gn.gain.exponentialRampToValueAtTime(vol, st + 0.008);
+            gn.gain.exponentialRampToValueAtTime(0.0001, st + dur);
+            o.connect(gn); gn.connect(ac.destination);
+            o.start(st); o.stop(st + dur + 0.03);
+        };
+        if (kind === 'jump')       tone(290 + Math.random() * 50, 520, 0.09, 0.05, 'triangle');
+        else if (kind === 'score') { tone(880, 900, 0.09, 0.05); tone(1320, 1340, 0.15, 0.045, 'sine', 0.07); }
+        else if (kind === 'hit')   { tone(190, 45, 0.22, 0.13, 'square'); tone(90, 40, 0.26, 0.12); }
+        else if (kind === 'fall')  tone(230, 70, 0.3, 0.07, 'triangle');
+    } catch (e) {}
+}
+
+function gearBurst(x, y, color, n, speed) {
+    const G = GEARG;
+    for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, sp = speed * (0.35 + Math.random() * 0.8);
+        const life = 0.35 + Math.random() * 0.45;
+        G.parts.push({ x, y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp + speed * 0.25, life, max: life, r: 0.22 + Math.random() * 0.3, color });
+    }
+}
+function gearUpdateParts(dt) {
+    const G = GEARG;
+    for (let i = G.parts.length - 1; i >= 0; i--) {
+        const p = G.parts[i];
+        p.vy -= 70 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt;
+        if (p.life <= 0) G.parts.splice(i, 1);
     }
 }
 
@@ -4516,6 +4593,8 @@ function gearTap(left) {
         g.spin = left ? -C.SPIN_DEG : C.SPIN_DEG;     // left = counter-clockwise, right = clockwise
         g.spinT = C.SPIN_TIME;
         G.jumpFlag = true;
+        gearBurst(g.cx, g.cy - C.DIAMETER * 0.4, '#94a3b8', 3, 7);   // little puff under the gear
+        gearSfx('jump');
     }
 }
 
@@ -4527,7 +4606,7 @@ function gearCircleRect(cx, cy, r, rc) {
 }
 
 function gearPhysics(dt) {
-    const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2;
+    const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2, Rh = R * C.HIT;
     g.vy += C.GRAVITY * dt;
     if (g.vy < -C.MAX_FALL) g.vy = -C.MAX_FALL;
     g.cx += g.vx * dt;
@@ -4544,11 +4623,13 @@ function gearPhysics(dt) {
         const row = G.rows[i];
         if (g.cy + R < row.y - 12 || g.cy - R > row.y + 16) continue;   // far away
         for (let k = 0; k < row.rects.length; k++) {
-            if (gearCircleRect(g.cx, g.cy, R, row.rects[k])) { gearHit(); return; }
+            if (gearCircleRect(g.cx, g.cy, Rh, row.rects[k])) { gearHit(); return; }
         }
         if (!row.scored && gearCircleRect(g.cx, g.cy, R, row.sensor)) {
             row.scored = true;
             G.score++;
+            G.popT = 0.22;
+            gearSfx('score');
         }
     }
 }
@@ -4556,6 +4637,13 @@ function gearPhysics(dt) {
 function gearUpdate(dt) {
     const G = GEARG, C = GEAR_CFG, g = G.gear, R = C.DIAMETER / 2;
     G.time += dt;
+    // hit-stop: everything freezes for a beat when you smack a brick
+    if (G.state === 'dying' && G.hitStop > 0) { G.hitStop -= dt; return; }
+
+    if (G.popT > 0) G.popT = Math.max(0, G.popT - dt);
+    gearUpdateParts(dt);
+    // the drawn camera eases toward the real one, so climbing feels smooth instead of stepped
+    G.viewY += (G.camY - G.viewY) * (1 - Math.exp(-C.CAM_EASE * dt));
 
     // spin is purely visual: 400 deg/s for up to 1s after a tap
     if (g.spinT > 0) {
@@ -4580,6 +4668,9 @@ function gearUpdate(dt) {
             if (++n > 12) { G.acc = 0; break; }
         }
 
+        G.trail.push([g.cx, g.cy]);
+        if (G.trail.length > 9) G.trail.shift();
+
         // camera only ever moves up, following the highest point reached
         G.maxBottom = Math.max(G.maxBottom, g.cy - R);
         G.camY = Math.max(G.maxBottom, C.START_BOTTOM) - C.CAM_LINE;
@@ -4600,8 +4691,14 @@ function gearHit() {
     const fallTime = Math.min(0.5, 1.6 * dist / 60);
     G.dyingDur = 0.1 + fallTime;                                     // 0.1s jolt + fall
     G.dyingT = 0;
+    G.hitStop = 0.07;
     g.vx = 0; g.vy = 0; g.spinT = 0;
+    G.trail = [];
     G.state = 'dying';
+    gearBurst(g.cx, g.cy, '#e6eef6', 9, 24);
+    gearBurst(g.cx, g.cy, C.COLORS[gearColorIndex(G.score)], 7, 18);
+    gearSfx('hit');
+    try { if (navigator.vibrate) navigator.vibrate(30); } catch (e) {}
 }
 
 // Bottom of the screen: no animation, straight to game over.
@@ -4611,7 +4708,9 @@ function gearGameOver() {
     G.hitVx = 0; G.hitVy = 0;
     G.dyingCy = G.gear.cy; G.dyingFall = 0;
     G.dyingT = 0; G.dyingDur = 0.25;
+    G.trail = [];
     G.state = 'dying';
+    gearSfx('fall');
 }
 
 function gearFinish() {
@@ -4648,57 +4747,65 @@ function gearHexToRgba(hex, a) {
     return 'rgba(' + (n >> 16 & 255) + ',' + (n >> 8 & 255) + ',' + (n & 255) + ',' + a + ')';
 }
 
-function gearDrawCog(ctx, x, y, r, angleDeg, color, dpr) {
+function gearDrawCog(ctx, x, y, r, angleDeg, sxs, sys) {
     const teeth = 8, step = Math.PI * 2 / teeth;
     ctx.save();
     ctx.translate(x, y);
+    ctx.scale(sxs || 1, sys || 1);
     ctx.rotate(angleDeg * Math.PI / 180);
     ctx.beginPath();
     for (let i = 0; i < teeth; i++) {
         const a = i * step;
-        const pts = [[a - step * 0.30, r * 0.74], [a - step * 0.17, r], [a + step * 0.17, r], [a + step * 0.30, r * 0.74]];
+        const pts = [[a - step * 0.30, r * 0.76], [a - step * 0.17, r], [a + step * 0.17, r], [a + step * 0.30, r * 0.76]];
         pts.forEach((p, j) => {
             const px = Math.cos(p[0]) * p[1], py = Math.sin(p[0]) * p[1];
             if (i === 0 && j === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
         });
     }
     ctx.closePath();
-    ctx.shadowColor = color; ctx.shadowBlur = 14 * dpr;
-    ctx.fillStyle = gearHexToRgba(color, 0.22);
+    ctx.fillStyle = '#e6eef6';
     ctx.fill();
-    ctx.lineWidth = 2 * dpr; ctx.strokeStyle = color; ctx.lineJoin = 'round';
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.28, 0, Math.PI * 2);
-    ctx.lineWidth = 1.5 * dpr; ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.56, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(15,23,42,0.22)'; ctx.lineWidth = Math.max(1, r * 0.07); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, 0, r * 0.26, 0, Math.PI * 2);
+    ctx.fillStyle = '#020617'; ctx.fill();
+    ctx.restore();
+}
+
+// Flat block with a lit top edge and a shaded bottom edge (no glow: cheaper and reads clearer).
+function gearDrawBrick(ctx, x, y, w, h, color, dpr) {
+    const r = 3 * dpr, edge = Math.max(2, h * 0.15);
+    ctx.save();
+    gearRoundRectPath(ctx, x, y, w, h, r);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,255,255,0.28)'; ctx.fillRect(x, y, w, edge);
+    ctx.fillStyle = 'rgba(0,0,0,0.22)';      ctx.fillRect(x, y + h - edge, w, edge);
     ctx.restore();
 }
 
 function gearDraw() {
     const G = GEARG, C = GEAR_CFG, ctx = G.ctx;
     if (!ctx) return;
-    const s = G.s, dpr = G.dpr, g = G.gear, W = G.W, H = C.H;
+    const s = G.s, dpr = G.dpr, g = G.gear, H = C.H, R = C.DIAMETER / 2;
+    const vY = G.viewY;
     const sx = (x) => x * s;
-    const sy = (y) => (G.camY + H - y) * s;
+    const sy = (y) => (vY + H - y) * s;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.globalAlpha = 1;
     ctx.fillStyle = '#020617';
     ctx.fillRect(0, 0, G.cw, G.ch);
 
-    // parallax stars (slow, so you feel the climb)
-    ctx.fillStyle = '#e0f2fe';
+    // faint parallax stars
+    ctx.fillStyle = '#cfe6f7';
     for (let i = 0; i < G.stars.length; i++) {
         const st = G.stars[i];
-        const yy = (((st.y - G.camY * 0.25) % H) + H) % H;
-        ctx.globalAlpha = st.a;
+        const yy = (((st.y - vY * 0.2) % H) + H) % H;
+        ctx.globalAlpha = st.a * 0.8;
         ctx.beginPath(); ctx.arc(st.x * G.cw, yy * s, st.r * dpr, 0, Math.PI * 2); ctx.fill();
     }
     ctx.globalAlpha = 1;
-
-    // side walls
-    ctx.strokeStyle = 'rgba(56,189,248,0.35)'; ctx.lineWidth = 2 * dpr;
-    ctx.beginPath(); ctx.moveTo(1, 0); ctx.lineTo(1, G.ch); ctx.moveTo(G.cw - 1, 0); ctx.lineTo(G.cw - 1, G.ch); ctx.stroke();
 
     // screen jolt when a brick is hit (only the obstacles shake, like the original)
     let jx = 0, jy = 0;
@@ -4714,18 +4821,23 @@ function gearDraw() {
     for (let i = 0; i < G.rows.length; i++) {
         const row = G.rows[i];
         if (sy(row.y + 16) > G.ch || sy(row.y - 12) < 0) continue;       // off-screen
-        ctx.shadowColor = row.color; ctx.shadowBlur = 10 * dpr;
-        ctx.strokeStyle = row.color; ctx.lineWidth = 2 * dpr;
         for (let k = 0; k < row.rects.length; k++) {
             const rc = row.rects[k];
-            const x = sx(rc[0]), y = sy(rc[3]), w = (rc[2] - rc[0]) * s, h = (rc[3] - rc[1]) * s;
-            ctx.fillStyle = gearHexToRgba(row.color, 0.16);
-            gearRoundRectPath(ctx, x, y, w, h, 3 * dpr);
-            ctx.fill(); ctx.stroke();
+            gearDrawBrick(ctx, sx(rc[0]), sy(rc[3]), (rc[2] - rc[0]) * s, (rc[3] - rc[1]) * s, row.color, dpr);
         }
     }
     ctx.restore();
-    ctx.shadowBlur = 0;
+
+    // short fading trail behind the gear
+    if (G.state === 'playing') {
+        ctx.fillStyle = '#e6eef6';
+        for (let i = 0; i < G.trail.length; i++) {
+            const f = (i + 1) / G.trail.length;
+            ctx.globalAlpha = f * 0.2;
+            ctx.beginPath(); ctx.arc(sx(G.trail[i][0]), sy(G.trail[i][1]), R * s * 0.55 * f, 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+    }
 
     // gear (when dying it falls straight down off the screen after the jolt)
     let gcy = g.cy;
@@ -4733,19 +4845,44 @@ function gearDraw() {
         const f = Math.min(1, (G.dyingT - 0.1) / Math.max(0.0001, G.dyingDur - 0.1));
         gcy = G.dyingCy - G.dyingFall * f;
     }
-    gearDrawCog(ctx, sx(g.cx), sy(gcy), (C.DIAMETER / 2) * s, g.angle, '#38bdf8', dpr);
+    if (G.state === 'idle' || G.state === 'ready') gcy += Math.sin(G.time * 3.2) * 0.35;   // gentle idle bob
+    let sxs = 1, sys = 1;
+    if (G.state === 'playing') {                                    // slight stretch with speed
+        const k = Math.min(1, Math.abs(g.vy) / 62);
+        sxs = 1 - 0.05 * k; sys = 1 + 0.08 * k;
+    }
+    gearDrawCog(ctx, sx(g.cx), sy(gcy), R * s, g.angle, sxs, sys);
 
-    // score
+    // shards / puffs
+    for (let i = 0; i < G.parts.length; i++) {
+        const p = G.parts[i], z = p.r * s * 2;
+        ctx.globalAlpha = Math.max(0, p.life / p.max);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(sx(p.x) - z / 2, sy(p.y) - z / 2, z, z);
+    }
+    ctx.globalAlpha = 1;
+
+    // score + best (outlined so it stays readable over bricks)
     ctx.save();
     ctx.textAlign = 'center';
+    ctx.lineJoin = 'round';
+    const pop = G.popT > 0 ? 1 + 0.3 * (G.popT / 0.22) : 1;
+    ctx.translate(G.cw / 2, 64 * dpr);
+    ctx.scale(pop, pop);
     ctx.font = '900 ' + (56 * dpr) + 'px Rajdhani, sans-serif';
-    ctx.shadowColor = 'rgba(56,189,248,0.8)'; ctx.shadowBlur = 18 * dpr;
-    ctx.fillStyle = 'rgba(241,247,251,0.92)';
-    ctx.fillText(String(G.score), G.cw / 2, 64 * dpr);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(159,179,200,0.75)';
+    ctx.lineWidth = 7 * dpr; ctx.strokeStyle = 'rgba(2,6,23,0.55)';
+    ctx.strokeText(String(G.score), 0, 0);
+    ctx.fillStyle = '#f1f7fb';
+    ctx.fillText(String(G.score), 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.textAlign = 'center'; ctx.lineJoin = 'round';
     ctx.font = '700 ' + (12 * dpr) + 'px Rajdhani, sans-serif';
-    ctx.fillText('BEST ' + Math.max(G.best, G.score), G.cw / 2, 84 * dpr);
+    const bestTxt = 'BEST ' + Math.max(G.best, G.score);
+    ctx.lineWidth = 4 * dpr; ctx.strokeStyle = 'rgba(2,6,23,0.55)';
+    ctx.strokeText(bestTxt, G.cw / 2, 84 * dpr);
+    ctx.fillStyle = 'rgba(159,179,200,0.85)';
+    ctx.fillText(bestTxt, G.cw / 2, 84 * dpr);
     ctx.restore();
 }
 
@@ -4804,7 +4941,15 @@ function gearBindInput() {
         else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { gearTap(false); e.preventDefault(); }
     });
     document.addEventListener('visibilitychange', () => { if (document.hidden) gearPause(); });
-    window.addEventListener('resize', () => { if (gearIsActive() && G.state !== 'playing') { gearResize(); gearDraw(); } });
+    // Entering/leaving fullscreen changes the canvas size: re-fit it (never mid-run).
+    const relayout = () => {
+        if (!gearIsActive() || G.state === 'playing' || G.state === 'dying') return;
+        gearResize();
+        if (G.state === 'idle' || G.state === 'ready') gearReset();
+        gearDraw();
+    };
+    window.addEventListener('resize', relayout);
+    if (window.ResizeObserver) new ResizeObserver(relayout).observe(G.canvas);
 }
 
 function gearRefreshCardBest() {
@@ -4907,7 +5052,7 @@ function gearShowOverlay(mode, earned) {
 
     if (mode === 'over') {
         title.textContent = 'GAME OVER';
-        sub.textContent = G.newBest ? '★ NEW BEST!' : 'THE GEAR FELL';
+        sub.textContent = G.newBest ? '★ NEW BEST' : '';
         $('gear-overlay-final-score').textContent = G.score;
         scoreRow.style.display = 'flex';
         $('gear-overlay-best').textContent = G.best;
@@ -4919,13 +5064,14 @@ function gearShowOverlay(mode, earned) {
         btn.textContent = 'RETRY';
     } else if (mode === 'paused') {
         title.textContent = 'PAUSED';
-        sub.textContent = 'TAKE A BREATH';
+        sub.textContent = '';
         btn.textContent = 'RESUME';
     } else {
         title.textContent = 'THE AMAZING GEAR';
         sub.textContent = 'TAP LEFT OR RIGHT TO JUMP';
         btn.textContent = 'START';
     }
+    sub.style.display = sub.textContent ? '' : 'none';
     gearOverlayFade(true);
 }
 
@@ -4964,7 +5110,7 @@ function gearDrawCardPreview() {
         gvy += C.GRAVITY * dt; cx += gvx * dt; cy += gvy * dt;
         if (spinT > 0) { const d = Math.min(dt, spinT); ang += spin * d; spinT -= d; }
         camY = Math.max(camY, cy - 15);
-        trail.push([cx, cy]); if (trail.length > 36) trail.shift();
+        trail.push([cx, cy]); if (trail.length > 10) trail.shift();
 
         ctx.fillStyle = '#020617'; ctx.fillRect(0, 0, CW, CH);
         const X = (x) => x * s, Y = (y) => (camY + 40 - y) * s;
@@ -4974,25 +5120,20 @@ function gearDrawCardPreview() {
         for (let k = firstRow; k < firstRow + 3; k++) {
             const y = 14 + k * rowStep;
             const col = C.COLORS[((k % 5) + 5) % 5];
-            ctx.save();
-            ctx.shadowColor = col; ctx.shadowBlur = 6; ctx.strokeStyle = col; ctx.lineWidth = 1.4;
-            ctx.fillStyle = gearHexToRgba(col, 0.16);
             [[-2, gapX0], [gapX1, WU + 2]].forEach(b => {
-                ctx.beginPath(); ctx.rect(X(b[0]), Y(y + C.BRICK_H), (b[1] - b[0]) * s, C.BRICK_H * s); ctx.fill(); ctx.stroke();
+                gearDrawBrick(ctx, X(b[0]), Y(y + C.BRICK_H), (b[1] - b[0]) * s, C.BRICK_H * s, col, 0.5);
             });
-            ctx.restore();
         }
 
-        // trail
-        ctx.save();
+        ctx.fillStyle = '#e6eef6';
         for (let i = 0; i < trail.length; i++) {
-            ctx.globalAlpha = (i / trail.length) * 0.5;
-            ctx.fillStyle = '#7dd3fc';
-            ctx.beginPath(); ctx.arc(X(trail[i][0]), Y(trail[i][1]), 1.2, 0, Math.PI * 2); ctx.fill();
+            const f = (i + 1) / trail.length;
+            ctx.globalAlpha = f * 0.2;
+            ctx.beginPath(); ctx.arc(X(trail[i][0]), Y(trail[i][1]), R * s * 0.55 * f, 0, Math.PI * 2); ctx.fill();
         }
-        ctx.restore();
+        ctx.globalAlpha = 1;
 
-        gearDrawCog(ctx, X(cx), Y(cy), R * s, ang, '#38bdf8', 0.6);
+        gearDrawCog(ctx, X(cx), Y(cy), R * s, ang, 1, 1);
         window._gearPreviewRaf = requestAnimationFrame(frame);
     }
     window._gearPreviewRaf = requestAnimationFrame(frame);
