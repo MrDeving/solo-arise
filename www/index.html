@@ -654,6 +654,17 @@
                     <div class="arcade-card-play-btn">PLAY</div>
                 </div>
 
+                                <!-- CARD: Minesweeper -->
+                <div class="arcade-game-card" id="card-minesweeper" onclick="arcadeOpenGame('minesweeper')">
+                    <canvas class="arcade-card-preview" id="preview-minesweeper" width="150" height="90"></canvas>
+                    <div class="arcade-card-info">
+                        <div class="arcade-card-name">MINESWEEPER</div>
+                        <div class="arcade-card-genre">PUZZLE</div>
+                        <div class="arcade-card-best">WINS: <span id="card-best-minesweeper">0</span></div>
+                    </div>
+                    <div class="arcade-card-play-btn">PLAY</div>
+                </div>
+
                 <!-- CARD: Void Hunter (LOCKED — set locked:false in ARCADE_GAMES in app.js to unlock) -->
                 <div class="arcade-game-card is-locked" id="card-voidhunter" onclick="arcadeOpenGame('voidhunter')">
                     <div class="arcade-card-preview-wrap">
@@ -853,6 +864,7 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+        <script src="app.js"></script>
+    <script src="minesweeper.js"></script>
 </body>
 </html>
