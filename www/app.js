@@ -442,12 +442,9 @@ function initSortable() {
             if (movedQuestIndex === -1) return;
             const movedQuest = systemState.quests.splice(movedQuestIndex, 1)[0];
 
-            // 2. If pinned, snap back to top zone; if unpinned, stay below all pinned
-            if (movedQuest.pinned) {
-                const firstUnpinnedIndex = systemState.quests.findIndex(q => !q.pinned);
-                const insertAt = firstUnpinnedIndex === -1 ? systemState.quests.length : firstUnpinnedIndex;
-                systemState.quests.splice(insertAt, 0, movedQuest);
-            } else if (nextEl) {
+            // 2. Save the task exactly where it was dropped (pinned tasks can't leave
+            //    the pinned zone because onMove already blocks that)
+            if (nextEl) {
                 const nextId = parseInt(nextEl.getAttribute('data-id'));
                 const nextQuestIndex = systemState.quests.findIndex(q => q.id === nextId);
                 systemState.quests.splice(nextQuestIndex, 0, movedQuest);
