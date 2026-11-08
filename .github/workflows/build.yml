@@ -474,9 +474,9 @@ jobs:
                       android:textColor="#94A3B8"/>
               </LinearLayout>
               <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
-                  <ListView android:id="@+id/w_list"
+                  <LinearLayout android:id="@+id/w_rows"
                       android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:divider="@null" android:dividerHeight="0dp" android:scrollbars="none"/>
+                      android:orientation="vertical"/>
                   <TextView android:id="@+id/w_empty"
                       android:layout_width="match_parent" android:layout_height="match_parent"
                       android:gravity="center" android:textSize="11sp" android:textStyle="bold"
@@ -771,14 +771,14 @@ jobs:
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
                   for (int id : ids) safeRender(ctx, mgr, id);
-                  try { mgr.notifyAppWidgetViewDataChanged(ids, R.id.w_list); } catch (Throwable ignored) {}
+
               }
 
               // Called while the user drags the resize handles
               @Override
               public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle newOptions) {
                   safeRender(ctx, mgr, id);
-                  try { mgr.notifyAppWidgetViewDataChanged(new int[]{id}, R.id.w_list); } catch (Throwable ignored) {}
+
               }
 
               private void safeRender(Context ctx, AppWidgetManager mgr, int id) {
@@ -792,12 +792,7 @@ jobs:
               private void render(Context ctx, AppWidgetManager mgr, int id) {
                   RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks);
 
-                  Intent svc = new Intent(ctx, TasksWidgetService.class);
-                  svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
-                  svc.putExtra("kind", kind());
-                  svc.setData(Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME)));
-                  v.setRemoteAdapter(R.id.w_list, svc);
-                  v.setEmptyView(R.id.w_list, R.id.w_empty);
+
 
                   JSONArray items = WidgetData.list(ctx, kind());
                   int total = 0, done = 0;
@@ -826,14 +821,58 @@ jobs:
                   PendingIntent open = openApp(ctx, false);
                   v.setOnClickPendingIntent(R.id.w_header, open);
                   v.setOnClickPendingIntent(R.id.w_empty, open);
-                  v.setPendingIntentTemplate(R.id.w_list, openApp(ctx, true));
 
-                  // very short widget: hide the header so the list gets the space
                   Bundle o = mgr.getAppWidgetOptions(id);
                   int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
-                  v.setViewVisibility(R.id.w_header, (h > 0 && h < 90) ? View.GONE : View.VISIBLE);
+                  boolean hideHeader = (h > 0 && h < 90);
+                  v.setViewVisibility(R.id.w_header, hideHeader ? View.GONE : View.VISIBLE);
+
+                  // rows are drawn straight into the widget (no list service)
+                  int maxRows = 5;
+                  if (h > 0) maxRows = Math.max(1, (h - (hideHeader ? 20 : 52)) / 40);
+                  if (maxRows > 14) maxRows = 14;
+
+                  v.removeAllViews(R.id.w_rows);
+                  int shown = 0;
+                  for (int pass = 0; pass < 2 && shown < maxRows; pass++) {
+                      for (int i = 0; i < items.length() && shown < maxRows; i++) {
+                          JSONObject t = items.optJSONObject(i);
+                          if (t == null) continue;
+                          boolean isDone = t.optInt("d", 0) == 1;
+                          if ((pass == 0 && isDone) || (pass == 1 && !isDone)) continue;
+                          v.addView(R.id.w_rows, buildRow(ctx, t, isDone, open));
+                          shown++;
+                      }
+                  }
+                  v.setViewVisibility(R.id.w_empty, total == 0 ? View.VISIBLE : View.GONE);
+                  v.setViewVisibility(R.id.w_rows, total == 0 ? View.GONE : View.VISIBLE);
+                  if (total > shown) v.setTextViewText(R.id.w_count, count + "  +" + (total - shown));
 
                   mgr.updateAppWidget(id, v);
+              }
+
+              private static RemoteViews buildRow(Context ctx, JSONObject t, boolean done, PendingIntent open) {
+                  RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_task_item);
+                  String title = t.optString("t", "");
+                  int color;
+                  try { color = android.graphics.Color.parseColor(t.optString("c", "#38bdf8")); }
+                  catch (Throwable e) { color = 0xFF38BDF8; }
+
+                  rv.setTextViewText(R.id.row_title, title);
+                  rv.setTextViewText(R.id.row_check, done ? "✔" : "○");
+                  try {
+                      if (done && title.length() > 0) {
+                          android.text.SpannableString s = new android.text.SpannableString(title);
+                          s.setSpan(new android.text.style.StrikethroughSpan(), 0, title.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                          rv.setTextViewText(R.id.row_title, s);
+                      }
+                  } catch (Throwable ignored) {}
+                  try { rv.setTextColor(R.id.row_title, done ? 0xFF64748B : 0xFFE2E8F0); } catch (Throwable ignored) {}
+                  try { rv.setTextColor(R.id.row_check, done ? 0xFF4ADE80 : color); } catch (Throwable ignored) {}
+                  try { rv.setInt(R.id.row_bar, "setBackgroundColor", done ? ((color & 0x00FFFFFF) | 0x55000000) : color); } catch (Throwable ignored) {}
+                  try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg); } catch (Throwable ignored) {}
+                  try { rv.setOnClickPendingIntent(R.id.row_card, open); } catch (Throwable ignored) {}
+                  return rv;
               }
 
               static PendingIntent openApp(Context ctx, boolean mutable) {
