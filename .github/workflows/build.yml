@@ -703,38 +703,43 @@ jobs:
 
           cat > android/app/src/main/res/layout/widget_streak.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:id="@+id/s_root"
-              android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:gravity="center" android:padding="10dp"
-              android:background="@drawable/widget_card_bg">
-              <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:orientation="horizontal" android:gravity="center_vertical">
-                  <ImageView android:id="@+id/s_flame"
-                      android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_flame"/>
-                  <TextView android:id="@+id/s_number"
+          <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/s_outer"
+              android:layout_width="match_parent" android:layout_height="match_parent">
+              <LinearLayout
+                  android:id="@+id/s_root"
+                  android:layout_width="match_parent" android:layout_height="match_parent"
+                  android:orientation="vertical" android:gravity="center" android:padding="8dp"
+                  android:background="@drawable/widget_card_bg">
+                  <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical">
+                      <ImageView android:id="@+id/s_flame"
+                          android:layout_width="28dp" android:layout_height="28dp" android:src="@drawable/ic_flame"/>
+                      <TextView android:id="@+id/s_number"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:paddingStart="6dp" android:textSize="38sp" android:textStyle="bold"
+                          android:maxLines="1" android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
+                  </LinearLayout>
+                  <TextView android:id="@+id/s_label"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:paddingStart="8dp" android:textSize="42sp" android:textStyle="bold"
+                      android:maxLines="1" android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.16"
                       android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
-              </LinearLayout>
-              <TextView android:id="@+id/s_label"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:textSize="13sp" android:textStyle="bold" android:letterSpacing="0.22"
-                  android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
-              <LinearLayout android:id="@+id/s_status_row"
-                  android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center_vertical"
-                  android:paddingStart="7dp" android:paddingEnd="11dp" android:paddingTop="5dp" android:paddingBottom="5dp"
-                  android:background="@drawable/widget_status_off_bg">
-                  <ImageView android:id="@+id/s_status_icon"
-                      android:layout_width="14dp" android:layout_height="14dp"
-                      android:src="@drawable/ic_status_off"/>
-                  <TextView android:id="@+id/s_status"
+                  <LinearLayout android:id="@+id/s_status_row"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:paddingStart="6dp" android:textSize="12sp" android:textStyle="bold"
-                      android:letterSpacing="0.12" android:fontFamily="@font/rajdhani" android:textColor="#94A3B8"/>
+                      android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center_vertical"
+                      android:paddingStart="5dp" android:paddingEnd="9dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                      android:background="@drawable/widget_status_off_bg">
+                      <ImageView android:id="@+id/s_status_icon"
+                          android:layout_width="12dp" android:layout_height="12dp"
+                          android:src="@drawable/ic_status_off"/>
+                      <TextView android:id="@+id/s_status"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:paddingStart="5dp" android:maxLines="1"
+                          android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.08"
+                          android:fontFamily="@font/rajdhani" android:textColor="#94A3B8"/>
+                  </LinearLayout>
               </LinearLayout>
-          </LinearLayout>
+          </FrameLayout>
           WEOF
 
           cat > android/app/src/main/res/layout/widget_streak_small.xml << 'WEOF'
@@ -1155,6 +1160,9 @@ jobs:
 
           // Streak widget: switches between a compact and a full layout depending on its size.
           public class StreakWidget extends AppWidgetProvider {
+              // 1.0 = full height the launcher gives; lower = shorter card. Tweak this one number.
+              private static final float STREAK_HEIGHT_FACTOR = 0.80f;
+
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
                   for (int id : ids) safeRender(ctx, mgr, id);
@@ -1179,8 +1187,12 @@ jobs:
                   boolean claimed = d.optBoolean("claimed", false);
 
                   Bundle o = mgr.getAppWidgetOptions(id);
-                  int w = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
-                  int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                  boolean portrait = ctx.getResources().getConfiguration().orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+                  int w = 0, h = 0;
+                  if (o != null) {
+                      w = o.getInt(portrait ? AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH : AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH, 0);
+                      h = o.getInt(portrait ? AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT : AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                  }
                   boolean small = (w > 0 && w < 120) || (h > 0 && h < 100);
 
                   RemoteViews v = new RemoteViews(ctx.getPackageName(), small ? R.layout.widget_streak_small : R.layout.widget_streak);
@@ -1189,9 +1201,21 @@ jobs:
                   try { v.setInt(R.id.s_flame, "setColorFilter", color); } catch (Throwable ignored) {}
                   v.setTextColor(R.id.s_number, color);
                   if (!small) {
+                      // Card height: STREAK_HEIGHT_FACTOR of the space the launcher gives us (it was too tall).
+                      // The leftover space is split top/bottom and stays transparent.
+                      try {
+                          if (h > 0) {
+                              float d = ctx.getResources().getDisplayMetrics().density;
+                              float target = Math.max(h * STREAK_HEIGHT_FACTOR, 128f);
+                              int pad = (int) (Math.max(0f, (h - target) / 2f) * d);
+                              v.setViewPadding(R.id.s_outer, 0, pad, 0, pad);
+                          }
+                      } catch (Throwable ignored) {}
+
+                      boolean tight = (w > 0 && w < 118);   // narrowest (2x2) sizes: shorter text so it never wraps
                       v.setTextViewText(R.id.s_label, streak == 1 ? "DAY STREAK" : "DAYS STREAK");
                       v.setTextColor(R.id.s_label, color);
-                      v.setTextViewText(R.id.s_status, claimed ? "SAFE TODAY" : "DO A DAILY");
+                      v.setTextViewText(R.id.s_status, claimed ? (tight ? "SAFE" : "SAFE TODAY") : (tight ? "DO DAILY" : "DO A DAILY"));
                       v.setTextColor(R.id.s_status, claimed ? 0xFFA7F3D0 : 0xFF94A3B8);
                       v.setInt(R.id.s_status_row, "setBackgroundResource",
                           claimed ? R.drawable.widget_status_on_bg : R.drawable.widget_status_off_bg);
