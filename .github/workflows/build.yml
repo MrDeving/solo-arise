@@ -682,7 +682,7 @@ jobs:
                       kind = (k == null) ? "dailies" : k;
                   }
 
-                  @Override public void onCreate() {}
+                  @Override public void onCreate() { onDataSetChanged(); }
                   @Override public void onDestroy() {}
 
                   @Override
@@ -714,21 +714,29 @@ jobs:
                       try { color = Color.parseColor(o.optString("c", "#38bdf8")); }
                       catch (Exception e) { color = 0xFF38BDF8; }
 
-                      SpannableString s = new SpannableString(title);
-                      if (done && title.length() > 0) {
-                          s.setSpan(new StrikethroughSpan(), 0, title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                      }
-                      rv.setTextViewText(R.id.row_title, s);
-                      rv.setTextColor(R.id.row_title, done ? 0xFF64748B : 0xFFE2E8F0);
+                      // essentials first: the text always shows, nothing below can stop it
+                      rv.setTextViewText(R.id.row_title, title);
                       rv.setTextViewText(R.id.row_check, done ? "✔" : "○");
-                      rv.setTextColor(R.id.row_check, done ? 0xFF4ADE80 : color);
-                      rv.setInt(R.id.row_bar, "setBackgroundColor", done ? ((color & 0x00FFFFFF) | 0x55000000) : color);
-                      rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg);
-                      rv.setOnClickFillInIntent(R.id.row_card, new Intent());
+
+                      // decorations: each one isolated so a single failure can't kill the row
+                      try {
+                          if (done && title.length() > 0) {
+                              SpannableString s = new SpannableString(title);
+                              s.setSpan(new StrikethroughSpan(), 0, title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                              rv.setTextViewText(R.id.row_title, s);
+                          }
+                      } catch (Throwable ignored) {}
+                      try { rv.setTextColor(R.id.row_title, done ? 0xFF64748B : 0xFFE2E8F0); } catch (Throwable ignored) {}
+                      try { rv.setTextColor(R.id.row_check, done ? 0xFF4ADE80 : color); } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_bar, "setBackgroundColor", done ? ((color & 0x00FFFFFF) | 0x55000000) : color); } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg); } catch (Throwable ignored) {}
+                      try { rv.setOnClickFillInIntent(R.id.row_card, new Intent()); } catch (Throwable ignored) {}
                       return rv;
                   }
 
-                  @Override public RemoteViews getLoadingView() { return null; }
+                  @Override public RemoteViews getLoadingView() {
+                      return new RemoteViews(ctx.getPackageName(), R.layout.widget_task_item);
+                  }
                   @Override public int getViewTypeCount() { return 1; }
                   @Override public long getItemId(int position) { return position; }
                   @Override public boolean hasStableIds() { return false; }
