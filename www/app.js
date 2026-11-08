@@ -290,7 +290,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Load saved reset time into settings input
     const rtInput = document.getElementById('reset-time-input');
     if (rtInput) rtInput.value = localStorage.getItem('resetTime') || '00:00';
-    initSortable();     // 6. Initialize drag-and-drop reordering
+       initSortable();     // 6. Initialize drag-and-drop reordering
+    syncTaskWidgets();  // 7. Push current data to the home-screen widgets
     updateArcadeComingSoon();
     
     // 7. Render Calendar (No Lucide required anymore!)
@@ -2931,6 +2932,7 @@ function renderAchievements() {
 function saveGameState() {
     localStorage.setItem('systemState', JSON.stringify(systemState));
     syncWidgetData();
+    syncTaskWidgets();
     scheduleEventNotificationsDebounced();
 }
 
@@ -3030,6 +3032,41 @@ function syncWidgetData() {
     } catch(e) { /* browser or plugin missing, skip silently */ }
 }
 
+// ==========================================
+// --- HOME-SCREEN WIDGETS: Dailies / Quests / Streak ---
+// Pushes a small snapshot to the Android widgets and asks them to redraw.
+// ==========================================
+let _widgetPushTimer = null;
+let _lastWidgetPayload = '';
+function syncTaskWidgets() {
+    try {
+        const P = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.WidgetBridgePlugin;
+        if (!P || !systemState || !systemState.quests) return;
+        const colorOf = q => ({ trivial: '#38bdf8', easy: '#4ade80', medium: '#fbbf24', hard: '#f87171' }[q.difficulty] || '#38bdf8');
+        const now = new Date();
+        const dailies = systemState.quests
+            .filter(q => q.type === 'daily' || !q.type)
+            .filter(q => isQuestActiveOnDate(q, now));
+        const quests = systemState.quests.filter(q => q.type && q.type !== 'daily' && !q.completed);
+        const payload = JSON.stringify({
+            dailies: dailies.map(q => ({ t: q.title, d: q.completed ? 1 : 0, c: colorOf(q) })),
+            quests:  quests.map(q => ({ t: q.title, d: 0, c: colorOf(q) })),
+            streak:  systemState.streak || 0,
+            claimed: systemState.streakIncrementedToday === true
+        });
+        if (payload === _lastWidgetPayload) return;      // nothing changed, skip
+        _lastWidgetPayload = payload;
+        clearTimeout(_widgetPushTimer);
+        _widgetPushTimer = setTimeout(async () => {
+            try {
+                await P.setItem({ group: 'AriseWidgets', key: 'tasks', value: payload });
+                ['DailiesWidget', 'QuestsWidget', 'StreakWidget'].forEach(k => {
+                    P.reloadTimelines({ ofKind: 'com.hunter.arisesolo.widget.' + k }).catch(() => {});
+                });
+            } catch (e) { /* plugin missing (browser) */ }
+        }, 400);
+    } catch (e) { /* ignore */ }
+}
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
