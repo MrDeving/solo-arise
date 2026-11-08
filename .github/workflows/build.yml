@@ -431,26 +431,25 @@ jobs:
           cat > android/app/src/main/res/drawable/widget_card_bg.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#F2090F1C"/>
-              <corners android:radius="18dp"/>
-              <stroke android:width="1dp" android:color="#3338BDF8"/>
+              <gradient android:angle="315" android:startColor="#BD14243A" android:endColor="#940F172A"/>
+              <corners android:radius="16dp"/>
+              <stroke android:width="1dp" android:color="#1FFFFFFF"/>
           </shape>
           WEOF
 
           cat > android/app/src/main/res/drawable/widget_row_bg.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#141E36"/>
-              <stroke android:width="1dp" android:color="#3338BDF8"/>
-              <corners android:radius="10dp"/>
+              <solid android:color="#B31E293B"/>
+              <corners android:radius="12dp"/>
           </shape>
           WEOF
 
           cat > android/app/src/main/res/drawable/widget_row_done_bg.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#111827"/>
-              <corners android:radius="10dp"/>
+              <solid android:color="#621E293B"/>
+              <corners android:radius="12dp"/>
           </shape>
           WEOF
 
@@ -459,62 +458,219 @@ jobs:
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:id="@+id/w_root"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:padding="10dp"
+              android:orientation="vertical" android:padding="12dp"
               android:background="@drawable/widget_card_bg">
-              <LinearLayout android:id="@+id/w_header"
+              <LinearLayout android:id="@+id/w_top"
                   android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:orientation="horizontal" android:gravity="center_vertical"
-                  android:paddingBottom="6dp" android:paddingStart="2dp" android:paddingEnd="2dp">
-                  <TextView android:id="@+id/w_title"
-                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                      android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.12"
-                      android:maxLines="1" android:fontFamily="monospace" android:textColor="#38BDF8"/>
-                  <TextView android:id="@+id/w_count"
-                      android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:textSize="11sp" android:textStyle="bold" android:fontFamily="monospace"
-                      android:textColor="#94A3B8"/>
+                  android:orientation="vertical" android:paddingBottom="10dp">
+                  <LinearLayout android:id="@+id/w_header"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical"
+                      android:paddingStart="2dp" android:paddingEnd="2dp">
+                      <TextView android:id="@+id/w_title"
+                          android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                          android:textSize="14sp" android:textStyle="bold" android:letterSpacing="0.14"
+                          android:maxLines="1" android:ellipsize="end"
+                          android:fontFamily="@font/rajdhani" android:textColor="#38BDF8"/>
+                      <TextView android:id="@+id/w_count"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:layout_marginStart="8dp"
+                          android:background="@drawable/widget_pill_bg"
+                          android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                          android:maxLines="1" android:textSize="12sp" android:textStyle="bold" android:letterSpacing="0.08"
+                          android:fontFamily="@font/rajdhani" android:textColor="#9FB3C8"/>
+                  </LinearLayout>
+                  <ProgressBar android:id="@+id/w_bar" style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent" android:layout_height="4dp"
+                      android:layout_marginTop="8dp" android:layout_marginStart="2dp" android:layout_marginEnd="2dp"
+                      android:minHeight="4dp" android:maxHeight="4dp" android:max="100" android:progress="0"
+                      android:indeterminate="false" android:progressDrawable="@drawable/widget_bar_progress"/>
               </LinearLayout>
               <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
                   <LinearLayout android:id="@+id/w_rows"
                       android:layout_width="match_parent" android:layout_height="match_parent"
                       android:orientation="vertical">
-                      <LinearLayout android:id="@+id/r0" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r0m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r0t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r0"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r0s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r0m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r0t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r1" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r1m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r1t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r1"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r1s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r1m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r1t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r2" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r2m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r2t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r2"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r2s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r2m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r2t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r3" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r3m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r3t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r3"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r3s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r3m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r3t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r4" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r4m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r4t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r4"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r4s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r4m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r4t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r5" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r5m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r5t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r5"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r5s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r5m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r5t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r6" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r6m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r6t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r6"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r6s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r6m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r6t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
-                      <LinearLayout android:id="@+id/r7" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
-                          <TextView android:id="@+id/r7m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
-                          <TextView android:id="@+id/r7t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      <LinearLayout android:id="@+id/r7"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:layout_marginBottom="6dp" android:background="@drawable/widget_row_bg"
+                          android:visibility="gone">
+                          <FrameLayout android:layout_width="44dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/r7s"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab"/>
+                              <TextView android:id="@+id/r7m"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_check_box"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <TextView android:id="@+id/r7t"
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:minHeight="44dp" android:gravity="center_vertical"
+                              android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp"
+                              android:maxLines="2" android:ellipsize="end"
+                              android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
                       </LinearLayout>
                   </LinearLayout>
                   <TextView android:id="@+id/w_empty"
                       android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:gravity="center" android:textSize="11sp" android:textStyle="bold"
-                      android:letterSpacing="0.1" android:fontFamily="monospace" android:textColor="#64748B"
+                      android:gravity="center" android:textSize="13sp" android:textStyle="bold"
+                      android:letterSpacing="0.14" android:fontFamily="@font/rajdhani" android:textColor="#64748B"
                       android:visibility="gone"/>
               </FrameLayout>
           </LinearLayout>
@@ -550,32 +706,32 @@ jobs:
           <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:id="@+id/s_root"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:orientation="vertical" android:gravity="center" android:padding="8dp"
+              android:orientation="vertical" android:gravity="center" android:padding="10dp"
               android:background="@drawable/widget_card_bg">
               <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                   android:orientation="horizontal" android:gravity="center_vertical">
-                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:text="&#x1F525;" android:textSize="32sp"/>
+                  <ImageView android:id="@+id/s_flame"
+                      android:layout_width="30dp" android:layout_height="30dp" android:src="@drawable/ic_flame"/>
                   <TextView android:id="@+id/s_number"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
                       android:paddingStart="8dp" android:textSize="42sp" android:textStyle="bold"
-                      android:fontFamily="monospace" android:textColor="#FBBF24"/>
+                      android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
               </LinearLayout>
               <TextView android:id="@+id/s_label"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.15"
-                  android:fontFamily="monospace" android:textColor="#FBBF24"/>
+                  android:textSize="13sp" android:textStyle="bold" android:letterSpacing="0.22"
+                  android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
               <LinearLayout android:id="@+id/s_status_row"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:layout_marginTop="6dp" android:orientation="horizontal" android:gravity="center_vertical"
-                  android:paddingStart="6dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                  android:layout_marginTop="8dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:paddingStart="7dp" android:paddingEnd="11dp" android:paddingTop="5dp" android:paddingBottom="5dp"
                   android:background="@drawable/widget_status_off_bg">
                   <ImageView android:id="@+id/s_status_icon"
                       android:layout_width="14dp" android:layout_height="14dp"
                       android:src="@drawable/ic_status_off"/>
                   <TextView android:id="@+id/s_status"
                       android:layout_width="wrap_content" android:layout_height="wrap_content"
-                      android:paddingStart="6dp" android:textSize="11sp" android:textStyle="bold"
+                      android:paddingStart="6dp" android:textSize="12sp" android:textStyle="bold"
                       android:letterSpacing="0.12" android:fontFamily="@font/rajdhani" android:textColor="#94A3B8"/>
               </LinearLayout>
           </LinearLayout>
@@ -587,12 +743,12 @@ jobs:
               android:id="@+id/s_root"
               android:layout_width="match_parent" android:layout_height="match_parent"
               android:orientation="horizontal" android:gravity="center" android:padding="4dp"
-              android:background="@drawable/widget_card_bg">
-              <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:text="&#x1F525;" android:textSize="20sp"/>
+              android:background="@drawable/widget_card_compact_bg">
+              <ImageView android:id="@+id/s_flame"
+                  android:layout_width="22dp" android:layout_height="22dp" android:src="@drawable/ic_flame"/>
               <TextView android:id="@+id/s_number"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:paddingStart="4dp" android:textSize="26sp" android:textStyle="bold"
+                  android:paddingStart="6dp" android:textSize="30sp" android:textStyle="bold"
                   android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
           </LinearLayout>
           WEOF
@@ -601,10 +757,10 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:background="#F2090F1C">
+              android:background="@drawable/widget_card_bg">
               <TextView android:layout_width="match_parent" android:layout_height="match_parent"
                   android:gravity="center" android:text="ARISE" android:textSize="12sp"
-                  android:textStyle="bold" android:textColor="#38BDF8"/>
+                  android:textStyle="bold" android:fontFamily="@font/rajdhani" android:letterSpacing="0.14" android:textColor="#38BDF8"/>
           </FrameLayout>
           WEOF
 
@@ -612,7 +768,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
               android:layout_width="match_parent" android:layout_height="match_parent"
-              android:background="#F2090F1C" android:padding="8dp">
+              android:background="@drawable/widget_card_bg" android:padding="8dp">
               <TextView android:id="@+id/e_text" android:layout_width="match_parent" android:layout_height="match_parent"
                   android:gravity="center" android:textSize="9sp" android:textColor="#F87171"/>
           </FrameLayout>
@@ -835,8 +991,6 @@ jobs:
               private void render(Context ctx, AppWidgetManager mgr, int id) {
                   RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks);
 
-
-
                   JSONArray items = WidgetData.list(ctx, kind());
                   int total = 0, done = 0;
                   for (int i = 0; i < items.length(); i++) {
@@ -846,10 +1000,10 @@ jobs:
                       if (o.optInt("d", 0) == 1) done++;
                   }
                   String count = "";
-                  int countColor = 0xFF94A3B8;
+                  int countColor = 0xFF9FB3C8;
                   if (total > 0) {
                       if ("dailies".equals(kind())) {
-                          if (done == total) { count = "ALL DONE ✔"; countColor = 0xFF4ADE80; }
+                          if (done == total) { count = "ALL DONE ✔"; countColor = 0xFF34D399; }
                           else count = done + "/" + total;
                       } else {
                           count = String.valueOf(total);
@@ -857,9 +1011,8 @@ jobs:
                   }
                   v.setTextViewText(R.id.w_title, title());
                   v.setTextColor(R.id.w_title, accent());
-                  v.setTextViewText(R.id.w_count, count);
-                  v.setTextColor(R.id.w_count, countColor);
                   v.setTextViewText(R.id.w_empty, emptyText());
+                  v.setTextColor(R.id.w_count, countColor);
 
                   PendingIntent open = openApp(ctx, false);
                   v.setOnClickPendingIntent(R.id.w_header, open);
@@ -868,14 +1021,20 @@ jobs:
                   Bundle o = mgr.getAppWidgetOptions(id);
                   int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
                   boolean hideHeader = (h > 0 && h < 90);
-                  v.setViewVisibility(R.id.w_header, hideHeader ? View.GONE : View.VISIBLE);
+                  boolean bar = "dailies".equals(kind()) && total > 0 && !hideHeader;
+                  v.setViewVisibility(R.id.w_top, hideHeader ? View.GONE : View.VISIBLE);
+                  v.setViewVisibility(R.id.w_bar, bar ? View.VISIBLE : View.GONE);
+                  if (bar) v.setProgressBar(R.id.w_bar, 100, Math.round(done * 100f / total), false);
 
-                  // rows are drawn straight into the widget (no list service)
+                  // how many rows fit (each row is about 50dp including its gap)
                   int maxRows = 5;
-                  if (h > 0) maxRows = Math.max(1, (h - (hideHeader ? 20 : 52)) / 40);
-                  if (maxRows > 14) maxRows = 14;
+                  if (h > 0) {
+                      int avail = h - 24 - (hideHeader ? 0 : 38 + (bar ? 12 : 0));
+                      maxRows = Math.max(1, avail / 50);
+                  }
 
                   int[] rowIds  = { R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5, R.id.r6, R.id.r7 };
+                  int[] slabIds = { R.id.r0s, R.id.r1s, R.id.r2s, R.id.r3s, R.id.r4s, R.id.r5s, R.id.r6s, R.id.r7s };
                   int[] markIds = { R.id.r0m, R.id.r1m, R.id.r2m, R.id.r3m, R.id.r4m, R.id.r5m, R.id.r6m, R.id.r7m };
                   int[] textIds = { R.id.r0t, R.id.r1t, R.id.r2t, R.id.r3t, R.id.r4t, R.id.r5t, R.id.r6t, R.id.r7t };
                   if (maxRows > rowIds.length) maxRows = rowIds.length;
@@ -888,19 +1047,36 @@ jobs:
                           if ((pass == 0 && isDone) || (pass == 1 && !isDone)) continue;
                           int col = 0xFF38BDF8;
                           try { col = android.graphics.Color.parseColor(t.optString("c", "#38bdf8")); } catch (Throwable ignored) {}
-                          v.setTextViewText(textIds[shown], t.optString("t", ""));
-                          v.setTextColor(textIds[shown], isDone ? 0xFF64748B : 0xFFE2E8F0);
-                          v.setTextViewText(markIds[shown], isDone ? "✔" : "◆");
-                          v.setTextColor(markIds[shown], isDone ? 0xFF4ADE80 : col);
+                          String title = t.optString("t", "");
+
+                          // essentials first: the text always shows, nothing below can stop it
+                          v.setTextViewText(textIds[shown], title);
                           v.setViewVisibility(rowIds[shown], View.VISIBLE);
                           v.setOnClickPendingIntent(rowIds[shown], open);
+
+                          // decorations: each one isolated so a single failure can't kill the row
+                          try {
+                              if (isDone && title.length() > 0) {
+                                  android.text.SpannableString s = new android.text.SpannableString(title);
+                                  s.setSpan(new android.text.style.StrikethroughSpan(), 0, title.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                  v.setTextViewText(textIds[shown], s);
+                              }
+                          } catch (Throwable ignored) {}
+                          try { v.setTextColor(textIds[shown], isDone ? 0x8CFFFFFF : 0xFFFFFFFF); } catch (Throwable ignored) {}
+                          try { v.setTextViewText(markIds[shown], isDone ? "✓" : ""); } catch (Throwable ignored) {}
+                          try { v.setInt(markIds[shown], "setBackgroundResource", isDone ? R.drawable.widget_check_box_done : R.drawable.widget_check_box); } catch (Throwable ignored) {}
+                          try { v.setInt(slabIds[shown], "setColorFilter", isDone ? ((col & 0x00FFFFFF) | 0x78000000) : ((col & 0x00FFFFFF) | 0xDB000000)); } catch (Throwable ignored) {}
+                          try { v.setInt(rowIds[shown], "setBackgroundResource", isDone ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg); } catch (Throwable ignored) {}
                           shown++;
                       }
                   }
                   for (int j = shown; j < rowIds.length; j++) v.setViewVisibility(rowIds[j], View.GONE);
                   v.setViewVisibility(R.id.w_empty, total == 0 ? View.VISIBLE : View.GONE);
                   v.setViewVisibility(R.id.w_rows, total == 0 ? View.GONE : View.VISIBLE);
-                  if (total > shown) v.setTextViewText(R.id.w_count, count + "  +" + (total - shown));
+
+                  if (total > shown) count = count + "  +" + (total - shown);
+                  v.setTextViewText(R.id.w_count, count);
+                  v.setViewVisibility(R.id.w_count, count.length() == 0 ? View.GONE : View.VISIBLE);
 
                   mgr.updateAppWidget(id, v);
               }
@@ -1008,8 +1184,9 @@ jobs:
                   boolean small = (w > 0 && w < 120) || (h > 0 && h < 100);
 
                   RemoteViews v = new RemoteViews(ctx.getPackageName(), small ? R.layout.widget_streak_small : R.layout.widget_streak);
-                  int color = claimed ? 0xFFFBBF24 : 0xFF64748B;
+                  int color = claimed ? 0xFFFBBF24 : 0xFF7B8AA3;
                   v.setTextViewText(R.id.s_number, String.valueOf(streak));
+                  try { v.setInt(R.id.s_flame, "setColorFilter", color); } catch (Throwable ignored) {}
                   v.setTextColor(R.id.s_number, color);
                   if (!small) {
                       v.setTextViewText(R.id.s_label, streak == 1 ? "DAY STREAK" : "DAYS STREAK");
@@ -1066,7 +1243,88 @@ jobs:
                     android:pathData="M7,1a6,6 0 1,0 0,12a6,6 0 1,0 0,-12z"/>
           </vector>
           WEOF
-          
+
+          cat > android/app/src/main/res/drawable/widget_slab.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#FFFFFFFF"/>
+              <corners android:topLeftRadius="12dp" android:bottomLeftRadius="12dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_check_box.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#52000000"/>
+              <corners android:radius="7dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_check_box_done.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#80000000"/>
+              <corners android:radius="7dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_pill_bg.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#14FFFFFF"/>
+              <corners android:radius="30dp"/>
+              <stroke android:width="1dp" android:color="#1FFFFFFF"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_bar_progress.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item android:id="@android:id/background">
+                  <shape android:shape="rectangle">
+                      <solid android:color="#1AFFFFFF"/>
+                      <corners android:radius="4dp"/>
+                  </shape>
+              </item>
+              <item android:id="@android:id/progress">
+                  <clip>
+                      <shape android:shape="rectangle">
+                          <solid android:color="#38BDF8"/>
+                          <corners android:radius="4dp"/>
+                      </shape>
+                  </clip>
+              </item>
+          </layer-list>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_card_compact_bg.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+              <item>
+                  <shape android:shape="rectangle">
+                      <gradient android:angle="315" android:startColor="#BD14243A" android:endColor="#940F172A"/>
+                      <corners android:radius="16dp"/>
+                  </shape>
+              </item>
+              <item>
+                  <shape android:shape="rectangle">
+                      <gradient android:angle="0" android:startColor="#33FBBF24" android:endColor="#0DFBBF24"/>
+                      <corners android:radius="16dp"/>
+                      <stroke android:width="1dp" android:color="#80FBBF24"/>
+                  </shape>
+              </item>
+          </layer-list>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_flame.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:fillColor="#FFFFFF"
+                    android:pathData="M8.5,14.5 A2.5,2.5 0 0 0 11,12 c0,-1.38 -0.5,-2 -1,-3 c-1.072,-2.143 -0.224,-4.054 2,-6 c0.5,2.5 2,4.9 4,6.5 c2,1.6 3,3.5 3,5.5 a7,7 0 1 1 -14,0 c0,-1.153 0.433,-2.294 1,-3 a2.5,2.5 0 0 0 2.5,2.5 z"/>
+          </vector>
+          WEOF
+
       - name: Register task widgets in AndroidManifest
         run: |
           python3 << 'PYEOF'
