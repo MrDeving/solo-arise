@@ -576,10 +576,19 @@ jobs:
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
                   android:textSize="10sp" android:textStyle="bold" android:letterSpacing="0.15"
                   android:fontFamily="monospace" android:textColor="#FBBF24"/>
-              <TextView android:id="@+id/s_status"
+              <LinearLayout android:id="@+id/s_status_row"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
-                  android:paddingTop="2dp" android:textSize="9sp" android:letterSpacing="0.08"
-                  android:fontFamily="monospace" android:textColor="#94A3B8"/>
+                  android:layout_marginTop="6dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:paddingStart="6dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                  android:background="@drawable/widget_status_off_bg">
+                  <ImageView android:id="@+id/s_status_icon"
+                      android:layout_width="14dp" android:layout_height="14dp"
+                      android:src="@drawable/ic_status_off"/>
+                  <TextView android:id="@+id/s_status"
+                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                      android:paddingStart="6dp" android:textSize="11sp" android:textStyle="bold"
+                      android:letterSpacing="0.12" android:fontFamily="@font/rajdhani" android:textColor="#94A3B8"/>
+              </LinearLayout>
           </LinearLayout>
           WEOF
 
@@ -595,7 +604,7 @@ jobs:
               <TextView android:id="@+id/s_number"
                   android:layout_width="wrap_content" android:layout_height="wrap_content"
                   android:paddingStart="4dp" android:textSize="26sp" android:textStyle="bold"
-                  android:fontFamily="monospace" android:textColor="#FBBF24"/>
+                  android:fontFamily="@font/rajdhani" android:textColor="#FBBF24"/>
           </LinearLayout>
           WEOF
 
@@ -1016,8 +1025,12 @@ jobs:
                   if (!small) {
                       v.setTextViewText(R.id.s_label, streak == 1 ? "DAY STREAK" : "DAYS STREAK");
                       v.setTextColor(R.id.s_label, color);
-                      v.setTextViewText(R.id.s_status, claimed ? "SECURED TODAY ✔" : "DO A DAILY TO KEEP IT");
-                      v.setTextColor(R.id.s_status, claimed ? 0xFF4ADE80 : 0xFF94A3B8);
+                      v.setTextViewText(R.id.s_status, claimed ? "SAFE TODAY" : "DO A DAILY");
+                      v.setTextColor(R.id.s_status, claimed ? 0xFFA7F3D0 : 0xFF94A3B8);
+                      v.setInt(R.id.s_status_row, "setBackgroundResource",
+                          claimed ? R.drawable.widget_status_on_bg : R.drawable.widget_status_off_bg);
+                      v.setImageViewResource(R.id.s_status_icon,
+                          claimed ? R.drawable.ic_status_on : R.drawable.ic_status_off);
                   }
                   v.setOnClickPendingIntent(R.id.s_root, TasksWidgetBase.openApp(ctx, false));
                   mgr.updateAppWidget(id, v);
@@ -1025,6 +1038,46 @@ jobs:
           }
           WEOF
 
+                - name: Create streak status drawables and Rajdhani font
+        run: |
+          mkdir -p android/app/src/main/res/font android/app/src/main/res/drawable
+          cp www/fonts/Rajdhani-Regular.ttf android/app/src/main/res/font/rajdhani.ttf
+
+          cat > android/app/src/main/res/drawable/widget_status_on_bg.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#1A34D399"/>
+              <corners android:radius="30dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/widget_status_off_bg.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#0DFFFFFF"/>
+              <corners android:radius="30dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_status_on.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="14dp" android:height="14dp" android:viewportWidth="14" android:viewportHeight="14">
+              <path android:fillColor="#34D399" android:pathData="M7,1a6,6 0 1,0 0,12a6,6 0 1,0 0,-12z"/>
+              <path android:strokeColor="#052E22" android:strokeWidth="1.8" android:strokeLineCap="round"
+                    android:strokeLineJoin="round" android:pathData="M4.2,7.2l2,2 3.6,-4"/>
+          </vector>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_status_off.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="14dp" android:height="14dp" android:viewportWidth="14" android:viewportHeight="14">
+              <path android:strokeColor="#7B8AA3" android:strokeWidth="1.5"
+                    android:pathData="M7,1a6,6 0 1,0 0,12a6,6 0 1,0 0,-12z"/>
+          </vector>
+          WEOF
+          
       - name: Register task widgets in AndroidManifest
         run: |
           python3 << 'PYEOF'
