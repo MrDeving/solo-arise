@@ -1038,7 +1038,7 @@ jobs:
           }
           WEOF
 
-                - name: Create streak status drawables and Rajdhani font
+      - name: Create streak status drawables and Rajdhani font
         run: |
           mkdir -p android/app/src/main/res/font android/app/src/main/res/drawable
           cp www/fonts/Rajdhani-Regular.ttf android/app/src/main/res/font/rajdhani.ttf
