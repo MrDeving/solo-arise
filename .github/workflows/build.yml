@@ -440,7 +440,8 @@ jobs:
           cat > android/app/src/main/res/drawable/widget_row_bg.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#1C2740"/>
+              <solid android:color="#141E36"/>
+              <stroke android:width="1dp" android:color="#3338BDF8"/>
               <corners android:radius="10dp"/>
           </shape>
           WEOF
@@ -475,6 +476,41 @@ jobs:
               </LinearLayout>
               <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
                   <LinearLayout android:id="@+id/w_rows"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:orientation="vertical">
+                      <LinearLayout android:id="@+id/r0" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r0m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r0t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r1" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r1m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r1t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r2" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r2m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r2t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r3" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r3m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r3t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r4" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r4m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r4t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r5" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r5m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r5t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r6" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r6m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r6t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/r7" android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:gravity="center_vertical" android:layout_marginBottom="5dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="12dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:visibility="gone">
+                          <TextView android:id="@+id/r7m" android:layout_width="18dp" android:layout_height="wrap_content" android:gravity="center" android:text="◆" android:textSize="13sp" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/r7t" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:paddingStart="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="14sp" android:textColor="#E2E8F0"/>
+                      </LinearLayout>
+                  </LinearLayout>
                       android:layout_width="match_parent" android:layout_height="match_parent"
                       android:orientation="vertical">
                       <TextView android:id="@+id/r0" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginBottom="4dp" android:background="@drawable/widget_row_bg" android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="8dp" android:paddingBottom="8dp" android:maxLines="2" android:ellipsize="end" android:textSize="13sp" android:textColor="#E2E8F0" android:visibility="gone"/>
@@ -841,7 +877,9 @@ jobs:
                   if (h > 0) maxRows = Math.max(1, (h - (hideHeader ? 20 : 52)) / 40);
                   if (maxRows > 14) maxRows = 14;
 
-                  int[] rowIds = { R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5, R.id.r6, R.id.r7 };
+                  int[] rowIds  = { R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5, R.id.r6, R.id.r7 };
+                  int[] markIds = { R.id.r0m, R.id.r1m, R.id.r2m, R.id.r3m, R.id.r4m, R.id.r5m, R.id.r6m, R.id.r7m };
+                  int[] textIds = { R.id.r0t, R.id.r1t, R.id.r2t, R.id.r3t, R.id.r4t, R.id.r5t, R.id.r6t, R.id.r7t };
                   if (maxRows > rowIds.length) maxRows = rowIds.length;
                   int shown = 0;
                   for (int pass = 0; pass < 2 && shown < maxRows; pass++) {
@@ -852,11 +890,12 @@ jobs:
                           if ((pass == 0 && isDone) || (pass == 1 && !isDone)) continue;
                           int col = 0xFF38BDF8;
                           try { col = android.graphics.Color.parseColor(t.optString("c", "#38bdf8")); } catch (Throwable ignored) {}
-                          int rid = rowIds[shown];
-                          v.setTextViewText(rid, (isDone ? "✔  " : "○  ") + t.optString("t", ""));
-                          v.setTextColor(rid, isDone ? 0xFF64748B : col);
-                          v.setViewVisibility(rid, View.VISIBLE);
-                          v.setOnClickPendingIntent(rid, open);
+                          v.setTextViewText(textIds[shown], t.optString("t", ""));
+                          v.setTextColor(textIds[shown], isDone ? 0xFF64748B : 0xFFE2E8F0);
+                          v.setTextViewText(markIds[shown], isDone ? "✔" : "◆");
+                          v.setTextColor(markIds[shown], isDone ? 0xFF4ADE80 : col);
+                          v.setViewVisibility(rowIds[shown], View.VISIBLE);
+                          v.setOnClickPendingIntent(rowIds[shown], open);
                           shown++;
                       }
                   }
