@@ -3810,7 +3810,8 @@ function arcadeInit() {
     arcadeResize();
     arcadeUpdateCoresDisplay();
     ARCADE.bestScore = parseInt(localStorage.getItem('arcadeBestScore') || '0');
-    document.getElementById('arcade-best-score').textContent = ARCADE.bestScore;
+    const _bestEl = document.getElementById('arcade-best-score');
+    if (_bestEl) _bestEl.textContent = ARCADE.bestScore;
 
     // Touch controls
     ARCADE.canvas.addEventListener('touchstart', e => {
@@ -4039,7 +4040,8 @@ function arcadeGameOver() {
     if (A.score > A.bestScore) {
         A.bestScore = A.score;
         localStorage.setItem('arcadeBestScore', A.bestScore);
-        document.getElementById('arcade-best-score').textContent = A.bestScore;
+        const _bestEl = document.getElementById('arcade-best-score');
+        if (_bestEl) _bestEl.textContent = A.bestScore;
     }
 
     // Deposit trickle cores into main wallet

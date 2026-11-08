@@ -1201,7 +1201,6 @@ jobs:
                   try { v.setInt(R.id.s_flame, "setColorFilter", color); } catch (Throwable ignored) {}
                   v.setTextColor(R.id.s_number, color);
                   if (!small) {
-<<<<<<< HEAD
                       // Card height: STREAK_HEIGHT_FACTOR of the space the launcher gives us (it was too tall).
                       // The leftover space is split top/bottom and stays transparent.
                       try {
@@ -1214,20 +1213,6 @@ jobs:
                       } catch (Throwable ignored) {}
 
                       boolean tight = (w > 0 && w < 118);   // narrowest (2x2) sizes: shorter text so it never wraps
-=======
-                      // Card height: STREAK_HEIGHT_FACTOR of the space the launcher gives us (it was too tall).
-                      // The leftover space is split top/bottom and stays transparent.
-                      try {
-                          if (h > 0) {
-                              float d = ctx.getResources().getDisplayMetrics().density;
-                              float target = Math.max(h * STREAK_HEIGHT_FACTOR, 128f);
-                              int pad = (int) (Math.max(0f, (h - target) / 2f) * d);
-                              v.setViewPadding(R.id.s_outer, 0, pad, 0, pad);
-                          }
-                      } catch (Throwable ignored) {}
-
-                      boolean tight = (w > 0 && w < 118);   // narrowest (2x2) sizes: shorter text so it never wraps
->>>>>>> 93b4995323812413520138e1ab31b7a9a9a4898f
                       v.setTextViewText(R.id.s_label, streak == 1 ? "DAY STREAK" : "DAYS STREAK");
                       v.setTextColor(R.id.s_label, color);
                       v.setTextViewText(R.id.s_status, claimed ? (tight ? "SAFE" : "SAFE TODAY") : (tight ? "DO DAILY" : "DO A DAILY"));
