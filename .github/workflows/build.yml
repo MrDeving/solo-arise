@@ -168,262 +168,6 @@ jobs:
           mkdir -p android/app/src/main/res/raw
           cp assets/raw/mysound.mp3 android/app/src/main/res/raw/mysound.mp3
 
-      - name: Create widget drawables
-        run: |
-          mkdir -p android/app/src/main/res/drawable
-
-          cat > android/app/src/main/res/drawable/widget_day_bg.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#1A1E2E"/>
-              <corners android:radius="5dp"/>
-          </shape>
-          EOF
-
-          cat > android/app/src/main/res/drawable/widget_today_bg.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#0D2A3F"/>
-              <corners android:radius="5dp"/>
-              <stroke android:width="1dp" android:color="#0EA5E9"/>
-          </shape>
-          EOF
-
-          cat > android/app/src/main/res/drawable/widget_event_bg.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <solid android:color="#1A0D2E"/>
-              <corners android:radius="5dp"/>
-              <stroke android:width="1dp" android:color="#8B5CF6"/>
-          </shape>
-          EOF
-
-      - name: Create widget layouts via Python
-        run: |
-          python3 << 'PYEOF'
-          import os
-          os.makedirs("android/app/src/main/res/layout", exist_ok=True)
-
-          def make_layout(filename, text_size, padding, show_header_row):
-              lines = []
-              lines.append('<?xml version="1.0" encoding="utf-8"?>')
-              lines.append('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
-              lines.append('    android:layout_width="match_parent" android:layout_height="match_parent"')
-              lines.append(f'    android:orientation="vertical" android:background="#EE0D1117" android:padding="{padding}dp">')
-              lines.append('    <TextView android:id="@+id/w_month_label"')
-              lines.append('        android:layout_width="match_parent" android:layout_height="wrap_content"')
-              lines.append(f'        android:textColor="#0EA5E9" android:textSize="{text_size - 1}sp"')
-              lines.append('        android:textStyle="bold" android:gravity="center"')
-              lines.append('        android:paddingBottom="4dp" android:fontFamily="monospace"/>')
-              if show_header_row:
-                  lines.append('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="2dp">')
-                  for d in ['1','2','3','4','5','6','7']:
-                      lines.append(f'        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:textColor="#44667788" android:textSize="8sp" android:text="{d}"/>')
-                  lines.append('    </LinearLayout>')
-              for row in range(2):
-                  lines.append('    <LinearLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">')
-                  for col in range(7):
-                      i = row * 7 + col
-                      lines.append(f'        <FrameLayout android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_marginEnd="2dp" android:layout_marginBottom="2dp">')
-                      lines.append(f'            <TextView android:id="@+id/cell_{i}"')
-                      lines.append(f'                android:layout_width="match_parent" android:layout_height="match_parent"')
-                      lines.append(f'                android:gravity="center" android:textColor="#CCFFFFFF"')
-                      lines.append(f'                android:textSize="{text_size}sp" android:background="@drawable/widget_day_bg"/>')
-                      lines.append(f'            <View android:id="@+id/dot_{i}"')
-                      lines.append(f'                android:layout_width="4dp" android:layout_height="4dp"')
-                      lines.append(f'                android:layout_gravity="bottom|center_horizontal"')
-                      lines.append(f'                android:layout_marginBottom="2dp"')
-                      lines.append(f'                android:background="#8B5CF6" android:visibility="gone"/>')
-                      lines.append(f'        </FrameLayout>')
-                  lines.append('    </LinearLayout>')
-              lines.append('</LinearLayout>')
-              with open(f"android/app/src/main/res/layout/{filename}", "w") as f:
-                  f.write('\n'.join(lines))
-              print(f"Created {filename}")
-
-          make_layout("widget_small.xml",  text_size=9,  padding=5,  show_header_row=False)
-          make_layout("widget_medium.xml", text_size=11, padding=7,  show_header_row=False)
-          make_layout("widget_large.xml",  text_size=12, padding=9,  show_header_row=True)
-          PYEOF
-
-      - name: Create widget info XMLs
-        run: |
-          mkdir -p android/app/src/main/res/xml
-
-          cat > android/app/src/main/res/xml/widget_small_info.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="110dp" android:minHeight="110dp"
-              android:targetCellWidth="2" android:targetCellHeight="2"
-              android:updatePeriodMillis="1800000"
-              android:initialLayout="@layout/widget_small"
-              android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
-          EOF
-
-          cat > android/app/src/main/res/xml/widget_medium_info.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="180dp" android:minHeight="110dp"
-              android:targetCellWidth="3" android:targetCellHeight="2"
-              android:updatePeriodMillis="1800000"
-              android:initialLayout="@layout/widget_medium"
-              android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
-          EOF
-
-          cat > android/app/src/main/res/xml/widget_large_info.xml << 'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="250dp" android:minHeight="110dp"
-              android:targetCellWidth="4" android:targetCellHeight="2"
-              android:updatePeriodMillis="1800000"
-              android:initialLayout="@layout/widget_large"
-              android:resizeMode="horizontal|vertical"
-              android:widgetCategory="home_screen"/>
-          EOF
-
-      - name: Create widget Java files
-        run: |
-          mkdir -p android/app/src/main/java/com/hunter/arisesolo/widget
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidget.java << 'JAVAEOF'
-          package com.hunter.arisesolo.widget;
-          import android.app.PendingIntent;
-          import android.appwidget.AppWidgetManager;
-          import android.appwidget.AppWidgetProvider;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.content.SharedPreferences;
-          import android.graphics.Color;
-          import android.widget.RemoteViews;
-          import com.hunter.arisesolo.R;
-          import org.json.JSONArray;
-          import org.json.JSONObject;
-          public class CalendarWidget extends AppWidgetProvider {
-              public static final String ACTION_DAY_CLICK = "com.hunter.arisesolo.WIDGET_DAY_CLICK";
-              static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
-              @Override
-              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) updateWidget(ctx, mgr, id);
-              }
-              @Override
-              public void onReceive(Context ctx, Intent intent) {
-                  super.onReceive(ctx, intent);
-                  if (ACTION_DAY_CLICK.equals(intent.getAction())) {
-                      String titles = intent.getStringExtra("event_titles");
-                      String dayLabel = intent.getStringExtra("day_label");
-                      String msg = (titles != null && !titles.isEmpty()) ? dayLabel + "\n" + titles : dayLabel + " — No events";
-                      android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show();
-                  }
-              }
-              public static void updateWidget(Context ctx, AppWidgetManager mgr, int widgetId) {
-                  updateWidgetWithLayout(ctx, mgr, widgetId, R.layout.widget_medium);
-              }
-              public static void updateWidgetWithLayout(Context ctx, AppWidgetManager mgr, int widgetId, int layoutId) {
-                  SharedPreferences prefs = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
-                  String raw = prefs.getString("widget_data", null);
-                  int todayD = 1, todayM = 1, todayY = 2018;
-                  JSONArray events = new JSONArray();
-                  if (raw != null) {
-                      try {
-                          JSONObject data = new JSONObject(raw);
-                          todayD = data.optInt("todayEthDay", 1);
-                          todayM = data.optInt("todayEthMonth", 1);
-                          todayY = data.optInt("todayEthYear", 2018);
-                          JSONArray arr = data.optJSONArray("events");
-                          if (arr != null) events = arr;
-                      } catch (Exception ignored) {}
-                  }
-                  RemoteViews views = new RemoteViews(ctx.getPackageName(), layoutId);
-                  views.setTextViewText(R.id.w_month_label, ETH_MONTHS[todayM] + "  " + todayY);
-                  for (int i = 0; i < 14; i++) {
-                      int cellId = ctx.getResources().getIdentifier("cell_" + i, "id", ctx.getPackageName());
-                      int dotId  = ctx.getResources().getIdentifier("dot_"  + i, "id", ctx.getPackageName());
-                      if (cellId == 0) continue;
-                      int d = todayD + i, m = todayM, y = todayY;
-                      while (true) {
-                          int dim = (m == 13) ? (y % 4 == 3 ? 6 : 5) : 30;
-                          if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } } else break;
-                      }
-                      views.setTextViewText(cellId, String.valueOf(d));
-                      views.setInt(cellId, "setBackgroundResource", i == 0 ? R.drawable.widget_today_bg : R.drawable.widget_day_bg);
-                      String titles = "";
-                      String dotColor = null;
-                      for (int e = 0; e < events.length(); e++) {
-                          try {
-                              JSONObject ev = events.getJSONObject(e);
-                              String rec = ev.optString("recurrence", "yearly");
-                              boolean hit = false;
-                              if (rec.equals("monthly")) hit = ev.optInt("day") == d;
-                              else if (rec.equals("yearly")) hit = ev.optInt("day") == d && ev.optInt("month") == m;
-                              else if (rec.equals("once")) hit = ev.optInt("day") == d && ev.optInt("month") == m && ev.optInt("year",0) == y;
-                              if (hit) {
-                                  titles += (titles.isEmpty() ? "" : "\n") + "• " + ev.optString("title");
-                                  if (dotColor == null) dotColor = ev.optString("color", "#8B5CF6");
-                              }
-                          } catch (Exception ignored) {}
-                      }
-                      if (dotId != 0) {
-                          if (!titles.isEmpty()) {
-                              views.setViewVisibility(dotId, android.view.View.VISIBLE);
-                              try { views.setInt(dotId, "setBackgroundColor", Color.parseColor(dotColor)); } catch (Exception ignored) {}
-                              views.setInt(cellId, "setBackgroundResource", R.drawable.widget_event_bg);
-                          } else {
-                              views.setViewVisibility(dotId, android.view.View.GONE);
-                          }
-                      }
-                      Intent click = new Intent(ctx, CalendarWidget.class);
-                      click.setAction(ACTION_DAY_CLICK);
-                      click.putExtra("event_titles", titles);
-                      click.putExtra("day_label", ETH_MONTHS[m] + " " + d + ", " + y);
-                      PendingIntent pi = PendingIntent.getBroadcast(ctx, widgetId * 100 + i, click,
-                          PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-                      views.setOnClickPendingIntent(cellId, pi);
-                  }
-                  mgr.updateAppWidget(widgetId, views);
-              }
-          }
-          JAVAEOF
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetMedium.java << 'EOF'
-          package com.hunter.arisesolo.widget;
-          import android.appwidget.AppWidgetManager;
-          import android.appwidget.AppWidgetProvider;
-          import android.content.Context;
-          import android.content.Intent;
-          public class CalendarWidgetMedium extends AppWidgetProvider {
-              @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) CalendarWidget.updateWidgetWithLayout(ctx, mgr, id, com.hunter.arisesolo.R.layout.widget_medium);
-              }
-              @Override public void onReceive(Context ctx, Intent intent) {
-                  super.onReceive(ctx, intent);
-                  if (CalendarWidget.ACTION_DAY_CLICK.equals(intent.getAction())) new CalendarWidget().onReceive(ctx, intent);
-              }
-          }
-          EOF
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/CalendarWidgetLarge.java << 'EOF'
-          package com.hunter.arisesolo.widget;
-          import android.appwidget.AppWidgetManager;
-          import android.appwidget.AppWidgetProvider;
-          import android.content.Context;
-          import android.content.Intent;
-          public class CalendarWidgetLarge extends AppWidgetProvider {
-              @Override public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) CalendarWidget.updateWidgetWithLayout(ctx, mgr, id, com.hunter.arisesolo.R.layout.widget_large);
-              }
-              @Override public void onReceive(Context ctx, Intent intent) {
-                  super.onReceive(ctx, intent);
-                  if (CalendarWidget.ACTION_DAY_CLICK.equals(intent.getAction())) new CalendarWidget().onReceive(ctx, intent);
-              }
-          }
-          EOF
-
-      - name: Register widgets in AndroidManifest
-        run: |
-          sed -i 's|</application>|    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidget" android:exported="true" android:label="Arise 2x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetMedium" android:exported="true" android:label="Arise 3x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_medium_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetLarge" android:exported="true" android:label="Arise 4x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large_info"/></receiver>\n</application>|' android/app/src/main/AndroidManifest.xml
-
       - name: Create task widgets (Dailies, Quests, Streak)
         run: |
           mkdir -p android/app/src/main/res/drawable android/app/src/main/res/layout android/app/src/main/res/xml android/app/src/main/java/com/hunter/arisesolo/widget
@@ -473,41 +217,131 @@ jobs:
                       android:textSize="11sp" android:textStyle="bold" android:fontFamily="monospace"
                       android:textColor="#94A3B8"/>
               </LinearLayout>
-              <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
-                  <ListView android:id="@+id/w_list"
-                      android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:divider="@null" android:dividerHeight="0dp" android:scrollbars="none"/>
-                  <TextView android:id="@+id/w_empty"
-                      android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:gravity="center" android:textSize="11sp" android:textStyle="bold"
-                      android:letterSpacing="0.1" android:fontFamily="monospace" android:textColor="#64748B"
-                      android:visibility="gone"/>
-              </FrameLayout>
-          </LinearLayout>
-          WEOF
-
-          cat > android/app/src/main/res/layout/widget_task_item.xml << 'WEOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:orientation="vertical" android:paddingBottom="4dp">
-              <LinearLayout android:id="@+id/row_card"
-                  android:layout_width="match_parent" android:layout_height="wrap_content"
-                  android:orientation="horizontal" android:gravity="center_vertical"
-                  android:background="@drawable/widget_row_bg">
-                  <View android:id="@+id/row_bar"
-                      android:layout_width="4dp" android:layout_height="match_parent"
-                      android:background="#38BDF8"/>
-                  <TextView android:id="@+id/row_check"
-                      android:layout_width="28dp" android:layout_height="wrap_content"
-                      android:gravity="center" android:textSize="14sp" android:textStyle="bold"
-                      android:textColor="#38BDF8"/>
-                  <TextView android:id="@+id/row_title"
-                      android:layout_width="0dp" android:layout_height="wrap_content"
-                      android:layout_weight="1" android:maxLines="2" android:ellipsize="end"
-                      android:paddingTop="9dp" android:paddingBottom="9dp" android:paddingEnd="10dp"
+              <LinearLayout android:id="@+id/r_0"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_0" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_0"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
                       android:textSize="13sp" android:textColor="#E2E8F0"/>
               </LinearLayout>
+              <LinearLayout android:id="@+id/r_1"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_1" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_1"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_2"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_2" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_2"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_3"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_3" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_3"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_4"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_4" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_4"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_5"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_5" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_5"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_6"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_6" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_6"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_7"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_7" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_7"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_8"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_8" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_8"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_9"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_9" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_9"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_10"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_10" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_10"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <LinearLayout android:id="@+id/r_11"
+                  android:layout_width="match_parent" android:layout_height="34dp"
+                  android:layout_marginBottom="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                  android:background="@drawable/widget_row_bg" android:visibility="gone">
+                  <View android:id="@+id/rb_11" android:layout_width="4dp" android:layout_height="match_parent" android:background="#38BDF8"/>
+                  <TextView android:id="@+id/rt_11"
+                      android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                      android:paddingStart="8dp" android:paddingEnd="8dp" android:maxLines="1" android:ellipsize="end"
+                      android:textSize="13sp" android:textColor="#E2E8F0"/>
+              </LinearLayout>
+              <TextView android:id="@+id/w_empty"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:gravity="center" android:paddingTop="18dp" android:paddingBottom="18dp"
+                  android:textSize="11sp" android:textStyle="bold" android:letterSpacing="0.1"
+                  android:fontFamily="monospace" android:textColor="#64748B" android:visibility="gone"/>
           </LinearLayout>
           WEOF
 
@@ -578,9 +412,9 @@ jobs:
           cat > android/app/src/main/res/xml/widget_dailies_info.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="180dp" android:minHeight="180dp"
-              android:minResizeWidth="70dp" android:minResizeHeight="70dp"
-              android:targetCellWidth="3" android:targetCellHeight="3"
+              android:minWidth="180dp" android:minHeight="110dp"
+              android:minResizeWidth="110dp" android:minResizeHeight="40dp"
+              android:targetCellWidth="3" android:targetCellHeight="2"
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_loading"
               android:resizeMode="horizontal|vertical"
@@ -590,9 +424,9 @@ jobs:
           cat > android/app/src/main/res/xml/widget_quests_info.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="180dp" android:minHeight="180dp"
-              android:minResizeWidth="70dp" android:minResizeHeight="70dp"
-              android:targetCellWidth="3" android:targetCellHeight="3"
+              android:minWidth="180dp" android:minHeight="110dp"
+              android:minResizeWidth="110dp" android:minResizeHeight="40dp"
+              android:targetCellWidth="3" android:targetCellHeight="2"
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_loading"
               android:resizeMode="horizontal|vertical"
@@ -602,245 +436,13 @@ jobs:
           cat > android/app/src/main/res/xml/widget_streak_info.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="110dp" android:minHeight="110dp"
-              android:minResizeWidth="70dp" android:minResizeHeight="70dp"
-              android:targetCellWidth="2" android:targetCellHeight="2"
+              android:minWidth="40dp" android:minHeight="40dp"
+              android:minResizeWidth="40dp" android:minResizeHeight="40dp"
+              android:targetCellWidth="1" android:targetCellHeight="1"
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_loading"
               android:resizeMode="horizontal|vertical"
               android:widgetCategory="home_screen"/>
-          WEOF
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/WidgetData.java << 'WEOF'
-          package com.hunter.arisesolo.widget;
-
-          import android.content.Context;
-          import android.content.SharedPreferences;
-          import android.widget.RemoteViews;
-          import com.hunter.arisesolo.R;
-          import org.json.JSONArray;
-          import org.json.JSONObject;
-
-          // Reads the data the web app pushes (group "AriseWidgets", key "tasks").
-          final class WidgetData {
-              private WidgetData() {}
-
-              static JSONObject load(Context ctx) {
-                  try {
-                      SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
-                      String raw = p.getString("tasks", null);
-                      if (raw != null) return new JSONObject(raw);
-                  } catch (Exception ignored) {}
-                  return new JSONObject();
-              }
-
-              // If a widget fails to build, show the reason on the widget itself instead of "Can't load widget".
-              static RemoteViews errorViews(Context ctx, Throwable t) {
-                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_error);
-                  String msg = String.valueOf(t);
-                  if (msg.length() > 220) msg = msg.substring(0, 220);
-                  v.setTextViewText(R.id.e_text, "Widget error:\n" + msg);
-                  return v;
-              }
-
-              static JSONArray list(Context ctx, String kind) {
-                  JSONArray a = load(ctx).optJSONArray(kind);
-                  return a == null ? new JSONArray() : a;
-              }
-          }
-          WEOF
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/TasksWidgetService.java << 'WEOF'
-          package com.hunter.arisesolo.widget;
-
-          import android.content.Context;
-          import android.content.Intent;
-          import android.graphics.Color;
-          import android.text.SpannableString;
-          import android.text.Spanned;
-          import android.text.style.StrikethroughSpan;
-          import android.widget.RemoteViews;
-          import android.widget.RemoteViewsService;
-          import com.hunter.arisesolo.R;
-          import org.json.JSONArray;
-          import org.json.JSONObject;
-
-          // Feeds the scrollable list inside the Dailies and Quests widgets.
-          public class TasksWidgetService extends RemoteViewsService {
-              @Override
-              public RemoteViewsFactory onGetViewFactory(Intent intent) {
-                  return new Factory(getApplicationContext(), intent.getStringExtra("kind"));
-              }
-
-              static class Factory implements RemoteViewsService.RemoteViewsFactory {
-                  private final Context ctx;
-                  private final String kind;
-                  private JSONArray items = new JSONArray();
-
-                  Factory(Context c, String k) {
-                      ctx = c;
-                      kind = (k == null) ? "dailies" : k;
-                  }
-
-                  @Override public void onCreate() {}
-                  @Override public void onDestroy() {}
-
-                  @Override
-                  public void onDataSetChanged() {
-                      // pending tasks first, finished ones (struck through) after
-                      JSONArray src = WidgetData.list(ctx, kind);
-                      JSONArray out = new JSONArray();
-                      for (int pass = 0; pass < 2; pass++) {
-                          for (int i = 0; i < src.length(); i++) {
-                              JSONObject o = src.optJSONObject(i);
-                              if (o == null) continue;
-                              boolean done = o.optInt("d", 0) == 1;
-                              if ((pass == 0 && !done) || (pass == 1 && done)) out.put(o);
-                          }
-                      }
-                      items = out;
-                  }
-
-                  @Override public int getCount() { return items.length(); }
-
-                  @Override
-                  public RemoteViews getViewAt(int pos) {
-                      RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_task_item);
-                      JSONObject o = items.optJSONObject(pos);
-                      if (o == null) return rv;
-                      boolean done = o.optInt("d", 0) == 1;
-                      String title = o.optString("t", "");
-                      int color;
-                      try { color = Color.parseColor(o.optString("c", "#38bdf8")); }
-                      catch (Exception e) { color = 0xFF38BDF8; }
-
-                      SpannableString s = new SpannableString(title);
-                      if (done && title.length() > 0) {
-                          s.setSpan(new StrikethroughSpan(), 0, title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-                      }
-                      rv.setTextViewText(R.id.row_title, s);
-                      rv.setTextColor(R.id.row_title, done ? 0xFF64748B : 0xFFE2E8F0);
-                      rv.setTextViewText(R.id.row_check, done ? "✔" : "○");
-                      rv.setTextColor(R.id.row_check, done ? 0xFF4ADE80 : color);
-                      rv.setInt(R.id.row_bar, "setBackgroundColor", done ? ((color & 0x00FFFFFF) | 0x55000000) : color);
-                      rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg);
-                      rv.setOnClickFillInIntent(R.id.row_card, new Intent());
-                      return rv;
-                  }
-
-                  @Override public RemoteViews getLoadingView() { return null; }
-                  @Override public int getViewTypeCount() { return 1; }
-                  @Override public long getItemId(int position) { return position; }
-                  @Override public boolean hasStableIds() { return false; }
-              }
-          }
-          WEOF
-
-          cat > android/app/src/main/java/com/hunter/arisesolo/widget/TasksWidgetBase.java << 'WEOF'
-          package com.hunter.arisesolo.widget;
-
-          import android.app.PendingIntent;
-          import android.appwidget.AppWidgetManager;
-          import android.appwidget.AppWidgetProvider;
-          import android.content.Context;
-          import android.content.Intent;
-          import android.net.Uri;
-          import android.os.Build;
-          import android.os.Bundle;
-          import android.view.View;
-          import android.widget.RemoteViews;
-          import com.hunter.arisesolo.R;
-          import org.json.JSONArray;
-          import org.json.JSONObject;
-
-          // Shared logic for the Dailies and Quests widgets (scrollable list, any size).
-          public abstract class TasksWidgetBase extends AppWidgetProvider {
-              abstract String kind();
-              abstract String title();
-              abstract int accent();
-              abstract String emptyText();
-
-              @Override
-              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
-                  for (int id : ids) safeRender(ctx, mgr, id);
-                  try { mgr.notifyAppWidgetViewDataChanged(ids, R.id.w_list); } catch (Throwable ignored) {}
-              }
-
-              // Called while the user drags the resize handles
-              @Override
-              public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle newOptions) {
-                  safeRender(ctx, mgr, id);
-                  try { mgr.notifyAppWidgetViewDataChanged(new int[]{id}, R.id.w_list); } catch (Throwable ignored) {}
-              }
-
-              private void safeRender(Context ctx, AppWidgetManager mgr, int id) {
-                  try {
-                      render(ctx, mgr, id);
-                  } catch (Throwable t) {
-                      try { mgr.updateAppWidget(id, WidgetData.errorViews(ctx, t)); } catch (Throwable ignored) {}
-                  }
-              }
-
-              private void render(Context ctx, AppWidgetManager mgr, int id) {
-                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks);
-
-                  Intent svc = new Intent(ctx, TasksWidgetService.class);
-                  svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
-                  svc.putExtra("kind", kind());
-                  svc.setData(Uri.parse(svc.toUri(Intent.URI_INTENT_SCHEME)));
-                  v.setRemoteAdapter(R.id.w_list, svc);
-                  v.setEmptyView(R.id.w_list, R.id.w_empty);
-
-                  JSONArray items = WidgetData.list(ctx, kind());
-                  int total = 0, done = 0;
-                  for (int i = 0; i < items.length(); i++) {
-                      JSONObject o = items.optJSONObject(i);
-                      if (o == null) continue;
-                      total++;
-                      if (o.optInt("d", 0) == 1) done++;
-                  }
-                  String count = "";
-                  int countColor = 0xFF94A3B8;
-                  if (total > 0) {
-                      if ("dailies".equals(kind())) {
-                          if (done == total) { count = "ALL DONE ✔"; countColor = 0xFF4ADE80; }
-                          else count = done + "/" + total;
-                      } else {
-                          count = String.valueOf(total);
-                      }
-                  }
-                  v.setTextViewText(R.id.w_title, title());
-                  v.setTextColor(R.id.w_title, accent());
-                  v.setTextViewText(R.id.w_count, count);
-                  v.setTextColor(R.id.w_count, countColor);
-                  v.setTextViewText(R.id.w_empty, emptyText());
-
-                  PendingIntent open = openApp(ctx, false);
-                  v.setOnClickPendingIntent(R.id.w_header, open);
-                  v.setOnClickPendingIntent(R.id.w_empty, open);
-                  v.setPendingIntentTemplate(R.id.w_list, openApp(ctx, true));
-
-                  // very short widget: hide the header so the list gets the space
-                  Bundle o = mgr.getAppWidgetOptions(id);
-                  int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
-                  v.setViewVisibility(R.id.w_header, (h > 0 && h < 90) ? View.GONE : View.VISIBLE);
-
-                  mgr.updateAppWidget(id, v);
-              }
-
-              static PendingIntent openApp(Context ctx, boolean mutable) {
-                  Intent i = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
-                  if (i == null) i = new Intent();
-                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
-                  if (mutable) {
-                      if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
-                  } else if (Build.VERSION.SDK_INT >= 23) {
-                      flags |= PendingIntent.FLAG_IMMUTABLE;
-                  }
-                  return PendingIntent.getActivity(ctx, mutable ? 7001 : 7002, i, flags);
-              }
-          }
           WEOF
 
           cat > android/app/src/main/java/com/hunter/arisesolo/widget/DailiesWidget.java << 'WEOF'
@@ -904,7 +506,7 @@ jobs:
                   Bundle o = mgr.getAppWidgetOptions(id);
                   int w = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 0);
                   int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
-                  boolean small = (w > 0 && w < 120) || (h > 0 && h < 100);
+                  boolean small = (w > 0 && w < 140) || (h > 0 && h < 100);
 
                   RemoteViews v = new RemoteViews(ctx.getPackageName(), small ? R.layout.widget_streak_small : R.layout.widget_streak);
                   int color = claimed ? 0xFFFBBF24 : 0xFF64748B;
@@ -916,8 +518,196 @@ jobs:
                       v.setTextViewText(R.id.s_status, claimed ? "SECURED TODAY ✔" : "DO A DAILY TO KEEP IT");
                       v.setTextColor(R.id.s_status, claimed ? 0xFF4ADE80 : 0xFF94A3B8);
                   }
-                  v.setOnClickPendingIntent(R.id.s_root, TasksWidgetBase.openApp(ctx, false));
+                  v.setOnClickPendingIntent(R.id.s_root, TasksWidgetBase.openApp(ctx));
                   mgr.updateAppWidget(id, v);
+              }
+          }
+          WEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/TasksWidgetBase.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.text.SpannableString;
+          import android.text.Spanned;
+          import android.text.style.ForegroundColorSpan;
+          import android.text.style.StrikethroughSpan;
+          import android.view.View;
+          import android.widget.RemoteViews;
+          import com.hunter.arisesolo.R;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Shared logic for the Dailies and Quests widgets.
+          // As many task rows are shown as fit the widget's current height, so resizing just works.
+          public abstract class TasksWidgetBase extends AppWidgetProvider {
+              private static final int[] ROW = {R.id.r_0, R.id.r_1, R.id.r_2, R.id.r_3, R.id.r_4, R.id.r_5, R.id.r_6, R.id.r_7, R.id.r_8, R.id.r_9, R.id.r_10, R.id.r_11};
+              private static final int[] BAR = {R.id.rb_0, R.id.rb_1, R.id.rb_2, R.id.rb_3, R.id.rb_4, R.id.rb_5, R.id.rb_6, R.id.rb_7, R.id.rb_8, R.id.rb_9, R.id.rb_10, R.id.rb_11};
+              private static final int[] TXT = {R.id.rt_0, R.id.rt_1, R.id.rt_2, R.id.rt_3, R.id.rt_4, R.id.rt_5, R.id.rt_6, R.id.rt_7, R.id.rt_8, R.id.rt_9, R.id.rt_10, R.id.rt_11};
+
+              abstract String kind();
+              abstract String title();
+              abstract int accent();
+              abstract String emptyText();
+
+              @Override
+              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) safeRender(ctx, mgr, id);
+              }
+
+              // Called while the user drags the resize handles
+              @Override
+              public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle newOptions) {
+                  safeRender(ctx, mgr, id);
+              }
+
+              private void safeRender(Context ctx, AppWidgetManager mgr, int id) {
+                  try {
+                      render(ctx, mgr, id);
+                  } catch (Throwable t) {
+                      try { mgr.updateAppWidget(id, WidgetData.errorViews(ctx, t)); } catch (Throwable ignored) {}
+                  }
+              }
+
+              private void render(Context ctx, AppWidgetManager mgr, int id) {
+                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks);
+
+                  // pending first, finished after
+                  JSONArray src = WidgetData.list(ctx, kind());
+                  JSONObject[] items = new JSONObject[src.length()];
+                  int n = 0, done = 0;
+                  for (int pass = 0; pass < 2; pass++) {
+                      for (int i = 0; i < src.length(); i++) {
+                          JSONObject o = src.optJSONObject(i);
+                          if (o == null) continue;
+                          boolean d = o.optInt("d", 0) == 1;
+                          if ((pass == 0 && !d) || (pass == 1 && d)) { items[n++] = o; if (d) done++; }
+                      }
+                  }
+
+                  // header
+                  String count = "";
+                  int countColor = 0xFF94A3B8;
+                  if (n > 0) {
+                      if ("dailies".equals(kind())) {
+                          if (done == n) { count = "ALL DONE \u2714"; countColor = 0xFF4ADE80; }
+                          else count = done + "/" + n;
+                      } else {
+                          count = String.valueOf(n);
+                      }
+                  }
+                  v.setTextViewText(R.id.w_title, title());
+                  v.setTextColor(R.id.w_title, accent());
+                  v.setTextViewText(R.id.w_count, count);
+                  v.setTextColor(R.id.w_count, countColor);
+
+                  // how many rows fit?
+                  Bundle o = mgr.getAppWidgetOptions(id);
+                  int hDp = 0;
+                  if (o != null) {
+                      hDp = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 0);
+                      if (hDp <= 0) hDp = o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                  }
+                  if (hDp <= 0) hDp = 180;
+                  boolean showHeader = hDp >= 90;
+                  v.setViewVisibility(R.id.w_header, showHeader ? View.VISIBLE : View.GONE);
+                  int avail = hDp - 20 - (showHeader ? 28 : 0);
+                  int fit = Math.max(1, avail / 38);
+                  if (fit > ROW.length) fit = ROW.length;
+
+                  boolean overflow = n > fit;
+                  int shown = overflow ? Math.max(1, fit - 1) : n;
+
+                  for (int i = 0; i < ROW.length; i++) {
+                      if (i < shown) {
+                          JSONObject t = items[i];
+                          boolean d = t.optInt("d", 0) == 1;
+                          String title = t.optString("t", "");
+                          int color;
+                          try { color = Color.parseColor(t.optString("c", "#38bdf8")); }
+                          catch (Exception e) { color = 0xFF38BDF8; }
+                          String glyph = d ? "\u2714" : "\u25CB";
+                          SpannableString s = new SpannableString(glyph + "  " + title);
+                          s.setSpan(new ForegroundColorSpan(d ? 0xFF4ADE80 : color), 0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                          if (d && title.length() > 0) {
+                              s.setSpan(new StrikethroughSpan(), 3, s.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                          }
+                          v.setTextViewText(TXT[i], s);
+                          v.setTextColor(TXT[i], d ? 0xFF64748B : 0xFFE2E8F0);
+                          v.setInt(BAR[i], "setBackgroundColor", d ? ((color & 0x00FFFFFF) | 0x55000000) : color);
+                          v.setInt(ROW[i], "setBackgroundResource", d ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg);
+                          v.setViewVisibility(ROW[i], View.VISIBLE);
+                      } else if (overflow && i == shown) {
+                          v.setTextViewText(TXT[i], "+" + (n - shown) + " more");
+                          v.setTextColor(TXT[i], 0xFF64748B);
+                          v.setInt(BAR[i], "setBackgroundColor", 0x00000000);
+                          v.setInt(ROW[i], "setBackgroundResource", R.drawable.widget_row_done_bg);
+                          v.setViewVisibility(ROW[i], View.VISIBLE);
+                      } else {
+                          v.setViewVisibility(ROW[i], View.GONE);
+                      }
+                  }
+
+                  v.setTextViewText(R.id.w_empty, emptyText());
+                  v.setViewVisibility(R.id.w_empty, n == 0 ? View.VISIBLE : View.GONE);
+
+                  v.setOnClickPendingIntent(R.id.w_root, openApp(ctx));
+                  mgr.updateAppWidget(id, v);
+              }
+
+              static PendingIntent openApp(Context ctx) {
+                  Intent i = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+                  if (i == null) i = new Intent();
+                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                  if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
+                  return PendingIntent.getActivity(ctx, 7002, i, flags);
+              }
+          }
+          WEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/WidgetData.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.content.Context;
+          import android.content.SharedPreferences;
+          import android.widget.RemoteViews;
+          import com.hunter.arisesolo.R;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Reads the data the web app pushes (group "AriseWidgets", key "tasks").
+          final class WidgetData {
+              private WidgetData() {}
+
+              static JSONObject load(Context ctx) {
+                  try {
+                      SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
+                      String raw = p.getString("tasks", null);
+                      if (raw != null) return new JSONObject(raw);
+                  } catch (Exception ignored) {}
+                  return new JSONObject();
+              }
+
+              // If a widget fails to build, show the reason on the widget itself instead of "Can't load widget".
+              static RemoteViews errorViews(Context ctx, Throwable t) {
+                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_error);
+                  String msg = String.valueOf(t);
+                  if (msg.length() > 220) msg = msg.substring(0, 220);
+                  v.setTextViewText(R.id.e_text, "Widget error:\n" + msg);
+                  return v;
+              }
+
+              static JSONArray list(Context ctx, String kind) {
+                  JSONArray a = load(ctx).optJSONArray(kind);
+                  return a == null ? new JSONArray() : a;
               }
           }
           WEOF
@@ -933,8 +723,7 @@ jobs:
                       '<meta-data android:name="android.appwidget.provider" android:resource="@xml/%s"/></receiver>\n') % (cls, label, res)
           block = (recv("DailiesWidget", "Arise Dailies", "widget_dailies_info")
                  + recv("QuestsWidget", "Arise Quests", "widget_quests_info")
-                 + recv("StreakWidget", "Arise Streak", "widget_streak_info")
-                 + '    <service android:name="com.hunter.arisesolo.widget.TasksWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n')
+                 + recv("StreakWidget", "Arise Streak", "widget_streak_info"))
           assert "</application>" in s
           s = s.replace("</application>", block + "</application>", 1)
           open(p, "w", encoding="utf-8").write(s)
