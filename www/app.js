@@ -3059,6 +3059,11 @@ function syncTaskWidgets() {
         clearTimeout(_widgetPushTimer);
         _widgetPushTimer = setTimeout(async () => {
             try {
+                try { await P.setRegisteredWidgets({ widgets: [
+                    'com.hunter.arisesolo.widget.DailiesWidget',
+                    'com.hunter.arisesolo.widget.QuestsWidget',
+                    'com.hunter.arisesolo.widget.StreakWidget'
+                ] }); } catch (e) {}
                 await P.setItem({ group: 'AriseWidgets', key: 'tasks', value: payload });
                 ['DailiesWidget', 'QuestsWidget', 'StreakWidget'].forEach(k => {
                     P.reloadTimelines({ ofKind: 'com.hunter.arisesolo.widget.' + k }).catch(() => {});
