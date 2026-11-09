@@ -847,6 +847,15 @@ jobs:
                   return v;
               }
 
+              // The app's "day" starts at the user's reset time, not always midnight.
+              // Returns yyyy-MM-dd of the current app day (same rule the web app uses).
+              static String logicalDay(int resetMin) {
+                  java.util.Calendar c = java.util.Calendar.getInstance();
+                  c.add(java.util.Calendar.MINUTE, -resetMin);
+                  return String.format(java.util.Locale.US, "%04d-%02d-%02d",
+                      c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH));
+              }
+
               static JSONArray list(Context ctx, String kind) {
                   JSONArray a = load(ctx).optJSONArray(kind);
                   return a == null ? new JSONArray() : a;
@@ -1151,8 +1160,12 @@ jobs:
           package com.hunter.arisesolo.widget;
 
           import android.appwidget.AppWidgetManager;
+          import android.app.AlarmManager;
+          import android.app.PendingIntent;
           import android.appwidget.AppWidgetProvider;
+          import android.content.ComponentName;
           import android.content.Context;
+          import android.content.Intent;
           import android.os.Bundle;
           import android.widget.RemoteViews;
           import com.hunter.arisesolo.R;
@@ -1162,6 +1175,34 @@ jobs:
           public class StreakWidget extends AppWidgetProvider {
               // 1.0 = full height the launcher gives; lower = shorter card. Tweak this one number.
               private static final float STREAK_HEIGHT_FACTOR = 0.80f;
+              private static final String ACTION_DAY_ROLLOVER = "com.hunter.arisesolo.widget.DAY_ROLLOVER";
+
+              // Fires at the app's daily reset time so the widget flips to "not secured" without opening the app.
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  if (intent != null && ACTION_DAY_ROLLOVER.equals(intent.getAction())) {
+                      AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+                      int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, StreakWidget.class));
+                      for (int id : ids) safeRender(ctx, mgr, id);
+                      return;
+                  }
+                  super.onReceive(ctx, intent);
+              }
+
+              private static void scheduleRollover(Context ctx, int resetMin) {
+                  try {
+                      java.util.Calendar c = java.util.Calendar.getInstance();
+                      c.set(java.util.Calendar.HOUR_OF_DAY, resetMin / 60);
+                      c.set(java.util.Calendar.MINUTE, resetMin % 60);
+                      c.set(java.util.Calendar.SECOND, 5);
+                      c.set(java.util.Calendar.MILLISECOND, 0);
+                      if (c.getTimeInMillis() <= System.currentTimeMillis()) c.add(java.util.Calendar.DAY_OF_YEAR, 1);
+                      Intent i = new Intent(ctx, StreakWidget.class).setAction(ACTION_DAY_ROLLOVER);
+                      PendingIntent pi = PendingIntent.getBroadcast(ctx, 7301, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                      AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                      if (am != null) am.set(AlarmManager.RTC_WAKEUP, c.getTimeInMillis(), pi);
+                  } catch (Throwable ignored) {}
+              }
 
               @Override
               public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
@@ -1185,6 +1226,11 @@ jobs:
                   JSONObject d = WidgetData.load(ctx);
                   int streak = d.optInt("streak", 0);
                   boolean claimed = d.optBoolean("claimed", false);
+                  int resetMin = d.optInt("resetMin", 0);
+                  String claimedDay = d.optString("claimedDay", "");
+                  // Secured only counts for the app day it was earned on; a new day means "do a daily" again.
+                  if (claimed && claimedDay.length() > 0 && !claimedDay.equals(WidgetData.logicalDay(resetMin))) claimed = false;
+                  scheduleRollover(ctx, resetMin);
 
                   Bundle o = mgr.getAppWidgetOptions(id);
                   boolean portrait = ctx.getResources().getConfiguration().orientation != android.content.res.Configuration.ORIENTATION_LANDSCAPE;

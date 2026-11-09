@@ -3048,11 +3048,19 @@ function syncTaskWidgets() {
             .filter(q => q.type === 'daily' || !q.type)
             .filter(q => isQuestActiveOnDate(q, now));
         const quests = systemState.quests.filter(q => q.type && q.type !== 'daily' && !q.completed);
+        // The app's "day" starts at the reset time (not always midnight); the widget needs it to know when a streak claim expires
+        const { h: _rh, m: _rm } = getResetTime();
+        const _ld = new Date(now.getTime() - (_rh * 60 + _rm) * 60000);
+        const _p2 = n => String(n).padStart(2, '0');
+        const logicalDay = _ld.getFullYear() + '-' + _p2(_ld.getMonth() + 1) + '-' + _p2(_ld.getDate());
+        const claimedNow = systemState.streakIncrementedToday === true;
         const payload = JSON.stringify({
             dailies: dailies.map(q => ({ t: q.title, d: q.completed ? 1 : 0, c: colorOf(q) })),
             quests:  quests.map(q => ({ t: q.title, d: 0, c: colorOf(q) })),
             streak:  systemState.streak || 0,
-            claimed: systemState.streakIncrementedToday === true
+            claimed: claimedNow,
+            claimedDay: claimedNow ? logicalDay : '',
+            resetMin: _rh * 60 + _rm
         });
         if (payload === _lastWidgetPayload) return;      // nothing changed, skip
         _lastWidgetPayload = payload;
