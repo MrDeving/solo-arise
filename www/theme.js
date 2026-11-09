@@ -163,6 +163,65 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 .ts-tg[aria-pressed="true"] .ts-sw-t { background: var(--accent); }
 .ts-tg[aria-pressed="true"] .ts-sw-t::after { transform: translateX(18px); }
 .ts-note { font-size: 11px; color: var(--t-muted); line-height: 1.5; }
+
+/* ---------- motion ---------- */
+@property --t-bg1 { syntax: '<color>'; inherits: true; initial-value: #0b1a2c; }
+@property --t-bg2 { syntax: '<color>'; inherits: true; initial-value: #020617; }
+@property --t-panelA { syntax: '<color>'; inherits: true; initial-value: rgba(30,50,76,.6); }
+@property --t-panelB { syntax: '<color>'; inherits: true; initial-value: rgba(10,20,34,.6); }
+@property --t-text { syntax: '<color>'; inherits: true; initial-value: #f1f7fb; }
+@property --t-muted { syntax: '<color>'; inherits: true; initial-value: #9fb3c8; }
+@property --accent { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
+@property --accent2 { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
+@property --rank-color { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
+@property --neon-blue { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
+:root { transition: --t-bg1 .55s ease, --t-bg2 .55s ease, --t-panelA .55s ease, --t-panelB .55s ease, --t-text .45s ease, --t-muted .45s ease, --accent .55s ease, --accent2 .55s ease, --rank-color .55s ease, --neon-blue .55s ease; }
+
+#theme-studio { transform: translateY(40px) scale(.985); opacity: 0; transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .25s ease; will-change: transform, opacity; }
+#theme-studio.in { transform: none; opacity: 1; }
+#theme-studio.out { transform: translateY(60px); opacity: 0; transition: transform .26s cubic-bezier(.5,0,.75,0), opacity .22s ease; }
+#theme-studio.in .ts-top { animation: tsDrop .5s cubic-bezier(.22,1,.36,1) both; }
+@keyframes tsDrop { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+.ts-title { transition: color .4s; }
+
+.ts-tabs { position: relative; }
+.ts-tabs .ts-ink { position: absolute; left: 12px; bottom: 0; height: 2px; width: calc((100% - 24px) / var(--n)); background: var(--accent); border-radius: 2px; transform: translateX(calc(var(--i) * 100%)); transition: transform .35s cubic-bezier(.34,1.3,.64,1), background .5s; box-shadow: 0 0 10px var(--accent); }
+.ts-tabs button { flex: 1; border-bottom: 0 !important; transition: color .25s; }
+.ts-pane:not([hidden]) > * { animation: tsUp .45s cubic-bezier(.22,1,.36,1) both; }
+.ts-pane:not([hidden]) > *:nth-child(2) { animation-delay: .06s; } .ts-pane:not([hidden]) > *:nth-child(3) { animation-delay: .12s; } .ts-pane:not([hidden]) > *:nth-child(4) { animation-delay: .18s; }
+@keyframes tsUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+
+.ts-seg { position: relative; }
+.ts-seg button { position: relative; z-index: 1; transition: color .25s, transform .15s; }
+.ts-seg button:active { transform: scale(.94); }
+.ts-pill { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n)); border-radius: 9px; background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent); transform: translateX(calc(var(--i) * 100%)); transition: transform .4s cubic-bezier(.34,1.4,.64,1), background .5s; }
+.ts-seg button[aria-pressed="true"] { background: none !important; box-shadow: none !important; }
+
+.ts-card { transition: transform .25s cubic-bezier(.34,1.56,.64,1), border-color .3s, box-shadow .35s, opacity .3s; animation: tsCardIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--k, 0) * 35ms + 80ms); }
+@keyframes tsCardIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
+.ts-card:active { transform: scale(.94); }
+.ts-card[aria-pressed="true"] { transform: translateY(-2px); }
+.ts-card[aria-pressed="true"] .ts-sw .d { animation: tsGlow 1.8s ease-in-out infinite; }
+@keyframes tsGlow { 50% { transform: scale(1.25); } }
+.ts-card.pop { animation: tsPop .5s cubic-bezier(.34,1.56,.64,1); }
+@keyframes tsPop { 0% { transform: scale(.9); } 55% { transform: scale(1.07); } 100% { transform: translateY(-2px); } }
+.ts-card.shake { animation: tsShake .4s; }
+@keyframes tsShake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
+.ts-card.locked .ts-sw { filter: grayscale(.6); }
+.ts-sw { transition: background .5s; } .ts-sw i { transition: background .5s, box-shadow .5s; }
+
+.ts-chip { transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .3s, border-color .3s, color .3s; animation: tsCardIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--k, 0) * 30ms + 60ms); }
+.ts-chip:active { transform: scale(.92); }
+.ts-chip.pop { animation: tsPop .45s cubic-bezier(.34,1.56,.64,1); }
+.ts-tg { transition: background .3s, transform .15s; } .ts-tg:active { transform: scale(.98); }
+.ts-sw-t { transition: background .3s; } .ts-sw-t::after { transition: transform .35s cubic-bezier(.34,1.56,.64,1); }
+.ts-btn { transition: transform .15s, background .2s; } .ts-btn:active { transform: scale(.92); }
+#theme-studio input[type=range]::-webkit-slider-thumb { transition: transform .15s, box-shadow .2s; }
+#theme-studio input[type=range]:active::-webkit-slider-thumb { transform: scale(1.25); box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent); }
+
+.ts-ripple { position: fixed; z-index: 10100; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none; border: 2px solid var(--accent); background: radial-gradient(circle, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%); animation: tsRip .85s cubic-bezier(.2,.7,.2,1) forwards; }
+@keyframes tsRip { from { transform: scale(.2); opacity: .95; } to { transform: scale(40); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { #theme-studio, #theme-studio *, .ts-ripple { animation: none !important; transition: none !important; } }
 `;
     const st = document.createElement('style'); st.id = 'theme-css'; st.textContent = css; document.head.appendChild(st);
 
@@ -191,14 +250,15 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
     let cv = null, ctx = null, W = 0, H = 0, P = [], B = [], cols = [], running = false, last = 0, tAcc = 0, kind = 'none';
     const rnd = (a, b) => a + Math.random() * (b - a);
     const rch = () => '01ｱｲｳｴｵｶｷｸｹｺｻｼｽ'.charAt(Math.floor(Math.random() * 15));
-    function ensureCanvas() {
-        if (cv) return;
-        cv = document.createElement('canvas'); cv.id = 'theme-fx'; cv.setAttribute('aria-hidden', 'true'); document.body.appendChild(cv); ctx = cv.getContext('2d');
-    }
-    function resizeFx() {
+    function sizeCanvas() {
         if (!cv) return; const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-        W = window.innerWidth; H = window.innerHeight; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); initFx();
+        W = window.innerWidth; H = window.innerHeight; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
+    function ensureCanvas() {
+        if (!cv) { cv = document.createElement('canvas'); cv.id = 'theme-fx'; cv.setAttribute('aria-hidden', 'true'); document.body.appendChild(cv); ctx = cv.getContext('2d'); }
+        if (!W || !H || cv.width === 0) sizeCanvas();
+    }
+    function resizeFx() { if (!cv) return; sizeCanvas(); initFx(); }
     function activeKind() { if (S.saver || reducedMotion) return 'none'; return S.fx === 'auto' ? D.p.fx : S.fx; }
     function spawn(p, first) {
         if (kind === 'embers') Object.assign(p, { x: rnd(0, W), y: first ? rnd(0, H) : H + 8, vy: -rnd(25, 80), vx: rnd(-10, 10), r: rnd(1, 2.6), ph: rnd(0, 6.28), a: rnd(.4, 1) });
@@ -288,95 +348,139 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
     const DIFF = { trivial: '#38bdf8', easy: '#4ade80', medium: '#fbbf24', hard: '#f87171' };
     window.themeBurst = function (difficulty) {
         if (!S.burst || S.saver || reducedMotion) return;
-        ensureCanvas(); if (!W) { W = window.innerWidth; H = window.innerHeight; resizeFx(); }
-        cv.style.display = 'block'; const c = DIFF[difficulty] || D.t.accent;
+        ensureCanvas(); cv.style.display = 'block'; const c = DIFF[difficulty] || D.t.accent;
         for (let i = 0; i < 18; i++) { const a = rnd(0, 6.28), v = rnd(60, 190); B.push({ x: lastTap.x, y: lastTap.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 30, life: 1, c }); }
         kick();
     };
 
     /* ---------- studio UI ---------- */
-    let studio = null, pane = 'look';
+    let studio = null, pane = 'look', closing = null;
+    const PANES = ['look', 'fx', 'tune'];
     function modeCols(p) {
         const light = S.mode === 'light' || (S.mode === 'auto' && sysLight.matches), am = S.mode === 'amoled';
         return { a: light ? hsl(p.h, Math.max(p.s, 62), Math.min(p.l, 44)) : hsl(p.h, p.s, p.l), b1: light ? hsl(p.bgH, 45, 97) : am ? hsl(p.bgH, 30, 5) : hsl(p.bgH, 38, 14), b2: light ? hsl(p.bgH, 40, 89) : am ? '#000' : hsl(p.bgH, 50, 4) };
     }
-    function card(p) {
-        const c = modeCols(p), locked = p.lv && level() < p.lv, on = !S.custom && S.pack === p.id;
-        const tag = p.id.startsWith('rank') ? (locked ? '<span>🔒 LV ' + p.lv + '</span>' : '<span>OPEN</span>') : '';
-        return `<button class="ts-card${locked ? ' locked' : ''}" data-id="${p.id}" aria-pressed="${on}"><div class="ts-sw" style="background:linear-gradient(160deg,${c.b1},${c.b2})"><i class="d" style="background:${c.a};box-shadow:0 0 14px ${c.a}"></i><i class="p2" style="background:${c.a}"></i><i class="p" style="background:${c.a}"></i></div><div><div class="n">${p.name}</div><div class="s"><span>${p.sub}</span>${tag}</div></div></button>`;
+    function card(p, k) {
+        const c = modeCols(p);
+        return `<button class="ts-card" style="--k:${k}" data-id="${p.id}" aria-pressed="false"><div class="ts-sw" style="background:linear-gradient(160deg,${c.b1},${c.b2})"><i class="d" style="background:${c.a};box-shadow:0 0 14px ${c.a}"></i><i class="p2" style="background:${c.a}"></i><i class="p" style="background:${c.a}"></i></div><div><div class="n">${p.name}</div><div class="s"><span>${p.sub}</span><span class="tag"></span></div></div></button>`;
     }
     function slider(id, label, min, max, val, suf) { return `<div class="ts-sl"><label for="${id}">${label}</label><input type="range" id="${id}" min="${min}" max="${max}" value="${val}"><output id="${id}-o">${val}${suf}</output></div>`; }
-    const seg = (cls, items, cur) => `<div class="ts-seg" data-seg="${cls}">${items.map(([v, n]) => `<button data-v="${v}" aria-pressed="${cur === v}">${n}</button>`).join('')}</div>`;
+    const seg = (cls, items) => `<div class="ts-seg" data-seg="${cls}" style="--n:${items.length};--i:0"><b class="ts-pill"></b>${items.map(([v, n]) => `<button data-v="${v}" aria-pressed="false">${n}</button>`).join('')}</div>`;
 
-    function renderStudio() {
-        if (!studio) return;
-        const body = studio.querySelector('.ts-body'), keep = body ? body.scrollTop : 0;
+    function buildDOM() {
+        let k = 0;
         studio.innerHTML = `
-        <div class="ts-top"><div class="ts-title">THEME · ${D.p.name.toUpperCase()}</div><button class="ts-btn" data-act="reset">RESET</button><button class="ts-btn" data-act="close">DONE</button></div>
-        <div class="ts-tabs">${[['look', 'LOOK'], ['fx', 'EFFECTS'], ['tune', 'TUNE']].map(([k, n]) => `<button data-tab="${k}" aria-selected="${pane === k}">${n}</button>`).join('')}</div>
+        <div class="ts-top"><div class="ts-title"></div><button class="ts-btn" data-act="reset">RESET</button><button class="ts-btn" data-act="close">DONE</button></div>
+        <div class="ts-tabs" style="--n:3;--i:0"><b class="ts-ink"></b>${[['look', 'LOOK'], ['fx', 'EFFECTS'], ['tune', 'TUNE']].map(([v, n]) => `<button data-tab="${v}" aria-selected="false">${n}</button>`).join('')}</div>
         <div class="ts-body">
-          <div class="ts-pane" data-pane="look" ${pane === 'look' ? '' : 'hidden'}>
-            <div><div class="ts-lbl">BRIGHTNESS</div>${seg('mode', [['dark', 'DARK'], ['light', 'LIGHT'], ['amoled', 'AMOLED'], ['auto', 'AUTO']], S.mode)}</div>
-            <div><div class="ts-lbl">SIGNATURE THEMES</div><div class="ts-grid">${SIG.map(card).join('')}<button class="ts-card" data-id="custom" aria-pressed="${S.custom}"><div class="ts-sw custom"></div><div><div class="n">Custom</div><div class="s"><span>YOUR OWN HUE</span></div></div></button></div></div>
-            <div><div class="ts-lbl">RANK AURAS</div><div class="ts-grid">${RANKS.map(card).join('')}</div></div>
+          <div class="ts-pane" data-pane="look">
+            <div><div class="ts-lbl">BRIGHTNESS</div>${seg('mode', [['dark', 'DARK'], ['light', 'LIGHT'], ['amoled', 'AMOLED'], ['auto', 'AUTO']])}</div>
+            <div><div class="ts-lbl">SIGNATURE THEMES</div><div class="ts-grid">${SIG.map(p => card(p, k++)).join('')}<button class="ts-card" style="--k:${k++}" data-id="custom" aria-pressed="false"><div class="ts-sw custom"></div><div><div class="n">Custom</div><div class="s"><span>YOUR OWN HUE</span></div></div></button></div></div>
+            <div><div class="ts-lbl">RANK AURAS</div><div class="ts-grid">${RANKS.map(p => card(p, k++)).join('')}</div></div>
           </div>
-          <div class="ts-pane" data-pane="fx" ${pane === 'fx' ? '' : 'hidden'}>
-            <div><div class="ts-lbl">BACKGROUND ATMOSPHERE</div><div class="ts-chips">${FX.map(([v, n]) => `<button class="ts-chip" data-fx="${v}" aria-pressed="${S.fx === v}">${n}</button>`).join('')}</div></div>
+          <div class="ts-pane" data-pane="fx" hidden>
+            <div><div class="ts-lbl">BACKGROUND ATMOSPHERE</div><div class="ts-chips">${FX.map(([v, n], i) => `<button class="ts-chip" style="--k:${i}" data-fx="${v}" aria-pressed="false">${n}</button>`).join('')}</div></div>
             <div>${slider('ts-den', 'Density', 0, 100, S.density, '%')}${slider('ts-spd', 'Speed', 10, 100, S.speed, '%')}</div>
             <div>
-              <button class="ts-tg" data-tg="burst" aria-pressed="${S.burst}"><span><b>Completion sparks</b><small>A burst of particles when you check a task</small></span><span class="ts-sw-t"></span></button>
-              <button class="ts-tg" data-tg="saver" aria-pressed="${S.saver || reducedMotion}"><span><b>Battery saver</b><small>Turns all motion off. Colours still change.</small></span><span class="ts-sw-t"></span></button>
+              <button class="ts-tg" data-tg="burst" aria-pressed="false"><span><b>Completion sparks</b><small>A burst of particles when you check a task</small></span><span class="ts-sw-t"></span></button>
+              <button class="ts-tg" data-tg="saver" aria-pressed="false"><span><b>Battery saver</b><small>Turns all motion off. Colours still change.</small></span><span class="ts-sw-t"></span></button>
             </div>
             <p class="ts-note">Effects are off by default to keep the app smooth. When on, they run at 30 fps and pause while the app is in the background.</p>
           </div>
-          <div class="ts-pane" data-pane="tune" ${pane === 'tune' ? '' : 'hidden'}>
-            <div><div class="ts-lbl">ACCENT HUE · DRAG TO MAKE YOUR OWN THEME</div><input type="range" id="ts-hue" min="0" max="360" value="${S.custom ? S.hue : D.p.h}" style="--trk:linear-gradient(90deg,hsl(0 85% 62%),hsl(60 85% 62%),hsl(120 85% 62%),hsl(180 85% 62%),hsl(240 85% 62%),hsl(300 85% 62%),hsl(360 85% 62%))"></div>
+          <div class="ts-pane" data-pane="tune" hidden>
+            <div><div class="ts-lbl">ACCENT HUE · DRAG TO MAKE YOUR OWN THEME</div><input type="range" id="ts-hue" min="0" max="360" value="0" style="--trk:linear-gradient(90deg,hsl(0 85% 62%),hsl(60 85% 62%),hsl(120 85% 62%),hsl(180 85% 62%),hsl(240 85% 62%),hsl(300 85% 62%),hsl(360 85% 62%))"></div>
             <div>${slider('ts-glass', 'Panels', 10, 100, S.glass, '%')}${slider('ts-rad', 'Corners', 6, 28, S.radius, 'px')}</div>
           </div>
         </div>`;
-        const nb = studio.querySelector('.ts-body'); if (nb) nb.scrollTop = keep;
     }
 
+    // update the existing DOM in place so CSS transitions can play
+    function syncStudio() {
+        if (!studio) return;
+        const $q = (sel, root) => [].slice.call((root || studio).querySelectorAll(sel));
+        studio.querySelector('.ts-title').textContent = 'THEME · ' + D.p.name.toUpperCase();
+        const tabs = studio.querySelector('.ts-tabs'); tabs.style.setProperty('--i', PANES.indexOf(pane));
+        $q('[data-tab]').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === pane));
+        $q('.ts-pane').forEach(p => { const show = p.dataset.pane === pane; if (p.hidden === show) p.hidden = !show; });
+        const m = studio.querySelector('[data-seg="mode"]'); const mi = ['dark', 'light', 'amoled', 'auto'].indexOf(S.mode);
+        m.style.setProperty('--i', mi); $q('button', m).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.mode));
+        $q('.ts-card').forEach(c => {
+            const id = c.dataset.id, on = id === 'custom' ? S.custom : (!S.custom && S.pack === id);
+            c.setAttribute('aria-pressed', on);
+            if (id !== 'custom') {
+                const p = packById(id), col = modeCols(p), sw = c.querySelector('.ts-sw'), locked = p.lv && level() < p.lv;
+                sw.style.background = `linear-gradient(160deg,${col.b1},${col.b2})`;
+                $q('i', sw).forEach(i => { i.style.background = col.a; }); sw.querySelector('.d').style.boxShadow = `0 0 14px ${col.a}`;
+                c.classList.toggle('locked', !!locked);
+                const tag = c.querySelector('.tag'); if (tag) tag.textContent = p.id.startsWith('rank') ? (locked ? '🔒 LV ' + p.lv : 'OPEN') : '';
+            }
+        });
+        $q('[data-fx]').forEach(c => c.setAttribute('aria-pressed', c.dataset.fx === S.fx));
+        studio.querySelector('[data-tg="burst"]').setAttribute('aria-pressed', S.burst);
+        studio.querySelector('[data-tg="saver"]').setAttribute('aria-pressed', S.saver || reducedMotion);
+        const set = (id, v, suf) => { const el = studio.querySelector('#' + id); if (el && document.activeElement !== el) el.value = v; studio.querySelector('#' + id + '-o').textContent = v + suf; };
+        set('ts-den', S.density, '%'); set('ts-spd', S.speed, '%'); set('ts-glass', S.glass, '%'); set('ts-rad', S.radius, 'px');
+        const hue = studio.querySelector('#ts-hue'); if (document.activeElement !== hue) hue.value = S.custom ? S.hue : D.p.h;
+    }
+
+    // colour ripple that floods the screen from where you tapped
+    function ripple(x, y) {
+        if (S.saver || reducedMotion) return;
+        const r = document.createElement('div'); r.className = 'ts-ripple';
+        r.style.left = x + 'px'; r.style.top = y + 'px'; document.body.appendChild(r);
+        setTimeout(() => r.remove(), 900);
+    }
     function changed(opts) {
         opts = opts || {}; applyVars(); persist();
         if (opts.fx !== false) initFx();
-        const t = studio && studio.querySelector('.ts-title'); if (t) t.textContent = 'THEME · ' + D.p.name.toUpperCase();
-        if (opts.render) renderStudio();
+        syncStudio();
+        if (opts.ripple) ripple(opts.ripple.x, opts.ripple.y);
     }
+    function pop(el) { if (!el) return; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); }
+    function wiggle(el) { if (!el) return; el.classList.remove('shake'); void el.offsetWidth; el.classList.add('shake'); }
 
     function buildStudio() {
-        studio = document.createElement('div'); studio.id = 'theme-studio'; document.body.appendChild(studio);
+        studio = document.createElement('div'); studio.id = 'theme-studio'; document.body.appendChild(studio); buildDOM();
         studio.addEventListener('click', e => {
-            const t = e.target;
-            const act = t.closest('[data-act]'); if (act) { if (act.dataset.act === 'close') closeThemeStudio(); else { S = Object.assign({}, DEFAULTS); changed({ render: true }); } return; }
-            const tab = t.closest('[data-tab]'); if (tab) { pane = tab.dataset.tab; renderStudio(); return; }
+            const t = e.target, pt = { x: e.clientX, y: e.clientY };
+            const act = t.closest('[data-act]'); if (act) { if (act.dataset.act === 'close') closeThemeStudio(); else { S = Object.assign({}, DEFAULTS); changed({ ripple: pt }); } return; }
+            const tab = t.closest('[data-tab]'); if (tab) { pane = tab.dataset.tab; syncStudio(); return; }
             const c = t.closest('.ts-card');
             if (c) {
                 const id = c.dataset.id;
                 if (id === 'custom') { S.custom = true; S.hue = S.hue || 200; pane = 'tune'; }
                 else {
                     const p = packById(id);
-                    if (p.lv && level() < p.lv) { if (typeof showFloatingMsg === 'function') showFloatingMsg('Locked. Reach Level ' + p.lv + ' to unlock.', hsl(p.h, p.s, p.l)); return; }
+                    if (p.lv && level() < p.lv) { wiggle(c); if (typeof showFloatingMsg === 'function') showFloatingMsg('Locked. Reach Level ' + p.lv + ' to unlock.', hsl(p.h, p.s, p.l)); return; }
                     S.custom = false; S.pack = id; S.hue = p.h;
                 }
-                changed({ render: true }); return;
+                pop(c); changed({ ripple: pt }); return;
             }
-            const sg = t.closest('.ts-seg button'); if (sg) { S.mode = sg.dataset.v; changed({ render: true }); return; }
-            const fx = t.closest('[data-fx]'); if (fx) { S.fx = fx.dataset.fx; changed({ render: true }); return; }
-            const tg = t.closest('[data-tg]'); if (tg) { const k = tg.dataset.tg; S[k] = !S[k]; changed({ render: true }); return; }
+            const sg = t.closest('.ts-seg button'); if (sg) { S.mode = sg.dataset.v; changed({ ripple: pt }); return; }
+            const fx = t.closest('[data-fx]'); if (fx) { S.fx = fx.dataset.fx; pop(fx); changed(); return; }
+            const tg = t.closest('[data-tg]'); if (tg) { const k = tg.dataset.tg; S[k] = !S[k]; if (k === 'burst' && S.burst && !S.saver) window.themeBurst('easy'); changed(); return; }
         });
         studio.addEventListener('input', e => {
-            const id = e.target.id, v = +e.target.value, o = document.getElementById(id + '-o');
+            const id = e.target.id, v = +e.target.value;
             if (id === 'ts-hue') { S.custom = true; S.hue = v; changed({ fx: false }); return; }
-            if (id === 'ts-den') { S.density = v; o.textContent = v + '%'; changed(); }
-            else if (id === 'ts-spd') { S.speed = v; o.textContent = v + '%'; changed({ fx: false }); }
-            else if (id === 'ts-glass') { S.glass = v; o.textContent = v + '%'; changed({ fx: false }); }
-            else if (id === 'ts-rad') { S.radius = v; o.textContent = v + 'px'; changed({ fx: false }); }
+            if (id === 'ts-den') { S.density = v; changed(); }
+            else if (id === 'ts-spd') { S.speed = v; changed({ fx: false }); }
+            else if (id === 'ts-glass') { S.glass = v; changed({ fx: false }); }
+            else if (id === 'ts-rad') { S.radius = v; changed({ fx: false }); }
         });
     }
 
-    window.openThemeStudio = function () { if (!studio) buildStudio(); renderStudio(); studio.style.display = 'flex'; };
-    window.closeThemeStudio = function () { if (studio) studio.style.display = 'none'; };
+    window.openThemeStudio = function () {
+        if (closing) { clearTimeout(closing); closing = null; }
+        if (!studio) buildStudio(); else { buildDOM(); }
+        pane = 'look'; syncStudio();
+        studio.classList.remove('out'); studio.style.display = 'flex'; void studio.offsetWidth; studio.classList.add('in');
+    };
+    window.closeThemeStudio = function () {
+        if (!studio || studio.style.display === 'none' || closing) return;
+        studio.classList.remove('in'); studio.classList.add('out');
+        closing = setTimeout(() => { studio.style.display = 'none'; studio.classList.remove('out'); closing = null; }, 260);
+    };
 
     sysLight.addEventListener && sysLight.addEventListener('change', () => { if (S.mode === 'auto') changed({ render: true }); });
     window.addEventListener('resize', resizeFx);
