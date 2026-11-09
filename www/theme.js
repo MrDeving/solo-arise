@@ -34,9 +34,10 @@
         { id: 'sakura', name: 'Sakura',         sub: 'BLOSSOM',   h: 336, s: 80, l: 72, bgH: 338, fx: 'petals' },
         { id: 'neon',   name: 'Neon Drive',     sub: 'SYNTHWAVE', h: 318, s: 96, l: 62, bgH: 258, fx: 'grid' }
     ];
+    const RANK_FX = { E: 'mist', D: 'bubbles', C: 'fireflies', B: 'storm', A: 'sigils', S: 'bolts' };
     const RANKS = [['E', '#b57a50', 0], ['D', '#8faec6', 7], ['C', '#00ffaa', 15], ['B', '#00f0ff', 24], ['A', '#cc44ff', 34], ['S', '#ffb700', 45]]
-        .map(([k, hex, lv]) => { const c = hexToHsl(hex); return Object.assign({ id: 'rank' + k, name: k + '-Rank', sub: lv ? 'LEVEL ' + lv : 'START', lv, fx: 'motes', bgH: c.h }, c); });
-    const FX = [['auto', 'Theme default'], ['embers', 'Embers'], ['motes', 'Shadow motes'], ['snow', 'Snow'], ['petals', 'Petals'], ['rain', 'Matrix rain'], ['stars', 'Stars'], ['aurora', 'Aurora'], ['grid', 'Synth grid'], ['none', 'Off']];
+        .map(([k, hex, lv]) => { const c = hexToHsl(hex); return Object.assign({ id: 'rank' + k, name: k + '-Rank', sub: lv ? 'LEVEL ' + lv : 'START', lv, fx: RANK_FX[k] || 'motes', bgH: c.h }, c); });
+    const FX = [['auto', 'Theme default'], ['embers', 'Embers'], ['motes', 'Shadow motes'], ['snow', 'Snow'], ['petals', 'Petals'], ['rain', 'Matrix rain'], ['stars', 'Stars'], ['aurora', 'Aurora'], ['grid', 'Synth grid'], ['fireflies', 'Fireflies'], ['storm', 'Thunderstorm'], ['meteors', 'Meteor shower'], ['mist', 'Shadow mist'], ['bubbles', 'Bubbles'], ['sigils', 'Sigils'], ['bolts', 'Lightning'], ['none', 'Off']];
     const DEFAULTS = { mode: 'dark', pack: 'system', custom: false, hue: 199, fx: 'none', density: 45, speed: 50, glass: 55, radius: 16, burst: true, saver: false };
 
     let S = Object.assign({}, DEFAULTS);
@@ -138,7 +139,8 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 .ts-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .ts-card { text-align: left; border: 1px solid var(--t-edge); background: color-mix(in srgb, var(--t-text) 5%, transparent); border-radius: 14px; padding: 8px; display: flex; flex-direction: column; gap: 8px; color: var(--t-text); min-width: 0; }
 .ts-card[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 0 0 18px color-mix(in srgb, var(--accent) 30%, transparent); }
-.ts-card.locked { opacity: .55; }
+.ts-card.locked { border-style: dashed; }
+.ts-card.locked > * { opacity: .42; transition: opacity .3s; }
 .ts-sw { position: relative; height: 58px; border-radius: 9px; overflow: hidden; border: 1px solid rgba(128,128,128,.25); }
 .ts-sw i { position: absolute; display: block; }
 .ts-sw .d { right: 8px; top: 8px; width: 16px; height: 16px; border-radius: 50%; }
@@ -207,7 +209,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 @keyframes tsPop { 0% { transform: scale(.9); } 55% { transform: scale(1.07); } 100% { transform: translateY(-2px); } }
 .ts-card.shake { animation: tsShake .4s; }
 @keyframes tsShake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }
-.ts-card.locked .ts-sw { filter: grayscale(.6); }
+.ts-card.locked .ts-sw { filter: grayscale(.75); }
 .ts-sw { transition: background .5s; } .ts-sw i { transition: background .5s, box-shadow .5s; }
 
 .ts-chip { transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .3s, border-color .3s, color .3s; animation: tsCardIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay: min(calc(var(--k, 0) * 24ms + 40ms), 280ms); }
@@ -222,6 +224,9 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 .ts-ripple { position: fixed; z-index: 10100; width: 90vmax; height: 90vmax; margin: -45vmax 0 0 -45vmax; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 34%, transparent), transparent 68%); transform: scale(.03); opacity: .9; will-change: transform, opacity; animation: tsRip .6s cubic-bezier(.22,1,.36,1) forwards; contain: strict; }
 @keyframes tsRip { from { transform: scale(.03); opacity: .9; } to { transform: scale(1); opacity: 0; } }
 html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transition: none !important; }
+::view-transition-old(root), ::view-transition-new(root) { animation: none; mix-blend-mode: normal; }
+::view-transition-old(root) { z-index: 1; }
+::view-transition-new(root) { z-index: 2; }
 #app.theme-fade { animation: themeFade .24s ease-out; }
 @keyframes themeFade { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #theme-studio, #theme-studio *, .ts-ripple { animation: none !important; transition: none !important; } }
@@ -251,6 +256,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
 
     /* ---------- atmosphere canvas ---------- */
     let cv = null, ctx = null, W = 0, H = 0, P = [], B = [], cols = [], running = false, last = 0, tAcc = 0, kind = 'none';
+    let ME = [], MS = [], bolt = null, boltCD = 2, flashT = 0, mistSp = null, mistKey = '';
     const rnd = (a, b) => a + Math.random() * (b - a);
     const rch = () => '01ｱｲｳｴｵｶｷｸｹｺｻｼｽ'.charAt(Math.floor(Math.random() * 15));
     function sizeCanvas() {
@@ -268,14 +274,19 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         else if (kind === 'motes') Object.assign(p, { x: rnd(0, W), y: first ? rnd(0, H) : H + 12, vy: -rnd(8, 26), vx: rnd(-6, 6), r: rnd(2, 6), ph: rnd(0, 6.28), a: rnd(.2, .5) });
         else if (kind === 'snow') Object.assign(p, { x: rnd(0, W), y: first ? rnd(0, H) : -6, vy: rnd(16, 46), vx: 0, r: rnd(1, 3), ph: rnd(0, 6.28), a: rnd(.5, .95) });
         else if (kind === 'petals') Object.assign(p, { x: rnd(0, W), y: first ? rnd(0, H) : -12, vy: rnd(20, 42), vx: rnd(8, 26), r: rnd(4, 8), ph: rnd(0, 6.28), rot: rnd(0, 6.28), a: rnd(.55, .9) });
-        else if (kind === 'stars') Object.assign(p, { x: rnd(0, W), y: rnd(0, H), r: rnd(.5, 1.7), ph: rnd(0, 6.28), sp: rnd(.6, 2) });
+        else if (kind === 'fireflies') Object.assign(p, { x: rnd(0, W), y: rnd(0, H), vx: rnd(-8, 8), vy: rnd(-8, 8), r: rnd(1.2, 2.6), ph: rnd(0, 6.28), sp: rnd(.7, 1.8) });
+        else if (kind === 'bubbles') Object.assign(p, { x: rnd(0, W), y: first ? rnd(0, H) : H + 24, vy: -rnd(14, 40), r: rnd(3, 11), ph: rnd(0, 6.28), a: rnd(.25, .5) });
+        else if (kind === 'sigils') Object.assign(p, { x: rnd(0, W), y: rnd(H * .15, H), vy: -rnd(8, 20), dur: rnd(5, 9), t: first ? rnd(0, 6) : 0, n: [3, 4, 6][Math.floor(rnd(0, 3))], sz: rnd(9, 20), rot: rnd(0, 6.28), rs: rnd(-.6, .6), ph: rnd(0, 6.28) });
+        else if (kind === 'storm') Object.assign(p, { x: rnd(-40, W + 60), y: first ? rnd(0, H) : rnd(-60, -5), vy: rnd(520, 820), len: rnd(9, 18) });
+        else if (kind === 'stars' || kind === 'meteors' || kind === 'bolts') Object.assign(p, { x: rnd(0, W), y: rnd(0, H), r: rnd(.5, 1.7), ph: rnd(0, 6.28), sp: rnd(.6, 2) });
     }
     function initFx() {
-        if (!D) return; kind = activeKind(); P = []; cols = [];
+        if (!D) return; kind = activeKind(); P = []; cols = []; ME = []; MS = []; bolt = null; flashT = 0; boltCD = rnd(1, 2.5);
         if (kind === 'none' && !B.length) { if (cv) { cv.style.display = 'none'; } return; }
         ensureCanvas(); cv.style.display = 'block';
-        const dn = S.density / 100, n = { embers: 70, motes: 50, snow: 100, petals: 30, stars: 80 }[kind];
+        const dn = S.density / 100, n = { embers: 70, motes: 50, snow: 100, petals: 30, stars: 80, fireflies: 40, bubbles: 26, sigils: 20, storm: 110, meteors: 55, bolts: 40 }[kind];
         if (n) for (let i = 0; i < Math.round(n * dn); i++) { const p = {}; spawn(p, true); P.push(p); }
+        if (kind === 'mist') for (let i = 0, nm = Math.max(3, Math.round(8 * dn)); i < nm; i++) MS.push({ x: rnd(0, W), y: rnd(H * .1, H * .95), s: rnd(280, 520), vx: rnd(5, 14) * (Math.random() < .5 ? 1 : -1), a: rnd(.07, .15), ph: rnd(0, 6.28) });
         if (kind === 'rain') { const cw = 14, nc = Math.floor(W / cw); for (let i = 0; i < nc; i++) if (Math.random() < .2 + dn * .55) cols.push({ x: i * cw + 2, y: rnd(-H, H), v: rnd(60, 160), ch: Array.from({ length: 12 }, rch) }); }
         kick();
     }
@@ -284,7 +295,6 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
 
     function loop(now) {
         if (document.hidden) { running = false; return; }
-        if (document.body.classList.contains('tab-switching') || document.documentElement.classList.contains('theme-swap')) { last = now; requestAnimationFrame(loop); return; }
         if (now - last < 32) { requestAnimationFrame(loop); return; }
         const dt = Math.min((now - last) / 1000, .1) * (.3 + S.speed / 50 * .9); last = now; tAcc += dt;
         ctx.clearRect(0, 0, W, H);
@@ -309,6 +319,86 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
             p.y += p.vy * dt; p.x += (p.vx + Math.sin(tAcc * 1.4 + p.ph) * 16) * dt; p.rot += dt * 1.6; if (p.y > H + 14 || p.x > W + 14) spawn(p);
             ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.scale(1, .55 + .45 * Math.sin(p.rot * 1.3));
             ctx.fillStyle = hsl(h, s, light ? l : Math.min(80, l + 4), p.a); ctx.beginPath(); ctx.ellipse(0, 0, p.r, p.r * .6, 0, 0, 6.28); ctx.fill(); ctx.restore();
+        } else if (kind === 'fireflies') {
+            for (const p of P) {
+                p.x += (p.vx + Math.sin(tAcc * .7 + p.ph) * 16) * dt; p.y += (p.vy + Math.cos(tAcc * .5 + p.ph) * 12) * dt;
+                if (p.x < -10) p.x = W + 10; else if (p.x > W + 10) p.x = -10; if (p.y < -10) p.y = H + 10; else if (p.y > H + 10) p.y = -10;
+                const f = Math.pow(Math.max(0, Math.sin(tAcc * p.sp + p.ph)), 2); if (f < .02) continue;
+                const c = (h + 40) % 360, ll = light ? l : Math.min(80, l + 10);
+                ctx.fillStyle = hsl(c, s, ll, f * .16); ctx.beginPath(); ctx.arc(p.x, p.y, p.r * 5, 0, 6.28); ctx.fill();
+                ctx.fillStyle = hsl(c, s, ll, f * .95); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.28); ctx.fill();
+            }
+        } else if (kind === 'bubbles') {
+            ctx.lineWidth = 1.2;
+            for (const p of P) {
+                p.y += p.vy * dt; p.x += Math.sin(tAcc * 1.1 + p.ph) * 10 * dt; if (p.y < -24) spawn(p);
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.28); ctx.fillStyle = A(p.a * .16); ctx.fill(); ctx.strokeStyle = A(p.a); ctx.stroke();
+                ctx.fillStyle = A(Math.min(1, p.a * 1.6)); ctx.beginPath(); ctx.arc(p.x - p.r * .35, p.y - p.r * .35, Math.max(.8, p.r * .17), 0, 6.28); ctx.fill();
+            }
+        } else if (kind === 'sigils') {
+            ctx.lineWidth = 1.3;
+            for (const p of P) {
+                p.t += dt; p.y += p.vy * dt; p.rot += p.rs * dt; if (p.t > p.dur) { spawn(p); continue; }
+                const a = Math.sin(Math.PI * p.t / p.dur) * .8, px = p.x + Math.sin(tAcc * .6 + p.ph) * 8;
+                ctx.strokeStyle = A(a); ctx.beginPath();
+                for (let i = 0; i <= p.n; i++) { const an = p.rot + i * 6.2832 / p.n, X = px + Math.cos(an) * p.sz, Y = p.y + Math.sin(an) * p.sz; i ? ctx.lineTo(X, Y) : ctx.moveTo(X, Y); }
+                ctx.stroke();
+                ctx.beginPath(); ctx.arc(px, p.y, p.sz * 1.45, 0, 6.2832); ctx.strokeStyle = A(a * .35); ctx.stroke();
+                ctx.fillStyle = A(a); ctx.beginPath(); ctx.arc(px, p.y, 1.6, 0, 6.2832); ctx.fill();
+            }
+        } else if (kind === 'storm') {
+            ctx.lineWidth = 1; ctx.strokeStyle = hsl(h, Math.min(s, 40), light ? l : 82, .38); ctx.beginPath();
+            for (const p of P) { p.y += p.vy * dt; p.x -= p.vy * .18 * dt; if (p.y > H + 20 || p.x < -30) spawn(p); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.len * .18, p.y - p.len); }
+            ctx.stroke();
+            flashT -= dt; if (flashT <= 0 && Math.random() < dt * .12 * (.5 + S.density / 100)) flashT = .3;
+            if (flashT > 0) { ctx.fillStyle = hsl(h, 30, 92, Math.min(.18, flashT * .7) * (light ? .5 : 1)); ctx.fillRect(0, 0, W, H); }
+        } else if (kind === 'mist') {
+            const key = h + '|' + s + '|' + light + '|' + l;
+            if (mistKey !== key) {
+                mistKey = key; mistSp = document.createElement('canvas'); mistSp.width = mistSp.height = 160; const c = mistSp.getContext('2d'), g = c.createRadialGradient(80, 80, 0, 80, 80, 80);
+                g.addColorStop(0, hsl(h, Math.round(s * .7), light ? l : 72, 1)); g.addColorStop(1, hsl(h, Math.round(s * .7), light ? l : 72, 0)); c.fillStyle = g; c.fillRect(0, 0, 160, 160);
+            }
+            for (const b of MS) {
+                b.x += b.vx * dt; if (b.x > W + b.s) b.x = -b.s; else if (b.x < -b.s) b.x = W + b.s;
+                ctx.globalAlpha = b.a * (.8 + .2 * Math.sin(tAcc * .4 + b.ph)); ctx.drawImage(mistSp, b.x - b.s / 2, b.y - b.s / 2, b.s, b.s);
+            }
+            ctx.globalAlpha = 1;
+        } else if (kind === 'meteors' || kind === 'bolts') {
+            for (const p of P) { const f = .3 + .5 * Math.abs(Math.sin(tAcc * p.sp + p.ph)); ctx.fillStyle = light ? hsl(h, s, l, f * .5) : hsl(h, 50, 92, f * .8); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.28); ctx.fill(); }
+            if (kind === 'meteors') {
+                if (ME.length < 5 && Math.random() < dt * (.5 + S.density / 100 * 1.2)) ME.push({ x: rnd(W * .3, W * 1.1), y: rnd(-40, H * .3), vx: -rnd(380, 620), vy: rnd(220, 360), life: 1 });
+                ctx.lineWidth = 2; ctx.lineCap = 'round';
+                for (let i = ME.length - 1; i >= 0; i--) {
+                    const m = ME[i]; m.x += m.vx * dt; m.y += m.vy * dt; m.life -= dt * .6;
+                    if (m.life <= 0 || m.x < -120 || m.y > H + 120) { ME.splice(i, 1); continue; }
+                    const g = ctx.createLinearGradient(m.x, m.y, m.x - m.vx * .16, m.y - m.vy * .16); g.addColorStop(0, A(.95)); g.addColorStop(1, A(0));
+                    ctx.strokeStyle = g; ctx.beginPath(); ctx.moveTo(m.x, m.y); ctx.lineTo(m.x - m.vx * .16, m.y - m.vy * .16); ctx.stroke();
+                    ctx.fillStyle = light ? A(1) : hsl(h, 40, 96, 1); ctx.beginPath(); ctx.arc(m.x, m.y, 1.9, 0, 6.28); ctx.fill();
+                }
+                ctx.lineCap = 'butt';
+            } else {
+                boltCD -= dt;
+                if (!bolt && boltCD <= 0) {
+                    let x = rnd(W * .15, W * .85), y = -10; const pts = [[x, y]], lim = H * rnd(.5, .8);
+                    while (y < lim) { y += rnd(24, 48); x += rnd(-34, 34); pts.push([x, y]); }
+                    const bi = Math.floor(rnd(2, Math.max(3, pts.length - 2))), br = [pts[bi]]; let bx = pts[bi][0], by = pts[bi][1], dir = Math.random() < .5 ? -1 : 1;
+                    for (let i = 0; i < 4; i++) { by += rnd(18, 36); bx += dir * rnd(10, 34); br.push([bx, by]); }
+                    bolt = { life: 1, pts, br }; boltCD = rnd(2.2, 5.5) / (.5 + S.density / 100);
+                }
+                if (bolt) {
+                    bolt.life -= dt * 2.6;
+                    if (bolt.life <= 0) bolt = null; else {
+                        const a = bolt.life > .55 ? 1 : (Math.random() < .55 ? 1 : .35) * bolt.life / .55;
+                        ctx.fillStyle = hsl(h, 30, 92, a * (light ? .06 : .1)); ctx.fillRect(0, 0, W, H);
+                        ctx.lineJoin = 'round';
+                        for (const path of [bolt.pts, bolt.br]) {
+                            ctx.beginPath(); path.forEach((q, i) => i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]));
+                            ctx.lineWidth = 7; ctx.strokeStyle = A(a * .2); ctx.stroke();
+                            ctx.lineWidth = path === bolt.pts ? 2.2 : 1.4; ctx.strokeStyle = light ? A(a) : hsl(h, 40, 96, a); ctx.stroke();
+                        }
+                    }
+                }
+            }
         } else if (kind === 'stars') {
             for (const p of P) { const f = .35 + .65 * Math.abs(Math.sin(tAcc * p.sp + p.ph)); ctx.fillStyle = light ? hsl(h, s, l, f * .6) : hsl(h, 50, 92, f); ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 6.28); ctx.fill(); }
             const k = (tAcc % 6) / 6;
@@ -448,6 +538,18 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         if (opts.fx === false) {            // slider drag: at most one restyle per frame, save once it settles
             if (!_raf) _raf = requestAnimationFrame(() => { _raf = 0; applyVars(); });
             clearTimeout(_pt); _pt = setTimeout(persist, 250);
+        } else if (opts.ripple && !S.saver && !reducedMotion && document.startViewTransition) {
+            // circular reveal from the tap point: the browser snapshots old/new and animates a clip-path (compositor)
+            const x = opts.ripple.x, y = opts.ripple.y, de = document.documentElement;
+            const r = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y));
+            de.classList.add('theme-swap');
+            const vt = document.startViewTransition(() => { applyVars(); persist(); initFx(); syncStudio(); });
+            vt.ready.then(() => {
+                de.animate({ clipPath: ['circle(0px at ' + x + 'px ' + y + 'px)', 'circle(' + r + 'px at ' + x + 'px ' + y + 'px)'] },
+                    { duration: 560, easing: 'cubic-bezier(.22,1,.36,1)', pseudoElement: '::view-transition-new(root)' });
+            }).catch(() => {});
+            vt.finished.finally(() => de.classList.remove('theme-swap'));
+            return;
         } else {
             softSwap(); applyVars(); persist();
             initFx();
