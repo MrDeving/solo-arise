@@ -314,7 +314,8 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'sys-dialog-overlay',        close: () => { document.getElementById('sys-dialog-overlay').style.display = 'none'; } },
             { id: 'sl-streak-up-modal',        close: () => closeSLModal('sl-streak-up-modal') },
             { id: 'sl-streak-lost-modal',      close: () => closeSLModal('sl-streak-lost-modal') },
-            { id: 'sl-penalty-modal',          close: () => closeSLModal('sl-penalty-modal') }
+            { id: 'sl-penalty-modal',          close: () => closeSLModal('sl-penalty-modal') },
+            { id: 'theme-studio',              close: () => closeThemeStudio() }
         ];
 
         // 0) Arcade game open: back closes the game, not the whole arcade tab
@@ -902,6 +903,7 @@ function toggleQuest(id) {
     if (!quest.completed) {
         // Checking the quest
         quest.completed = true;
+                if (window.themeBurst) window.themeBurst(quest.difficulty);
 
         // --- TITLE FLAGS: track runtime conditions ---
         if (!systemState._titleFlags) systemState._titleFlags = {};
@@ -1494,6 +1496,7 @@ const themeColor = cardTheme === 'default' ? '#38bdf8' : (rankColors[cardTheme] 
 document.documentElement.style.setProperty('--rank-color', themeColor);
 document.documentElement.style.setProperty('--rank-color-glow', themeColor + '66');
 document.documentElement.style.setProperty('--rank-color-dim', themeColor + '22');
+if (window.applyAriseTheme) window.applyAriseTheme();
 const rankThresholdsCheck = { E: 0, D: 7, C: 15, B: 24, A: 34, S: 45 };
 const rankLabels = { default: 'DEFAULT', E: 'E-RANK', D: 'D-RANK', C: 'C-RANK', B: 'B-RANK', A: 'A-RANK', S: 'S-RANK' };
 document.querySelectorAll('.theme-opt-btn').forEach(b => {
