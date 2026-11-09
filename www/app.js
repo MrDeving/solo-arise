@@ -1674,8 +1674,10 @@ function updateArcadeComingSoon() {
 }
 
 function switchTab(tabId) {
-    if (tabId === 'profile') { renderAchievements(); }
-    if (tabId === 'arcade') { setTimeout(arcadeOnEnter, 80); updateArcadeComingSoon(); }
+    // perf: heavy per-tab work runs AFTER the slide finishes so it can't steal frames from the animation
+    clearTimeout(window._tabWorkTimer);
+    if (tabId === 'profile') { window._tabWorkTimer = setTimeout(() => { if (document.getElementById('view-profile')?.classList.contains('active')) renderAchievements(); }, 230); }
+    if (tabId === 'arcade') { window._tabWorkTimer = setTimeout(arcadeOnEnter, 240); updateArcadeComingSoon(); }
     // Exit arcade if leaving it
     const wasArcade = document.getElementById('view-arcade')?.classList.contains('active');
     if (wasArcade && tabId !== 'arcade') arcadeOnExit();
@@ -1836,6 +1838,8 @@ function renderEthCalendar() {
     const container = document.getElementById('cal-days-container');
     if(!container) return;
     container.innerHTML = '';
+    const frag = document.createDocumentFragment();
+    bindCalTips(container);
     
     document.getElementById('cal-month-name').innerHTML = ETH_MONTHS[ethCurrentMonth] + `<span class="cal-month-num">${ethCurrentMonth}</span>`;
     document.getElementById('cal-year-num').innerText = ethCurrentYear;
@@ -1847,7 +1851,7 @@ function renderEthCalendar() {
     for (let i = 0; i < gridOffset; i++) {
         const d = document.createElement('div');
         d.className = 'cal-cell empty';
-        container.appendChild(d);
+        frag.appendChild(d);
     }
 
     for (let d = 1; d <= daysInMonth; d++) {
@@ -1889,14 +1893,8 @@ function renderEthCalendar() {
             }
 
             // Keep the Tooltip logic so they can hover/press to read what the events are
-            const tip = document.createElement('div');
-            tip.className = 'cal-tooltip';
-            const _greg = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
-            const _gregStr = _greg.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            tip.innerHTML = `<div class="tooltip-greg-date">${_gregStr}</div>` + daysEvents.map(ev => `
-                <div class="tooltip-item"><div class="tooltip-dot" style="background:${ev.color}"></div><span>${ev.title}</span></div>
-            `).join('');
-            div.appendChild(tip);
+            // tooltip is built lazily on first touch (see ensureCalTip) instead of 30 nodes + date maths per render
+            div._tipEvents = daysEvents; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
             
             // --- FINDASH FEATURE: Click to Edit & Cycle ---
             // If the day has events, clicking it loads the event into the editor.
@@ -1908,12 +1906,7 @@ function renderEthCalendar() {
                 clickIndex = (clickIndex + 1) % daysEvents.length;
             };
         } else {
-            const _gregEmpty = ethToGregorian(ethCurrentYear, ethCurrentMonth, d);
-            const _gregEmptyStr = _gregEmpty.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            const emptyTip = document.createElement('div');
-            emptyTip.className = 'cal-tooltip';
-            emptyTip.innerHTML = `<div class="tooltip-greg-date">${_gregEmptyStr}</div>`;
-            div.appendChild(emptyTip);
+            div._tipEvents = null; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
             div.onclick = () => {
                 resetCalForm();
                 document.getElementById('evt-day').value = d;
@@ -1921,8 +1914,29 @@ function renderEthCalendar() {
                 switchCalPanel('add');
             };
         }
-        container.appendChild(div);
+        frag.appendChild(div);
     }
+    container.appendChild(frag);
+}
+
+function ensureCalTip(cell) {
+    if (!cell || cell._tipDone || !cell._tipYMD) return;
+    cell._tipDone = true;
+    const [y, m, d] = cell._tipYMD;
+    const g = ethToGregorian(y, m, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const tip = document.createElement('div');
+    tip.className = 'cal-tooltip';
+    tip.innerHTML = `<div class="tooltip-greg-date">${g}</div>` + (cell._tipEvents ? cell._tipEvents.map(ev => `
+                <div class="tooltip-item"><div class="tooltip-dot" style="background:${ev.color}"></div><span>${ev.title}</span></div>
+            `).join('') : '');
+    cell.appendChild(tip);
+}
+function bindCalTips(container) {
+    if (container._tipBound) return;
+    container._tipBound = true;
+    const h = e => ensureCalTip(e.target.closest && e.target.closest('.cal-cell'));
+    container.addEventListener('pointerdown', h, { passive: true });
+    container.addEventListener('mouseover', h, { passive: true });
 }
 
 function changeEthMonth(delta) {

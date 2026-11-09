@@ -175,7 +175,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 @property --accent2 { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
 @property --rank-color { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
 @property --neon-blue { syntax: '<color>'; inherits: true; initial-value: #38bdf8; }
-:root { transition: --t-bg1 .55s ease, --t-bg2 .55s ease, --t-panelA .55s ease, --t-panelB .55s ease, --t-text .45s ease, --t-muted .45s ease, --accent .55s ease, --accent2 .55s ease, --rank-color .55s ease, --neon-blue .55s ease; }
+/* perf: no :root var transitions (they restyle the whole document each frame). A cheap fade is used instead, see .theme-fade */
 
 #theme-studio { transform: translateY(40px) scale(.985); opacity: 0; transition: transform .38s cubic-bezier(.22,1,.36,1), opacity .25s ease; will-change: transform, opacity; }
 #theme-studio.in { transform: none; opacity: 1; }
@@ -197,7 +197,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 .ts-pill { position: absolute; z-index: 0; top: 4px; bottom: 4px; left: 4px; width: calc((100% - 8px) / var(--n)); border-radius: 9px; background: color-mix(in srgb, var(--accent) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 65%, transparent), 0 0 14px color-mix(in srgb, var(--accent) 30%, transparent); transform: translateX(calc(var(--i) * 100%)); transition: transform .4s cubic-bezier(.34,1.4,.64,1), background .5s; }
 .ts-seg button[aria-pressed="true"] { background: none !important; box-shadow: none !important; }
 
-.ts-card { transition: transform .25s cubic-bezier(.34,1.56,.64,1), border-color .3s, box-shadow .35s, opacity .3s; animation: tsCardIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--k, 0) * 35ms + 80ms); }
+.ts-card { transition: transform .25s cubic-bezier(.34,1.56,.64,1), border-color .3s, box-shadow .35s, opacity .3s; animation: tsCardIn .55s cubic-bezier(.22,1,.36,1) both; animation-delay: min(calc(var(--k, 0) * 28ms + 60ms), 320ms); }
 @keyframes tsCardIn { from { opacity: 0; transform: translateY(18px) scale(.94); } to { opacity: 1; transform: none; } }
 .ts-card:active { transform: scale(.94); }
 .ts-card[aria-pressed="true"] { transform: translateY(-2px); }
@@ -210,7 +210,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 .ts-card.locked .ts-sw { filter: grayscale(.6); }
 .ts-sw { transition: background .5s; } .ts-sw i { transition: background .5s, box-shadow .5s; }
 
-.ts-chip { transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .3s, border-color .3s, color .3s; animation: tsCardIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay: calc(var(--k, 0) * 30ms + 60ms); }
+.ts-chip { transition: transform .25s cubic-bezier(.34,1.56,.64,1), background .3s, border-color .3s, color .3s; animation: tsCardIn .45s cubic-bezier(.22,1,.36,1) both; animation-delay: min(calc(var(--k, 0) * 24ms + 40ms), 280ms); }
 .ts-chip:active { transform: scale(.92); }
 .ts-chip.pop { animation: tsPop .45s cubic-bezier(.34,1.56,.64,1); }
 .ts-tg { transition: background .3s, transform .15s; } .ts-tg:active { transform: scale(.98); }
@@ -219,8 +219,11 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 #theme-studio input[type=range]::-webkit-slider-thumb { transition: transform .15s, box-shadow .2s; }
 #theme-studio input[type=range]:active::-webkit-slider-thumb { transform: scale(1.25); box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 25%, transparent); }
 
-.ts-ripple { position: fixed; z-index: 10100; width: 40px; height: 40px; margin: -20px 0 0 -20px; border-radius: 50%; pointer-events: none; border: 2px solid var(--accent); background: radial-gradient(circle, color-mix(in srgb, var(--accent) 38%, transparent), transparent 70%); animation: tsRip .85s cubic-bezier(.2,.7,.2,1) forwards; }
-@keyframes tsRip { from { transform: scale(.2); opacity: .95; } to { transform: scale(40); opacity: 0; } }
+.ts-ripple { position: fixed; z-index: 10100; width: 90vmax; height: 90vmax; margin: -45vmax 0 0 -45vmax; border-radius: 50%; pointer-events: none; background: radial-gradient(circle, color-mix(in srgb, var(--accent) 34%, transparent), transparent 68%); transform: scale(.03); opacity: .9; will-change: transform, opacity; animation: tsRip .6s cubic-bezier(.22,1,.36,1) forwards; contain: strict; }
+@keyframes tsRip { from { transform: scale(.03); opacity: .9; } to { transform: scale(1); opacity: 0; } }
+html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transition: none !important; }
+#app.theme-fade { animation: themeFade .24s ease-out; }
+@keyframes themeFade { from { opacity: .55; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { #theme-studio, #theme-studio *, .ts-ripple { animation: none !important; transition: none !important; } }
 `;
     const st = document.createElement('style'); st.id = 'theme-css'; st.textContent = css; document.head.appendChild(st);
@@ -251,7 +254,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
     const rnd = (a, b) => a + Math.random() * (b - a);
     const rch = () => '01ｱｲｳｴｵｶｷｸｹｺｻｼｽ'.charAt(Math.floor(Math.random() * 15));
     function sizeCanvas() {
-        if (!cv) return; const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+        if (!cv) return; const dpr = 1;
         W = window.innerWidth; H = window.innerHeight; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     }
     function ensureCanvas() {
@@ -281,6 +284,7 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
 
     function loop(now) {
         if (document.hidden) { running = false; return; }
+        if (document.body.classList.contains('tab-switching') || document.documentElement.classList.contains('theme-swap')) { last = now; requestAnimationFrame(loop); return; }
         if (now - last < 32) { requestAnimationFrame(loop); return; }
         const dt = Math.min((now - last) / 1000, .1) * (.3 + S.speed / 50 * .9); last = now; tAcc += dt;
         ctx.clearRect(0, 0, W, H);
@@ -428,11 +432,26 @@ html[data-tmode="light"] .avatar { background-color: color-mix(in srgb, var(--t-
         if (S.saver || reducedMotion) return;
         const r = document.createElement('div'); r.className = 'ts-ripple';
         r.style.left = x + 'px'; r.style.top = y + 'px'; document.body.appendChild(r);
-        setTimeout(() => r.remove(), 900);
+        setTimeout(() => r.remove(), 650);
+    }
+    let _swapT = 0, _raf = 0, _pt = 0;
+    function softSwap() {
+        if (S.saver || reducedMotion) return;
+        const de = document.documentElement, app = document.getElementById('app');
+        de.classList.add('theme-swap');
+        if (app) { app.classList.remove('theme-fade'); void app.offsetWidth; app.classList.add('theme-fade'); }
+        clearTimeout(_swapT);
+        _swapT = setTimeout(() => { de.classList.remove('theme-swap'); if (app) app.classList.remove('theme-fade'); }, 300);
     }
     function changed(opts) {
-        opts = opts || {}; applyVars(); persist();
-        if (opts.fx !== false) initFx();
+        opts = opts || {};
+        if (opts.fx === false) {            // slider drag: at most one restyle per frame, save once it settles
+            if (!_raf) _raf = requestAnimationFrame(() => { _raf = 0; applyVars(); });
+            clearTimeout(_pt); _pt = setTimeout(persist, 250);
+        } else {
+            softSwap(); applyVars(); persist();
+            initFx();
+        }
         syncStudio();
         if (opts.ripple) ripple(opts.ripple.x, opts.ripple.y);
     }

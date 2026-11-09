@@ -3474,3 +3474,38 @@ body::before { animation: none !important; will-change: auto; }
     background-clip: border-box !important;
     background-repeat: no-repeat !important;
 }
+
+/* ============================================================
+   PERFORMANCE v3  (same animations, cheaper to run)
+   - no "transition: all" (only the props that actually change)
+   - tooltip moves with transform instead of `bottom` (no layout per frame)
+   - looping decorations pause while tabs slide so the slide gets the full frame budget
+   ============================================================ */
+.cl-circle, .action-btn, .filter-btn, .sl-btn-new, .diff-box, .day-circle,
+.wb-cl-mini-check, .wb-checkbox, .clean-add-btn, .sys-dialog-btns button,
+.arcade-launch-btn, .color-opt, .upload-btn, .notif-complete-btn {
+    transition: background-color .15s ease, border-color .15s ease, color .15s ease,
+                opacity .15s ease, transform .15s ease, box-shadow .15s ease;
+}
+.sci-fi-input, .clean-input { transition: border-color .15s ease, background-color .15s ease; }
+
+/* calendar: 30 cells, so keep them as cheap as possible */
+.cal-cell { transition: transform .12s ease, background-color .15s ease; }
+.cal-tooltip {
+    bottom: 120%;
+    transform: translate(-50%, 6px);
+    transition: opacity .15s ease, transform .15s ease;
+}
+.cal-cell:hover .cal-tooltip, .cal-cell:active .cal-tooltip {
+    opacity: 1; bottom: 120%; transform: translate(-50%, 0);
+}
+
+/* pause always-looping decorations while a tab slide is running */
+.tab-switching .avatar-ring, .tab-switching .ring-1, .tab-switching .ring-2,
+.tab-switching .flame-icon.burning, .tab-switching .empty-icon,
+.tab-switching .rk-badge { animation-play-state: paused !important; }
+
+/* tab slide: shorter + gentler curve, compositor-only */
+.view {
+    transition: transform .22s cubic-bezier(.22, 1, .36, 1), opacity .18s ease-out, visibility .22s;
+}
