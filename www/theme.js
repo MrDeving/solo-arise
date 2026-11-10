@@ -609,5 +609,11 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
     window.applyAriseTheme = function () { applyVars(); };
 
     applyVars();
-    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => { resizeFx(); }); else resizeFx();
+    // start the saved atmosphere on launch (resizeFx bails out while the canvas doesn't exist yet, which is why saved effects never showed)
+    const bootFx = () => { initFx(); };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', bootFx); else bootFx();
+    // make sure a just-dragged slider value is saved even if the app is closed right away
+    const flush = () => { clearTimeout(_pt); persist(); };
+    document.addEventListener('visibilitychange', () => { if (document.hidden) flush(); });
+    window.addEventListener('pagehide', flush);
 })();
