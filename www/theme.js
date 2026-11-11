@@ -506,7 +506,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
                 sw.style.background = `linear-gradient(160deg,${col.b1},${col.b2})`;
                 $q('i', sw).forEach(i => { i.style.background = col.a; }); sw.querySelector('.d').style.boxShadow = `0 0 14px ${col.a}`;
                 c.classList.toggle('locked', !!locked);
-                const tag = c.querySelector('.tag'); if (tag) tag.textContent = p.id.startsWith('rank') ? (locked ? '🔒 LV ' + p.lv : 'OPEN') : '';
+                const tag = c.querySelector('.tag'); if (tag) tag.innerHTML = p.id.startsWith('rank') ? (locked ? SLI.i('lock') + ' LV ' + p.lv : 'OPEN') : '';
             }
         });
         $q('[data-fx]').forEach(c => c.setAttribute('aria-pressed', c.dataset.fx === S.fx));

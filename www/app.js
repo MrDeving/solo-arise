@@ -1,3 +1,48 @@
+// ====== SL ICON LIBRARY (custom SVG, replaces all emoji/symbol glyphs) ======
+const SLI = (() => {
+    const P = {
+        info:   '<circle cx="12" cy="12" r="10"/><path d="M12 11v5"/><circle cx="12" cy="7.6" r="0.9" fill="currentColor" stroke="none"/>',
+        alert:  '<path d="M12 3.2 2.6 19.6a1 1 0 0 0 .9 1.5h17a1 1 0 0 0 .9-1.5L12 3.2z"/><path d="M12 9.5v4.6"/><circle cx="12" cy="17.3" r="0.9" fill="currentColor" stroke="none"/>',
+        error:  '<circle cx="12" cy="12" r="10"/><path d="M8.6 8.6l6.8 6.8M15.4 8.6l-6.8 6.8"/>',
+        check:  '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="M22 4 12 14.01l-3-3"/>',
+        trash:  '<path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+        up:     '<path d="M6 11l6-6 6 6"/><path d="M6 18l6-6 6 6"/>',
+        reload: '<path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/>',
+        bolt:   '<path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/>',
+        star:   '<path d="M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z"/>',
+        lock:   '<rect x="4.5" y="10.5" width="15" height="10.5" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+        sparkle:'<path d="M12 2c.6 4.6 2.4 8.4 10 10-7.6 1.6-9.4 5.4-10 10-.6-4.6-2.4-8.4-10-10C9.6 10.4 11.4 6.6 12 2z"/>',
+        arrow:  '<path d="M5 12h14"/><path d="M13 6l6 6-6 6"/>'
+    };
+    const i = (name, size, sw) => {
+        const body = P[name] || P.info;
+        const s = size ? ` width="${size}" height="${size}"` : '';
+        return `<svg class="sli"${s} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${sw || 2}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${body}</svg>`;
+    };
+    // Large emblem used by the empty / all-done states
+    const HEX = '<polygon class="emb-hex" points="60,16 98,38 98,82 60,104 22,82 22,38"/>';
+    const G = {
+        cleared: '<path class="emb-check" d="M41 61.5l13 13L80 46"/>',
+        fresh:   '<path d="M60 43v34M43 60h34"/>',
+        target:  '<circle cx="60" cy="60" r="11"/><path d="M60 39v10M60 71v10M39 60h10M71 60h10"/><circle cx="60" cy="60" r="1.6" fill="currentColor" stroke="none"/>',
+        rest:    '<path transform="translate(42 42) scale(1.5)" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>',
+        clock:   '<circle cx="60" cy="60" r="19"/><path d="M60 48v12l8 5"/>'
+    };
+    const emblem = (kind) => `<svg class="emb-svg" viewBox="0 0 120 120" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle class="emb-ring" cx="60" cy="60" r="55" stroke-width="1.2" stroke-dasharray="1.5 7"/>
+        <circle class="emb-ring2" cx="60" cy="60" r="49" stroke-width="0.8" stroke-dasharray="28 12 4 12" opacity=".55"/>
+        <g stroke-width="1.6">${HEX}</g>
+        <g class="emb-glyph" stroke-width="${kind === 'cleared' ? 4.5 : 3}">${G[kind] || G.target}</g>
+    </svg>`;
+    const hydrate = (root) => {
+        (root || document).querySelectorAll('[data-sli]').forEach(el => { el.outerHTML = i(el.getAttribute('data-sli')); });
+    };
+    return { i, emblem, hydrate, paths: P };
+})();
+window.SLI = SLI;
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => SLI.hydrate());
+else SLI.hydrate();
+
 // 0 = arcade live, 1 = coming soon
 const ARCADE_COMING_SOON = 0;
 
@@ -51,14 +96,14 @@ function _popupDone() {
 
 // --- State Management ---
 // ====== CUSTOM SYSTEM DIALOG ENGINE ======
-function sysAlert(msg, { title = 'SYSTEM MESSAGE', icon = 'ℹ️', color = 'blue' } = {}) {
+function sysAlert(msg, { title = 'SYSTEM MESSAGE', icon = 'info', color = 'blue' } = {}) {
     return new Promise(resolve => {
         _openSysDialog({ title, msg, icon, color, buttons: [
             { label: 'OK', cls: `sys-dialog-btn-confirm-${color}`, resolve: true }
         ], resolve });
     });
 }
-function sysConfirm(msg, { title = 'SYSTEM WARNING', icon = '⚠', color = 'red' } = {}) {
+function sysConfirm(msg, { title = 'SYSTEM WARNING', icon = 'alert', color = 'red' } = {}) {
     return new Promise(resolve => {
         _openSysDialog({ title, msg, icon, color, buttons: [
             { label: 'Cancel', cls: 'sys-dialog-btn-cancel', resolve: false },
@@ -70,10 +115,7 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
     const overlay = document.getElementById('sys-dialog-overlay');
     const isRed = color === 'red';
     
-    let svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><path d="M12 7v5" stroke-linecap="round"></path><circle cx="12" cy="16" r="1.5" fill="currentColor" stroke="none"></circle></svg>`;
-    if (icon === '✖' || icon === '⚠') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>`;
-    if (icon === '✔') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>`;
-    if (icon === '🗑') svgIcon = `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
+    const svgIcon = SLI.i(icon, 20, 2.5);
 
     let btnsHtml = buttons.map(b => {
         const isCancel = b.label.toLowerCase() === 'cancel';
@@ -113,9 +155,9 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
 
     overlay.style.display = 'flex';
     
-    if (icon === '✖' || icon === '⚠') _sfx('warn');
-    else if (icon === '✔') _sfx('success');
-    else if (icon === '🗑') _sfx('delete');
+    if (icon === 'error' || icon === 'alert') _sfx('warn');
+    else if (icon === 'check') _sfx('success');
+    else if (icon === 'trash') _sfx('delete');
     else _sfx('open');
     popupSound.currentTime = 0;
     popupSound.play().catch(e => console.log("Popup sound blocked"));
@@ -153,7 +195,7 @@ let systemState = {
     dailyBonus: null,           // { stat, multiplier, date }
     dailyBonusClaimed: false,   // true after reward given
     checklistOpen: {},          // { [questId]: 0 or 1 }
-energyCores: 0              // ⚡ Arcade currency earned from completing tasks
+energyCores: 0              // Arcade currency earned from completing tasks
 };
 
 // Track filters separately for home (Dailies) and quests
@@ -604,7 +646,7 @@ function isQuestActiveOnDate(quest, dateObj) {
     }
     return true;
 }
-// ====== COLOR → XP MULTIPLIER TABLES ======
+// ====== COLOR -> XP MULTIPLIER TABLES ======
 // Normal quest colors: [blue, green, orange, red] (index matches getQuestAgeColor order)
 const NORMAL_COLOR_MULTIPLIERS = [1.0, 1.1, 1.3, 1.5];
 // Daily quest colors: [gold, green, cyan, sky] (index matches getDailyStreakColor order)
@@ -786,10 +828,17 @@ function renderQuests() {
     });
 
     // --- EMPTY STATES ---
-    const makeEmpty = (icon, title, sub, done) => {
+    const makeEmpty = ({ kind, eyebrow, title, sub, done, chips }) => {
         const el = document.createElement('div');
         el.className = 'empty-state' + (done ? ' empty-done' : '');
-        el.innerHTML = `<div class="empty-icon">${icon}</div><div class="empty-title">${title}</div><div class="empty-sub">${sub}</div>`;
+        const chipHtml = (chips && chips.length)
+            ? `<div class="empty-chips">${chips.map(c => `<span class="empty-chip">${c}</span>`).join('')}</div>` : '';
+        el.innerHTML = `
+            <div class="empty-emblem">${SLI.emblem(kind)}</div>
+            <div class="empty-eyebrow"><span class="empty-dot"></span>${eyebrow}</div>
+            <div class="empty-title">${title}</div>
+            <div class="empty-sub">${sub}</div>
+            ${chipHtml}`;
         return el;
     };
 
@@ -798,28 +847,34 @@ function renderQuests() {
         const dueToday = dailies.filter(q => isQuestActiveOnDate(q, new Date()));
         let el;
         if (dailies.length === 0) {
-            el = makeEmpty('✦', 'NO DAILIES YET', 'Tap + to create your first daily.', false);
+            el = makeEmpty({ kind: 'fresh', eyebrow: 'DAILY QUESTS', title: 'NO DAILIES ASSIGNED', sub: 'Tap + to register your first daily quest.' });
         } else if (filters.home === 'done') {
-            el = makeEmpty('◇', 'NOTHING COMPLETED YET', 'Finish a daily and it will show up here.', false);
+            el = makeEmpty({ kind: 'target', eyebrow: 'DAILY QUESTS', title: 'NO COMPLETIONS LOGGED', sub: 'Complete a daily and it will be recorded here.' });
         } else if (dueToday.length === 0) {
-            el = makeEmpty('☾', 'NOTHING DUE TODAY', 'No dailies are scheduled for today. Rest, Hunter.', false);
+            el = makeEmpty({ kind: 'rest', eyebrow: 'DAILY QUESTS', title: 'REST DAY', sub: 'No dailies are scheduled for today. Recover and prepare.' });
         } else {
-            el = makeEmpty('✔', 'ALL DAILIES COMPLETE', 'The System acknowledges your effort. Well done, Hunter.', true);
+            const n = String(dueToday.length).padStart(2, '0');
+            el = makeEmpty({ kind: 'cleared', eyebrow: 'STATUS: CLEARED', title: 'DAILY QUESTS CLEARED',
+                sub: 'Every objective for today is complete. Rewards secured.', done: true,
+                chips: [`${SLI.i('check')} ${n} / ${n} OBJECTIVES`, `${SLI.i('bolt')} REWARDS SECURED`] });
         }
         homeContainer.appendChild(el);
     }
 
     if (mainContainer && mainContainer.children.length === 0) {
         const quests = systemState.quests.filter(q => q.type && q.type !== 'daily');
+        const clearedCount = quests.filter(q => q.completed).length;
         let el;
         if (quests.length === 0) {
-            el = makeEmpty('✦', 'NO QUESTS YET', 'Tap + to accept your first quest.', false);
+            el = makeEmpty({ kind: 'fresh', eyebrow: 'QUEST LOG', title: 'NO ACTIVE QUESTS', sub: 'Tap + to accept your first quest.' });
         } else if (filters.quests === 'done') {
-            el = makeEmpty('◇', 'NOTHING COMPLETED YET', 'Clear a quest and it will show up here.', false);
+            el = makeEmpty({ kind: 'target', eyebrow: 'QUEST LOG', title: 'NO COMPLETIONS LOGGED', sub: 'Clear a quest and it will be recorded here.' });
         } else if (filters.quests === 'scheduled') {
-            el = makeEmpty('☾', 'NOTHING SCHEDULED', 'No quests have a due date or reminder.', false);
+            el = makeEmpty({ kind: 'clock', eyebrow: 'QUEST LOG', title: 'NOTHING SCHEDULED', sub: 'No quests have a due date or reminder.' });
         } else {
-            el = makeEmpty('✔', 'ALL QUESTS CLEARED', 'No active quests left. Take a breath, Hunter.', true);
+            el = makeEmpty({ kind: 'cleared', eyebrow: 'STATUS: CLEARED', title: 'QUEST LOG CLEARED',
+                sub: 'No active quests remain. Stand by for new assignments.', done: true,
+                chips: clearedCount ? [`${SLI.i('check')} ${String(clearedCount).padStart(2, '0')} QUESTS COMPLETED`] : [] });
         }
         mainContainer.appendChild(el);
     }
@@ -887,7 +942,7 @@ function togglePinQuest(id) {
     renderQuests();
 }
 function deleteQuest(id) {
-    sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: '🗑', color: 'red' }).then(ok => {
+    sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: 'trash', color: 'red' }).then(ok => {
         if (!ok) return;
         cancelWorkManagerTasks(id);
         systemState.quests = systemState.quests.filter(q => q.id !== id);
@@ -922,7 +977,7 @@ function toggleQuest(id) {
         systemState.todayXp += _earnedXp;
         systemState.totalXp += _earnedXp;
 
-        // ⚡ Award Energy Cores based on difficulty
+        // Award Energy Cores based on difficulty
         const _coreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
         const _coresEarned = _coreMap[quest.difficulty] || 5;
         if (!systemState.energyCores) systemState.energyCores = 0;
@@ -993,7 +1048,7 @@ function toggleQuest(id) {
         systemState.todayXp -= _undoXp;
         systemState.totalXp -= _undoXp;
 
-        // ⚡ Refund cores on uncheck
+        // Refund cores on uncheck
         const _undoCoreMap = { trivial: 2, easy: 5, medium: 10, hard: 18 };
         const _coresToRefund = _undoCoreMap[quest.difficulty] || 5;
         systemState.energyCores = Math.max(0, (systemState.energyCores || 0) - _coresToRefund);
@@ -1059,11 +1114,11 @@ function showDailyBonusModal(xp, done) {
             <div class="reward-xp-display">
                 <div class="reward-xp-label">BONUS XP GRANTED</div>
                 <div class="reward-xp-amount">+${xp}</div>
-                ${bonusStat ? `<div class="reward-stat-chip">⚡ ${bonusStat} BONUS ACTIVE</div>` : ''}
+                ${bonusStat ? `<div class="reward-stat-chip">${SLI.i('bolt')} ${bonusStat} BONUS ACTIVE</div>` : ''}
             </div>
             <div class="sl-body-text" style="font-size:12px;opacity:0.6;letter-spacing:1px;">Daily quest chain completed.<br>Reward has been added to your total XP.</div>
             <div class="sl-btn-row">
-                <button class="sl-btn-new" onclick="const b=this.closest('.sl-system-box'); const o=this.closest('.sl-modal-overlay'); b.classList.add('hiding'); o.classList.add('hiding'); setTimeout(()=>{o.remove(); if(window._currentPopupDone){window._currentPopupDone();window._currentPopupDone=null;}}, 300); _sfx('close');">⭐ CLAIM REWARD</button>
+                <button class="sl-btn-new" onclick="const b=this.closest('.sl-system-box'); const o=this.closest('.sl-modal-overlay'); b.classList.add('hiding'); o.classList.add('hiding'); setTimeout(()=>{o.remove(); if(window._currentPopupDone){window._currentPopupDone();window._currentPopupDone=null;}}, 300); _sfx('close');">${SLI.i('star')} CLAIM REWARD</button>
             </div>
         </div>`;
     window._currentPopupDone = done || null;
@@ -1226,7 +1281,7 @@ function showRankUpCinematic(fromRank, toRank, color, letter, done) {
                 <span style="font-size:42px;font-weight:900;color:${color};position:relative;z-index:1;text-shadow:0 0 20px ${color};">${letter}</span>
             </div>
             <div style="font-size:28px;font-weight:900;color:#f8fafc;animation:ruTextReveal 0.7s 0.9s ease both;opacity:0;letter-spacing:4px;">${toRank.toUpperCase()}</div>
-            <div style="font-size:12px;color:#64748b;letter-spacing:2px;animation:ruFadeIn 0.5s 1.2s ease both;opacity:0;">${fromRank} → ${toRank}</div>
+            <div style="font-size:12px;color:#64748b;letter-spacing:2px;animation:ruFadeIn 0.5s 1.2s ease both;opacity:0;">${fromRank} ${SLI.i('arrow')} ${toRank}</div>
             <div style="position:absolute;width:200px;height:200px;pointer-events:none;">
                 ${Array.from({length:12}, (_,i) => {
                     const angle = (i/12)*360;
@@ -1278,7 +1333,7 @@ function updateStats() {
         } else {
             // Just a level up within same rank — simple popup
             queuePopup('levelUp', (done) => {
-                sysAlert(`You have leveled up to Level ${systemState.level}!`, { title: 'LEVEL UP', icon: '⬆', color: 'blue' }).then(done);
+                sysAlert(`You have leveled up to Level ${systemState.level}!`, { title: 'LEVEL UP', icon: 'up', color: 'blue' }).then(done);
             });
         }
     }
@@ -1659,10 +1714,10 @@ const tabsOrder = ['home', 'quests', 'analytics', 'arcade', 'profile'];
 
         const currentIndex = tabsOrder.indexOf(currentTab);
         if (dx < 0) {
-            // Swiped left → go to next tab
+            // Swiped left -> go to next tab
             if (currentIndex < tabsOrder.length - 1) switchTab(tabsOrder[currentIndex + 1]);
         } else {
-            // Swiped right → go to previous tab
+            // Swiped right -> go to previous tab
             if (currentIndex > 0) switchTab(tabsOrder[currentIndex - 1]);
         }
     }, { passive: true });
@@ -2039,7 +2094,7 @@ function loadEventToEdit(id) {
 }
 
 function deleteEvent(id) {
-    sysConfirm("Delete this event? This cannot be undone.", { title: 'DELETE EVENT', icon: '🗑', color: 'red' }).then(ok => {
+    sysConfirm("Delete this event? This cannot be undone.", { title: 'DELETE EVENT', icon: 'trash', color: 'red' }).then(ok => {
         if (!ok) return;
         systemState.events = systemState.events.filter(e => e.id !== id);
         saveGameState();
@@ -2662,7 +2717,7 @@ function saveQuest() {
     const notes = document.getElementById('new-quest-notes').value;
     
     if (!title) {
-        sysAlert("Please provide a Task Title before saving.", { title: 'MISSING FIELD', icon: '✖', color: 'red' });
+        sysAlert("Please provide a Task Title before saving.", { title: 'MISSING FIELD', icon: 'error', color: 'red' });
         return;
     }
     
@@ -2902,7 +2957,7 @@ function showAchievementUnlockPopup(ach, done) {
         <div class="sl-system-box border-ach" style="--ach-color:${color};--ach-glow:${glow};--ach-bg:${bg};">
             <div class="holo-corner tl"></div><div class="holo-corner tr"></div><div class="holo-corner bl"></div><div class="holo-corner br"></div>
             <div class="sl-header-container" style="gap:6px;">
-                <div class="ach-popup-badge">✦ ACHIEVEMENT UNLOCKED</div>
+                <div class="ach-popup-badge">${SLI.i('sparkle')} ACHIEVEMENT UNLOCKED</div>
                 <div class="sl-box-header" style="letter-spacing:3px;font-size:13px;">NEW ACHIEVEMENT</div>
             </div>
             <div class="ach-popup-icon-ring">
@@ -2941,7 +2996,7 @@ function renderAchievements() {
             <div style="width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:2px solid ${isUnlocked ? ach.color : 'rgba(255,255,255,0.1)'};background:${isUnlocked ? `${ach.color}18` : 'rgba(15,23,42,0.6)'};box-shadow:${isUnlocked ? `0 0 16px ${ach.color}44` : 'none'};flex-shrink:0;">${isUnlocked ? `<div style="width:30px;height:30px;color:${ach.color};">${ACH_ICONS[ach.id] || ''}</div>` : `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#707070" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`}</div>
             <div style="font-size:16px;font-weight:900;color:${isUnlocked ? ach.color : '#64748b'};line-height:1.25;letter-spacing:0.3px;">${isUnlocked ? ach.label : '<span style="color:#7a8a9a;">???</span>'}</div>
             <div style="font-size:13px;color:${isUnlocked ? '#cbd5e1' : '#475569'};line-height:1.55;font-weight:500;color:${isUnlocked ? '#cbd5e1' : '#7a8a9a'};">${isUnlocked ? ach.desc : ach.desc}</div>
-            ${isUnlocked ? `<div style="font-size:10px;letter-spacing:2px;color:${ach.color};font-weight:800;background:${ach.color}18;border:1px solid ${ach.color}44;padding:3px 10px;border-radius:20px;margin-top:2px;">✔ UNLOCKED</div>` : `<div style="font-size:10px;letter-spacing:2px;color:#7a8a9a;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(120,138,154,0.25);">LOCKED</div>`}
+            ${isUnlocked ? `<div style="font-size:10px;letter-spacing:2px;color:${ach.color};font-weight:800;background:${ach.color}18;border:1px solid ${ach.color}44;padding:3px 10px;border-radius:20px;margin-top:2px;">${SLI.i('check')} UNLOCKED</div>` : `<div style="font-size:10px;letter-spacing:2px;color:#7a8a9a;font-weight:700;padding:3px 10px;border-radius:20px;border:1px solid rgba(120,138,154,0.25);">LOCKED</div>`}
         </div>`;
     }).join('');
 }
@@ -3139,9 +3194,9 @@ async function exportData() {
     try {
         await navigator.clipboard.writeText(dataString);
         _sfx('success');
-        sysAlert("Save data copied to clipboard!\n\nPaste it into any text editor and save as a .json file to keep it safe.", { title: 'EXPORT COMPLETE', icon: '✔', color: 'blue' });
+        sysAlert("Save data copied to clipboard!\n\nPaste it into any text editor and save as a .json file to keep it safe.", { title: 'EXPORT COMPLETE', icon: 'check', color: 'blue' });
     } catch (err) {
-        sysAlert("Clipboard access was blocked. Please allow clipboard permissions and try again.", { title: 'COPY FAILED', icon: '✖', color: 'red' });
+        sysAlert("Clipboard access was blocked. Please allow clipboard permissions and try again.", { title: 'COPY FAILED', icon: 'error', color: 'red' });
     }
 }
 
@@ -3181,9 +3236,9 @@ function importData(event) {
             // NEW: Automatically switch them out of "Setup Mode" and into the Dashboard
             toggleProfileMode('dashboard');
             
-            sysAlert("All data restored successfully!", { title: 'IMPORT COMPLETE', icon: '✔', color: 'blue' });
+            sysAlert("All data restored successfully!", { title: 'IMPORT COMPLETE', icon: 'check', color: 'blue' });
         } catch (error) {
-            sysAlert("Corrupt save file. Could not restore.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+            sysAlert("Corrupt save file. Could not restore.", { title: 'SYSTEM ERROR', icon: 'error', color: 'red' });
         }
     };
     reader.readAsText(file); 
@@ -3195,11 +3250,11 @@ function reloadSaveFile() {
     const backupData = localStorage.getItem('quickLoadBackup');
     
     if (!backupData) {
-        sysAlert("No backup found in memory. Import a save file first.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+        sysAlert("No backup found in memory. Import a save file first.", { title: 'SYSTEM ERROR', icon: 'error', color: 'red' });
         return;
     }
 
-    sysConfirm("Reload from your last imported save? This will overwrite your current progress.", { title: 'QUICK LOAD', icon: '↺', color: 'blue' }).then(ok => { if (!ok) return;
+    sysConfirm("Reload from your last imported save? This will overwrite your current progress.", { title: 'QUICK LOAD', icon: 'reload', color: 'blue' }).then(ok => { if (!ok) return;
         try {
             const loadedData = JSON.parse(backupData);
             
@@ -3229,7 +3284,7 @@ function reloadSaveFile() {
                 }, 400);
             }
         } catch (error) {
-            sysAlert("Backup data corrupted.", { title: 'SYSTEM ERROR', icon: '✖', color: 'red' });
+            sysAlert("Backup data corrupted.", { title: 'SYSTEM ERROR', icon: 'error', color: 'red' });
         }
     });
 }
@@ -3306,7 +3361,7 @@ function saveResetTime() {
     if (!input) return;
     localStorage.setItem('resetTime', input.value);
     _sfx('success');
-    sysAlert(`Daily reset time set to ${input.value}.`, { title: 'SYSTEM UPDATE', icon: '✔', color: 'blue' });
+    sysAlert(`Daily reset time set to ${input.value}.`, { title: 'SYSTEM UPDATE', icon: 'check', color: 'blue' });
 }
 // ===============================
 
@@ -3825,7 +3880,7 @@ const ARCADE = {
 
 function arcadeUpdateCoresDisplay() {
     const el = document.getElementById('arcade-cores-display');
-    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+    if (el) el.innerHTML = (systemState.energyCores || 0) + ' ' + SLI.i('bolt');
 }
 
 function arcadeInit() {
@@ -4086,11 +4141,11 @@ function arcadeGameOver() {
     const btn      = document.getElementById('overlay-btn');
 
     title.textContent = 'GAME OVER';
-    sub.textContent   = A.score > A.bestScore ? '★ NEW BEST!' : 'MISSION FAILED';
+    sub.innerHTML     = A.score > A.bestScore ? SLI.i('star') + ' NEW BEST' : 'MISSION FAILED';
     finalSc.textContent = A.score;
     scoreRow.style.display = 'flex';
     rewardRow.style.display = earned > 0 ? 'flex' : 'none';
-    rewardTx.textContent = `+${earned} ⚡ CORES EARNED`;
+    rewardTx.innerHTML = `+${earned} ${SLI.i('bolt')} CORES EARNED`;
     btn.textContent = 'RETRY';
 
     overlay.style.display = 'flex';
@@ -4238,7 +4293,12 @@ function arcadeDraw() {
     ctx.font = '700 11px Rajdhani, sans-serif';
     ctx.letterSpacing = '2px';
     ctx.textAlign = 'left';
-    ctx.fillText('⚡ ' + ((systemState.energyCores || 0) + A.cores), 12, A.H - 14);
+    ctx.save();
+    ctx.translate(12, A.H - 25); ctx.scale(0.5, 0.5);
+    ctx.strokeStyle = ctx.fillStyle; ctx.lineWidth = 3; ctx.lineJoin = 'round';
+    ctx.stroke(new Path2D(SLI.paths.bolt));
+    ctx.restore();
+    ctx.fillText(String((systemState.energyCores || 0) + A.cores), 28, A.H - 14);
     ctx.textAlign = 'right';
     ctx.fillText('HP ' + (A.player ? A.player.hp : 0) + ' / ' + (A.player ? A.player.maxHp : 0), A.W - 12, A.H - 14);
 }
@@ -4302,7 +4362,7 @@ function arcadeShowLockedToast(gameId) {
     const game = ARCADE_GAMES[gameId];
     const toast = document.getElementById('arcade-lock-toast');
     if (toast) {
-        toast.textContent = '🔒 ' + (game ? game.title : 'GAME') + ' IS LOCKED';
+        toast.innerHTML = SLI.i('lock') + ' ' + (game ? game.title : 'GAME') + ' IS LOCKED';
         toast.style.display = 'flex';
         clearTimeout(_arcadeLockToastTimer);
         _arcadeLockToastTimer = setTimeout(() => { toast.style.display = 'none'; }, 1800);
@@ -4371,7 +4431,7 @@ function arcadeCloseGame() {
 
 function arcadeUpdatePanelCores() {
     const el = document.getElementById('arcade-panel-cores');
-    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+    if (el) el.innerHTML = (systemState.energyCores || 0) + ' ' + SLI.i('bolt');
 }
 
 // Animated preview on lobby card
@@ -4454,7 +4514,7 @@ function arcadeDrawCardPreview() {
 const _origArcadeUpdateCoresDisplay = arcadeUpdateCoresDisplay;
 function arcadeUpdateCoresDisplay() {
     const el = document.getElementById('arcade-cores-display');
-    if (el) el.textContent = (systemState.energyCores || 0) + ' ⚡';
+    if (el) el.innerHTML = (systemState.energyCores || 0) + ' ' + SLI.i('bolt');
     arcadeUpdatePanelCores();
 }
 // ============================================================
@@ -4491,7 +4551,7 @@ const GEAR_CFG = {
     STEP: 1 / 120,                     // physics sub-step
     HIT: 0.86,                         // collision radius vs. drawn radius (forgiving: near-misses feel fair)
     CAM_EASE: 16,                      // how quickly the drawn camera catches up with the real one
-    POINTS_PER_CORE: 5,                // score needed for +1 ⚡ energy core
+    POINTS_PER_CORE: 5,                // score needed for +1 energy core
     COLORS: ['#38bdf8', '#a78bfa', '#f472b6', '#fbbf24', '#34d399'],
 };
 
@@ -4790,7 +4850,7 @@ function gearFinish() {
         G.best = G.score;
         try { localStorage.setItem('amazingGearBest', String(G.best)); } catch (e) {}
     }
-    // Reward: 1 ⚡ energy core per POINTS_PER_CORE points (same wallet Void Hunter pays into)
+    // Reward: 1 energy core per POINTS_PER_CORE points (same wallet Void Hunter pays into)
     const earned = Math.floor(G.score / GEAR_CFG.POINTS_PER_CORE);
     if (earned > 0) {
         systemState.energyCores = (systemState.energyCores || 0) + earned;
@@ -5118,13 +5178,13 @@ function gearShowOverlay(mode, earned) {
 
     if (mode === 'over') {
         title.textContent = 'GAME OVER';
-        sub.textContent = G.newBest ? '★ NEW BEST' : '';
+        sub.innerHTML = G.newBest ? SLI.i('star') + ' NEW BEST' : '';
         $('gear-overlay-final-score').textContent = G.score;
         scoreRow.style.display = 'flex';
         $('gear-overlay-best').textContent = G.best;
         bestRow.style.display = 'block';
         if (earned > 0) {
-            $('gear-overlay-reward-text').textContent = '+' + earned + ' ⚡ CORES EARNED';
+            $('gear-overlay-reward-text').innerHTML = '+' + earned + ' ' + SLI.i('bolt') + ' CORES EARNED';
             rewardRow.style.display = 'flex';
         }
         btn.textContent = 'RETRY';
