@@ -1413,7 +1413,8 @@ jobs:
           open(p, "w", encoding="utf-8").write(s)
           print("task widgets registered")
           PYEOF
-              - name: Create Calendar widget resources
+
+      - name: Create Calendar widget resources
         run: |
           mkdir -p android/app/src/main/res/drawable android/app/src/main/res/layout android/app/src/main/res/xml
 
