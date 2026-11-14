@@ -422,7 +422,7 @@ jobs:
 
       - name: Register widgets in AndroidManifest
         run: |
-          sed -i 's|</application>|    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidget" android:exported="true" android:label="Arise 2x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_small_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetMedium" android:exported="true" android:label="Arise 3x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_medium_info"/></receiver>\n    <receiver android:name="com.hunter.arisesolo.widget.CalendarWidgetLarge" android:exported="true" android:label="Arise 4x2"><intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/></intent-filter><meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_large_info"/></receiver>\n</application>|' android/app/src/main/AndroidManifest.xml
+          echo "old Arise 2x2/3x2/4x2 widgets are no longer registered"
 
       - name: Create task widgets (Dailies, Quests, Streak)
         run: |
@@ -1412,6 +1412,387 @@ jobs:
           s = s.replace("</application>", block + "</application>", 1)
           open(p, "w", encoding="utf-8").write(s)
           print("task widgets registered")
+          PYEOF
+              - name: Create Calendar widget resources
+        run: |
+          mkdir -p android/app/src/main/res/drawable android/app/src/main/res/layout android/app/src/main/res/xml
+
+          cat > android/app/src/main/res/drawable/ecal_fill.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#FFFFFFFF"/>
+              <corners android:radius="8dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ecal_ring.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <stroke android:width="1dp" android:color="#FFFFFFFF"/>
+              <corners android:radius="8dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ecal_ring2.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <stroke android:width="2dp" android:color="#FFFFFFFF"/>
+              <corners android:radius="8dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ecal_pill.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#FFFFFFFF"/>
+              <corners android:radius="20dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ecal_pill_ring.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <stroke android:width="1dp" android:color="#FFFFFFFF"/>
+              <corners android:radius="20dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_ecal_prev.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:strokeColor="#9FB3C8" android:strokeWidth="2.4" android:strokeLineCap="round"
+                    android:strokeLineJoin="round" android:pathData="M15,18 L9,12 L15,6"/>
+          </vector>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_ecal_next.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:strokeColor="#9FB3C8" android:strokeWidth="2.4" android:strokeLineCap="round"
+                    android:strokeLineJoin="round" android:pathData="M9,18 L15,12 L9,6"/>
+          </vector>
+          WEOF
+
+          cat > android/app/src/main/res/xml/widget_ecal_info.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="250dp" android:minHeight="110dp"
+              android:minResizeWidth="180dp" android:minResizeHeight="110dp"
+              android:targetCellWidth="4" android:targetCellHeight="2"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_ecal"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          WEOF
+
+          python3 << 'PYEOF'
+          L = []
+          a = L.append
+          a('<?xml version="1.0" encoding="utf-8"?>')
+          a('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
+          a('    android:layout_width="match_parent" android:layout_height="match_parent"')
+          a('    android:orientation="vertical" android:padding="10dp"')
+          a('    android:background="@drawable/widget_card_bg">')
+          # header: prev | month + number pill + year | next
+          a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"')
+          a('        android:orientation="horizontal" android:gravity="center_vertical" android:paddingBottom="6dp">')
+          a('        <ImageView android:id="@+id/ec_prev" android:layout_width="30dp" android:layout_height="30dp"')
+          a('            android:padding="6dp" android:src="@drawable/ic_ecal_prev" android:background="@drawable/widget_pill_bg"/>')
+          a('        <LinearLayout android:id="@+id/ec_center" android:layout_width="0dp" android:layout_height="wrap_content"')
+          a('            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">')
+          a('            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"')
+          a('                android:orientation="horizontal" android:gravity="center_vertical">')
+          a('                <TextView android:id="@+id/ec_month" android:layout_width="wrap_content" android:layout_height="wrap_content"')
+          a('                    android:maxLines="1" android:textSize="17sp" android:textStyle="bold" android:letterSpacing="0.1"')
+          a('                    android:fontFamily="@font/rajdhani" android:textColor="#38BDF8"/>')
+          a('                <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp">')
+          a('                    <ImageView android:id="@+id/ec_pill" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_pill"/>')
+          a('                    <ImageView android:id="@+id/ec_pillring" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_pill_ring"/>')
+          a('                    <TextView android:id="@+id/ec_monthnum" android:layout_width="wrap_content" android:layout_height="wrap_content"')
+          a('                        android:minWidth="18dp" android:gravity="center" android:paddingStart="6dp" android:paddingEnd="6dp"')
+          a('                        android:paddingTop="1dp" android:paddingBottom="1dp" android:textSize="11sp" android:textStyle="bold" android:textColor="#FFFFFF"/>')
+          a('                </FrameLayout>')
+          a('            </LinearLayout>')
+          a('            <TextView android:id="@+id/ec_year" android:layout_width="wrap_content" android:layout_height="wrap_content"')
+          a('                android:maxLines="1" android:textSize="11sp" android:textStyle="bold" android:fontFamily="@font/rajdhani" android:textColor="#9FB3C8"/>')
+          a('        </LinearLayout>')
+          a('        <ImageView android:id="@+id/ec_next" android:layout_width="30dp" android:layout_height="30dp"')
+          a('            android:padding="6dp" android:src="@drawable/ic_ecal_next" android:background="@drawable/widget_pill_bg"/>')
+          a('    </LinearLayout>')
+          # weekday letters (Monday first, like the app)
+          a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="4dp">')
+          for ch in "MTWTFSS":
+              a('        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="%s" android:textSize="11sp" android:textStyle="bold" android:textColor="#9FB3C8"/>' % ch)
+          a('    </LinearLayout>')
+          # 6 week rows x 7 cells (rows are shown/hidden by widget height)
+          for r in range(6):
+              a('    <LinearLayout android:id="@+id/ec_row%d" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">' % r)
+              for c in range(7):
+                  i = r * 7 + c
+                  a('        <FrameLayout android:id="@+id/ec_c%d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp">' % i)
+                  a('            <ImageView android:id="@+id/ec_f%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_fill"/>' % i)
+                  a('            <ImageView android:id="@+id/ec_r%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_ring"/>' % i)
+                  a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="13sp" android:textStyle="bold" android:textColor="#F1F7FB"/>' % i)
+                  a('        </FrameLayout>')
+              a('    </LinearLayout>')
+          a('</LinearLayout>')
+          open("android/app/src/main/res/layout/widget_ecal.xml", "w", encoding="utf-8").write("\n".join(L))
+          print("widget_ecal.xml created")
+          PYEOF
+
+      - name: Create Calendar widget Java
+        run: |
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/EthCalendarWidget.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.ComponentName;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.widget.RemoteViews;
+          import android.widget.Toast;
+          import com.hunter.arisesolo.R;
+          import java.util.Calendar;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Calendar widget: same Ethiopian calendar as the app, week by week.
+          // Height decides how many weeks show (min 1). Arrows page through weeks.
+          public class EthCalendarWidget extends AppWidgetProvider {
+              static final String ACT_PREV  = "com.hunter.arisesolo.widget.ECAL_PREV";
+              static final String ACT_NEXT  = "com.hunter.arisesolo.widget.ECAL_NEXT";
+              static final String ACT_TODAY = "com.hunter.arisesolo.widget.ECAL_TODAY";
+              static final String ACT_CELL  = "com.hunter.arisesolo.widget.ECAL_CELL";
+              static final String PREFS = "EthCalWidget";
+              static final int MAX_ROWS = 6;
+              static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
+
+              @Override
+              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) safeRender(ctx, mgr, id);
+              }
+
+              @Override
+              public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle o) {
+                  safeRender(ctx, mgr, id);
+              }
+
+              @Override
+              public void onDeleted(Context ctx, int[] ids) {
+                  SharedPreferences.Editor ed = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
+                  for (int id : ids) ed.remove("off_" + id);
+                  ed.apply();
+              }
+
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  if (intent == null) return;
+                  String a = intent.getAction();
+                  AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+                  if (ACT_PREV.equals(a) || ACT_NEXT.equals(a) || ACT_TODAY.equals(a)) {
+                      int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+                      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return;
+                      SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                      int off = p.getInt("off_" + id, 0);
+                      if (ACT_TODAY.equals(a)) off = 0;
+                      else off += ACT_NEXT.equals(a) ? rowsFor(mgr, id) : -rowsFor(mgr, id);
+                      p.edit().putInt("off_" + id, off).apply();
+                      safeRender(ctx, mgr, id);
+                      return;
+                  }
+                  if (ACT_CELL.equals(a)) {
+                      String label = intent.getStringExtra("label");
+                      String titles = intent.getStringExtra("titles");
+                      String msg = (titles != null && !titles.isEmpty()) ? label + "\n" + titles : label + " — No events";
+                      Toast.makeText(ctx, msg, Toast.LENGTH_LONG).show();
+                      return;
+                  }
+                  if (Intent.ACTION_DATE_CHANGED.equals(a) || Intent.ACTION_TIME_CHANGED.equals(a) || Intent.ACTION_TIMEZONE_CHANGED.equals(a)) {
+                      for (int id : mgr.getAppWidgetIds(new ComponentName(ctx, EthCalendarWidget.class))) safeRender(ctx, mgr, id);
+                      return;
+                  }
+                  super.onReceive(ctx, intent);
+              }
+
+              static void safeRender(Context ctx, AppWidgetManager mgr, int id) {
+                  try {
+                      render(ctx, mgr, id);
+                  } catch (Throwable t) {
+                      try { mgr.updateAppWidget(id, WidgetData.errorViews(ctx, t)); } catch (Throwable ignored) {}
+                  }
+              }
+
+              // Weeks that fit the widget's height (always at least the current week)
+              static int rowsFor(AppWidgetManager mgr, int id) {
+                  Bundle o = mgr.getAppWidgetOptions(id);
+                  int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                  if (h <= 0) return 1;
+                  return Math.max(1, Math.min(MAX_ROWS, (h - 80) / 40));
+              }
+
+              // ---- Ethiopian date maths (same anchor as the app: 2018-6-2 == 9 Feb 2026, a Monday) ----
+              static int dim(int y, int m) { return m == 13 ? (y % 4 == 3 ? 6 : 5) : 30; }
+
+              static long ord(int y, int m, int d) { return 365L * y + y / 4 + (m - 1) * 30 + (d - 1); }
+
+              // 0 = Monday ... 6 = Sunday
+              static int weekday(int y, int m, int d) {
+                  long delta = ord(y, m, d) - ord(2018, 6, 2);
+                  return (int) (((delta % 7) + 7) % 7);
+              }
+
+              static int[] addDays(int y, int m, int d, int n) {
+                  d += n;
+                  while (d > dim(y, m)) { d -= dim(y, m); m++; if (m > 13) { m = 1; y++; } }
+                  while (d < 1) { m--; if (m < 1) { m = 13; y--; } d += dim(y, m); }
+                  return new int[] { y, m, d };
+              }
+
+              static int[] today() {
+                  Calendar c = Calendar.getInstance();
+                  c.set(Calendar.HOUR_OF_DAY, 0); c.set(Calendar.MINUTE, 0); c.set(Calendar.SECOND, 0); c.set(Calendar.MILLISECOND, 0);
+                  Calendar a = Calendar.getInstance();
+                  a.set(2026, Calendar.FEBRUARY, 9, 0, 0, 0); a.set(Calendar.MILLISECOND, 0);
+                  long diff = Math.round((c.getTimeInMillis() - a.getTimeInMillis()) / 86400000.0);
+                  return addDays(2018, 6, 2, (int) diff);
+              }
+
+              static boolean hit(JSONObject ev, int[] dt) {
+                  String rec = ev.optString("recurrence", "yearly");
+                  int d = ev.optInt("day"), m = ev.optInt("month"), y = ev.optInt("year", 0);
+                  if ("monthly".equals(rec)) return d == dt[2];
+                  if ("once".equals(rec)) return d == dt[2] && m == dt[1] && y == dt[0];
+                  return d == dt[2] && m == dt[1];
+              }
+
+              static int parse(String s, int fallback) {
+                  try { return Color.parseColor(s) | 0xFF000000; } catch (Throwable t) { return fallback; }
+              }
+
+              static JSONObject loadData(Context ctx) {
+                  try {
+                      String raw = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE).getString("widget_data", null);
+                      if (raw != null) return new JSONObject(raw);
+                  } catch (Throwable ignored) {}
+                  return new JSONObject();
+              }
+
+              static PendingIntent nav(Context ctx, int id, String action) {
+                  Intent i = new Intent(ctx, EthCalendarWidget.class).setAction(action);
+                  i.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+                  i.setData(Uri.parse("ecal://nav/" + id + "/" + action));
+                  return PendingIntent.getBroadcast(ctx, 0, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+              }
+
+              static void render(Context ctx, AppWidgetManager mgr, int id) {
+                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_ecal);
+                  JSONObject data = loadData(ctx);
+                  JSONArray events = data.optJSONArray("events");
+                  if (events == null) events = new JSONArray();
+                  int accent = parse(data.optString("accent", "#38bdf8"), 0xFF38BDF8);
+                  int rows = rowsFor(mgr, id);
+                  int off = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("off_" + id, 0);
+
+                  int[] t = today();
+                  int[] ws = addDays(t[0], t[1], t[2], off * 7 - weekday(t[0], t[1], t[2]));  // Monday of the first shown week
+                  int[] mid = addDays(ws[0], ws[1], ws[2], 3);                                // label = month of that week's Thursday
+
+                  v.setTextViewText(R.id.ec_month, ETH_MONTHS[mid[1]]);
+                  v.setTextColor(R.id.ec_month, accent);
+                  v.setTextViewText(R.id.ec_monthnum, String.valueOf(mid[1]));
+                  v.setTextViewText(R.id.ec_year, String.valueOf(mid[0]));
+                  v.setInt(R.id.ec_pill, "setColorFilter", accent);
+                  v.setInt(R.id.ec_pill, "setImageAlpha", 46);
+                  v.setInt(R.id.ec_pillring, "setColorFilter", accent);
+                  v.setOnClickPendingIntent(R.id.ec_prev, nav(ctx, id, ACT_PREV));
+                  v.setOnClickPendingIntent(R.id.ec_next, nav(ctx, id, ACT_NEXT));
+                  v.setOnClickPendingIntent(R.id.ec_center, nav(ctx, id, ACT_TODAY));
+
+                  int[] rowIds = { R.id.ec_row0, R.id.ec_row1, R.id.ec_row2, R.id.ec_row3, R.id.ec_row4, R.id.ec_row5 };
+                  android.content.res.Resources res = ctx.getResources();
+                  String pkg = ctx.getPackageName();
+
+                  for (int r = 0; r < MAX_ROWS; r++) {
+                      boolean on = r < rows;
+                      v.setViewVisibility(rowIds[r], on ? View.VISIBLE : View.GONE);
+                      if (!on) continue;
+                      for (int c = 0; c < 7; c++) {
+                          int i = r * 7 + c;
+                          int[] dt = addDays(ws[0], ws[1], ws[2], i);
+                          int cell = res.getIdentifier("ec_c" + i, "id", pkg);
+                          int fill = res.getIdentifier("ec_f" + i, "id", pkg);
+                          int ring = res.getIdentifier("ec_r" + i, "id", pkg);
+                          int txt  = res.getIdentifier("ec_t" + i, "id", pkg);
+                          if (cell == 0 || fill == 0 || ring == 0 || txt == 0) continue;
+
+                          boolean isToday = dt[0] == t[0] && dt[1] == t[1] && dt[2] == t[2];
+                          boolean inMonth = dt[0] == mid[0] && dt[1] == mid[1];
+
+                          String titles = "";
+                          int count = 0, first = accent;
+                          for (int e = 0; e < events.length(); e++) {
+                              JSONObject ev = events.optJSONObject(e);
+                              if (ev == null || !hit(ev, dt)) continue;
+                              if (count == 0) first = parse(ev.optString("color", "#8b5cf6"), 0xFF38BDF8);
+                              titles += (count == 0 ? "" : "\n") + "• " + ev.optString("title", "");
+                              count++;
+                          }
+
+                          int fillColor = 0xFF0F172A, fillAlpha = 153;
+                          int ringColor = 0xFFFFFFFF, ringAlpha = 31;
+                          int ringRes = R.drawable.ecal_ring;
+                          if (count > 0) {
+                              fillColor = first; fillAlpha = (count > 1) ? 90 : 64;
+                              ringColor = first; ringAlpha = 255;
+                              if (count > 1) ringRes = R.drawable.ecal_ring2;
+                          }
+                          if (isToday) { ringColor = accent; ringAlpha = 255; ringRes = R.drawable.ecal_ring2; }
+
+                          v.setInt(fill, "setColorFilter", fillColor);
+                          v.setInt(fill, "setImageAlpha", fillAlpha);
+                          v.setImageViewResource(ring, ringRes);
+                          v.setInt(ring, "setColorFilter", ringColor);
+                          v.setInt(ring, "setImageAlpha", ringAlpha);
+                          v.setTextViewText(txt, String.valueOf(dt[2]));
+                          v.setTextColor(txt, (inMonth || isToday || count > 0) ? 0xFFF1F7FB : 0x66F1F7FB);
+
+                          Intent ci = new Intent(ctx, EthCalendarWidget.class).setAction(ACT_CELL);
+                          ci.putExtra("label", ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0]);
+                          ci.putExtra("titles", titles);
+                          ci.setData(Uri.parse("ecal://cell/" + id + "/" + i));
+                          v.setOnClickPendingIntent(cell, PendingIntent.getBroadcast(ctx, 0, ci,
+                              PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+                      }
+                  }
+                  mgr.updateAppWidget(id, v);
+              }
+          }
+          WEOF
+
+      - name: Register Calendar widget in AndroidManifest
+        run: |
+          python3 << 'PYEOF'
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          block = ('    <receiver android:name="com.hunter.arisesolo.widget.EthCalendarWidget" android:exported="true" android:label="Calendar">'
+                   '<intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE"/>'
+                   '<action android:name="android.intent.action.DATE_CHANGED"/>'
+                   '<action android:name="android.intent.action.TIME_SET"/>'
+                   '<action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>'
+                   '<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_ecal_info"/></receiver>\n')
+          assert "</application>" in s
+          s = s.replace("</application>", block + "</application>", 1)
+          open(p, "w", encoding="utf-8").write(s)
+          print("calendar widget registered")
           PYEOF
 
       - name: Inject Exact Alarm Permissions

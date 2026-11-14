@@ -3083,6 +3083,20 @@ async function scheduleEventNotifications() {
     }
 }
 
+// Current theme accent as #rrggbb, so the widget matches your rank color
+function getAccentHex() {
+    try {
+        const el = document.createElement('div');
+        el.style.color = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#38bdf8';
+        document.body.appendChild(el);
+        const c = getComputedStyle(el).color;
+        document.body.removeChild(el);
+        const m = /^rgba?\(/.test(c) ? c.match(/\d+/g) : null;
+        if (m && m.length >= 3) return '#' + m.slice(0, 3).map(n => (+n).toString(16).padStart(2, '0')).join('');
+    } catch (e) {}
+    return '#38bdf8';
+}
+
 function syncWidgetData() {
     try {
         if (!window.Capacitor || !Capacitor.Plugins.Preferences) return;
@@ -3091,6 +3105,7 @@ function syncWidgetData() {
             todayEthDay:   today.day,
             todayEthMonth: today.month,
             todayEthYear:  today.year,
+            accent:        getAccentHex(),
             events: (systemState.events || []).map(e => ({
                 day: e.day,
                 month: e.month,
@@ -3100,7 +3115,10 @@ function syncWidgetData() {
                 recurrence: e.recurrence || 'yearly'
             }))
         });
-        Capacitor.Plugins.Preferences.set({ key: 'widget_data', value: payload });
+        const _wb = Capacitor.Plugins.WidgetBridgePlugin;
+        Capacitor.Plugins.Preferences.set({ key: 'widget_data', value: payload }).then(() => {
+            if (_wb) _wb.reloadTimelines({ ofKind: 'com.hunter.arisesolo.widget.EthCalendarWidget' }).catch(() => {});
+        }).catch(() => {});
     } catch(e) { /* browser or plugin missing, skip silently */ }
 }
 
