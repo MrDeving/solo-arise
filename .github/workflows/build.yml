@@ -1476,6 +1476,24 @@ jobs:
           </vector>
           WEOF
 
+          cat > android/app/src/main/res/drawable/ecal_panel.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <gradient android:startColor="#1A2431" android:endColor="#0D1824" android:angle="315"/>
+              <stroke android:width="1dp" android:color="#1FFFFFFF"/>
+              <corners android:radius="22dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/drawable/ic_ecal_today.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="24dp" android:height="24dp" android:viewportWidth="24" android:viewportHeight="24">
+              <path android:strokeColor="#38BDF8" android:strokeWidth="2" android:strokeLineCap="round"
+                    android:strokeLineJoin="round" android:pathData="M5,4 H19 A2,2 0 0 1 21,6 V20 A2,2 0 0 1 19,22 H5 A2,2 0 0 1 3,20 V6 A2,2 0 0 1 5,4 Z M16,2 V6 M8,2 V6 M3,10 H21 M10,15 A2,2 0 1 1 14,15 A2,2 0 1 1 10,15"/>
+          </vector>
+          WEOF
+
           cat > android/app/src/main/res/xml/widget_ecal_info.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
@@ -1494,19 +1512,21 @@ jobs:
           a('<?xml version="1.0" encoding="utf-8"?>')
           a('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
           a('    android:layout_width="match_parent" android:layout_height="match_parent"')
-          a('    android:orientation="vertical" android:padding="10dp"')
-          a('    android:background="@drawable/widget_card_bg">')
+          a('    android:orientation="vertical" android:padding="16dp"')
+          a('    android:background="@drawable/ecal_panel">')
           # header: prev | month + number pill + year | next
           a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"')
-          a('        android:orientation="horizontal" android:gravity="center_vertical" android:paddingBottom="6dp">')
-          a('        <ImageView android:id="@+id/ec_prev" android:layout_width="30dp" android:layout_height="30dp"')
-          a('            android:padding="6dp" android:src="@drawable/ic_ecal_prev" android:background="@drawable/widget_pill_bg"/>')
+          a('        android:orientation="horizontal" android:gravity="center_vertical" android:paddingBottom="16dp">')
+          a('        <ImageView android:id="@+id/ec_today" android:layout_width="32dp" android:layout_height="32dp"')
+          a('            android:padding="6dp" android:layout_marginEnd="8dp" android:src="@drawable/ic_ecal_today"/>')
+          a('        <ImageView android:id="@+id/ec_prev" android:layout_width="32dp" android:layout_height="32dp"')
+          a('            android:padding="4dp" android:src="@drawable/ic_ecal_prev"/>')
           a('        <LinearLayout android:id="@+id/ec_center" android:layout_width="0dp" android:layout_height="wrap_content"')
           a('            android:layout_weight="1" android:orientation="vertical" android:gravity="center_horizontal">')
           a('            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"')
           a('                android:orientation="horizontal" android:gravity="center_vertical">')
           a('                <TextView android:id="@+id/ec_month" android:layout_width="wrap_content" android:layout_height="wrap_content"')
-          a('                    android:maxLines="1" android:textSize="17sp" android:textStyle="bold" android:letterSpacing="0.1"')
+          a('                    android:maxLines="1" android:textSize="20sp" android:textStyle="bold" android:letterSpacing="0.1"')
           a('                    android:fontFamily="@font/rajdhani" android:textColor="#38BDF8"/>')
           a('                <FrameLayout android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginStart="6dp">')
           a('                    <ImageView android:id="@+id/ec_pill" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_pill"/>')
@@ -1517,25 +1537,25 @@ jobs:
           a('                </FrameLayout>')
           a('            </LinearLayout>')
           a('            <TextView android:id="@+id/ec_year" android:layout_width="wrap_content" android:layout_height="wrap_content"')
-          a('                android:maxLines="1" android:textSize="11sp" android:textStyle="bold" android:fontFamily="@font/rajdhani" android:textColor="#9FB3C8"/>')
+          a('                android:maxLines="1" android:textSize="12sp" android:textStyle="bold" android:fontFamily="@font/rajdhani" android:textColor="#9FB3C8"/>')
           a('        </LinearLayout>')
-          a('        <ImageView android:id="@+id/ec_next" android:layout_width="30dp" android:layout_height="30dp"')
-          a('            android:padding="6dp" android:src="@drawable/ic_ecal_next" android:background="@drawable/widget_pill_bg"/>')
+          a('        <ImageView android:id="@+id/ec_next" android:layout_width="32dp" android:layout_height="32dp"')
+          a('            android:padding="4dp" android:src="@drawable/ic_ecal_next"/>')
           a('    </LinearLayout>')
           # weekday letters (Monday first, like the app)
           a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="4dp">')
           for ch in "MTWTFSS":
-              a('        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="%s" android:textSize="11sp" android:textStyle="bold" android:textColor="#9FB3C8"/>' % ch)
+              a('        <TextView android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1" android:gravity="center" android:text="%s" android:textSize="12sp" android:textStyle="bold" android:textColor="#9FB3C8"/>' % ch)
           a('    </LinearLayout>')
           # 6 week rows x 7 cells (rows are shown/hidden by widget height)
           for r in range(6):
               a('    <LinearLayout android:id="@+id/ec_row%d" android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1" android:orientation="horizontal">' % r)
               for c in range(7):
                   i = r * 7 + c
-                  a('        <FrameLayout android:id="@+id/ec_c%d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp">' % i)
+                  a('        <FrameLayout android:id="@+id/ec_c%d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="0dp">' % i)
                   a('            <ImageView android:id="@+id/ec_f%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_fill"/>' % i)
                   a('            <ImageView android:id="@+id/ec_r%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_ring"/>' % i)
-                  a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="13sp" android:textStyle="bold" android:textColor="#F1F7FB" android:shadowColor="#CC000000" android:shadowRadius="8"/>' % i)
+                  a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="14sp" android:textStyle="bold" android:textColor="#F1F7FB" android:shadowColor="#CC000000" android:shadowRadius="4"/>' % i)
                   a('        </FrameLayout>')
               a('    </LinearLayout>')
           a('</LinearLayout>')
@@ -1643,7 +1663,8 @@ jobs:
                   Bundle o = mgr.getAppWidgetOptions(id);
                   int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
                   if (h <= 0) return 1;
-                  return Math.max(1, Math.min(MAX_ROWS, (h - 80) / 40));
+                  float slot = (o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250) - 32f) / 7f;
+                  return Math.max(1, Math.min(MAX_ROWS, (int) ((h - 106f) / slot)));
               }
 
               // ---- Ethiopian date maths (same anchor as the app: 2018-6-2 == 9 Feb 2026, a Monday) ----
@@ -1685,7 +1706,70 @@ jobs:
                   Bundle o = mgr.getAppWidgetOptions(id);
                   float w = (o == null) ? 250f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
                   float h = (o == null) ? 110f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110);
-                  return new float[] { Math.max(16f, (w - 20f) / 7f - 4f), Math.max(16f, (h - 75f) / rows - 4f) };
+                  return new float[] { Math.max(16f, (w - 32f) / 7f), Math.max(16f, (h - 100f) / rows) };
+              }
+
+              // One day tile drawn with the same rules as the HTML preview
+              static Bitmap cellBitmap(int[] cols, int n, boolean today, int accent, float wDp, float hDp) {
+                  float k = 96f / Math.max(wDp, hDp);
+                  int w = Math.max(24, Math.round(wDp * k)), h = Math.max(24, Math.round(hDp * k));
+                  Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(bmp);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  float g = 3f * k, r = 12f * k;
+                  float bw = ((n > 1 && !today) ? 2f : 1f) * k;
+                  RectF tile = new RectF(g, g, w - g, h - g);
+                  if (n == 0) {
+                      p.setColor(Color.argb(153, 15, 23, 42));
+                      cv.drawRoundRect(tile, r, r, p);
+                  } else if (n == 1) {
+                      p.setColor((cols[0] & 0x00FFFFFF) | 0x40000000);
+                      cv.drawRoundRect(tile, r, r, p);
+                  } else {
+                      Bitmap pie = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                      Canvas pc = new Canvas(pie);
+                      Paint pp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      float big = (float) Math.hypot(w, h);
+                      RectF oval = new RectF(w / 2f - big, h / 2f - big, w / 2f + big, h / 2f + big);
+                      float sweep = 360f / n;
+                      for (int i = 0; i < n; i++) {
+                          pp.setColor(cols[i]);
+                          pc.drawArc(oval, -90f + i * sweep, (i < n - 1) ? sweep + 0.6f : sweep, true, pp);
+                      }
+                      p.setShader(new android.graphics.BitmapShader(pie, android.graphics.Shader.TileMode.CLAMP, android.graphics.Shader.TileMode.CLAMP));
+                      cv.drawRoundRect(tile, r, r, p);
+                      p.setShader(null);
+                  }
+                  p.setStyle(Paint.Style.STROKE);
+                  p.setStrokeWidth(bw);
+                  p.setColor(n == 1 ? (cols[0] | 0xFF000000) : Color.argb(31, 255, 255, 255));
+                  cv.drawRoundRect(new RectF(tile.left + bw / 2f, tile.top + bw / 2f, tile.right - bw / 2f, tile.bottom - bw / 2f), r - bw / 2f, r - bw / 2f, p);
+                  if (today) {
+                      float o = 1.75f * k;
+                      p.setStrokeWidth(1.5f * k);
+                      p.setColor(accent);
+                      cv.drawRoundRect(new RectF(tile.left - o, tile.top - o, tile.right + o, tile.bottom + o), r + o, r + o, p);
+                      p.setStyle(Paint.Style.FILL);
+                      Paint tp = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      tp.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+                      tp.setTextSize(8f * k);
+                      tp.setLetterSpacing(0.1f);
+                      float tw = tp.measureText("TODAY");
+                      float tagW = 18f * k + tw, tagH = 14f * k, tx = (w - tagW) / 2f;
+                      cv.drawRoundRect(new RectF(tx, 0, tx + tagW, tagH), 4f * k, 4f * k, p);
+                      cv.save();
+                      cv.translate(w / 2f, tagH);
+                      cv.rotate(45f);
+                      cv.drawRoundRect(new RectF(-3f * k, -3f * k, 3f * k, 3f * k), k, k, p);
+                      cv.restore();
+                      Paint dot = new Paint(Paint.ANTI_ALIAS_FLAG);
+                      dot.setColor(Color.argb(140, 4, 16, 29));
+                      cv.drawCircle(tx + 6f * k, tagH / 2f, 2f * k, dot);
+                      tp.setColor(0xFF04101D);
+                      Paint.FontMetrics fm = tp.getFontMetrics();
+                      cv.drawText("TODAY", tx + 12f * k, tagH / 2f - (fm.ascent + fm.descent) / 2f, tp);
+                  }
+                  return bmp;
               }
 
               // Same look as the app's conic-gradient: equal slices from 12 o'clock, clockwise, on a rounded tile
@@ -1750,11 +1834,14 @@ jobs:
                   v.setOnClickPendingIntent(R.id.ec_prev, nav(ctx, id, ACT_PREV));
                   v.setOnClickPendingIntent(R.id.ec_next, nav(ctx, id, ACT_NEXT));
                   v.setOnClickPendingIntent(R.id.ec_center, nav(ctx, id, ACT_TODAY));
+                  v.setOnClickPendingIntent(R.id.ec_today, nav(ctx, id, ACT_TODAY));
+                  v.setInt(R.id.ec_today, "setColorFilter", accent);
 
                   int[] rowIds = { R.id.ec_row0, R.id.ec_row1, R.id.ec_row2, R.id.ec_row3, R.id.ec_row4, R.id.ec_row5 };
                   android.content.res.Resources res = ctx.getResources();
                   String pkg = ctx.getPackageName();
                   float[] cd = cellDp(mgr, id, rows);
+                  java.util.HashMap<String, Bitmap> cache = new java.util.HashMap<>();
 
                   for (int r = 0; r < MAX_ROWS; r++) {
                       boolean on = r < rows;
@@ -1797,30 +1884,49 @@ jobs:
                           }
                           if (isToday) { ringColor = accent; ringAlpha = 255; ringRes = R.drawable.ecal_ring2; }
 
-                          if (pie) {
-                              v.setImageViewBitmap(fill, pieBitmap(cols, count, cd[0], cd[1]));
-                              v.setInt(fill, "setColorFilter", 0x00000000);
-                              v.setInt(fill, "setImageAlpha", 255);
-                          } else {
-                              v.setImageViewResource(fill, R.drawable.ecal_fill);
-                              v.setInt(fill, "setColorFilter", fillColor);
-                              v.setInt(fill, "setImageAlpha", fillAlpha);
-                          }
-                          v.setImageViewResource(ring, ringRes);
-                          v.setInt(ring, "setColorFilter", ringColor);
-                          v.setInt(ring, "setImageAlpha", ringAlpha);
+                          String key = (isToday ? "T" : "N") + count + (count > 1 ? java.util.Arrays.toString(java.util.Arrays.copyOf(cols, count)) : (count == 1 ? Integer.toHexString(first) : ""));
+                          Bitmap cb = cache.get(key);
+                          if (cb == null) { cb = cellBitmap(cols, count, isToday, accent, cd[0], cd[1]); cache.put(key, cb); }
+                          v.setImageViewBitmap(fill, cb);
+                          v.setViewVisibility(ring, View.GONE);
+                          v.setViewPadding(txt, 0, isToday ? (int) (6 * res.getDisplayMetrics().density) : 0, 0, 0);
                           v.setTextViewText(txt, String.valueOf(dt[2]));
                           v.setTextColor(txt, (count > 0 || isToday) ? 0xFFFFFFFF : (inMonth ? 0xFFF1F7FB : 0x66F1F7FB));
 
-                          Intent ci = new Intent(ctx, EthCalendarWidget.class).setAction(ACT_CELL);
+                          Intent ci = new Intent(ctx, EthDayActivity.class);
                           ci.putExtra("label", ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0]);
                           ci.putExtra("titles", titles);
                           ci.setData(Uri.parse("ecal://cell/" + id + "/" + i));
-                          v.setOnClickPendingIntent(cell, PendingIntent.getBroadcast(ctx, 0, ci,
+                          v.setOnClickPendingIntent(cell, PendingIntent.getActivity(ctx, 0, ci,
                               PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
                       }
                   }
                   mgr.updateAppWidget(id, v);
+              }
+          }
+          WEOF
+
+      - name: Create Calendar day dialog Java
+        run: |
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/EthDayActivity.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.os.Bundle;
+
+          public class EthDayActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  String label = getIntent().getStringExtra("label");
+                  String titles = getIntent().getStringExtra("titles");
+                  new AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                      .setTitle(label)
+                      .setMessage((titles != null && !titles.isEmpty()) ? titles : "No events")
+                      .setPositiveButton("OK", null)
+                      .setOnDismissListener(d -> finish())
+                      .show();
               }
           }
           WEOF
@@ -1835,7 +1941,8 @@ jobs:
                    '<action android:name="android.intent.action.DATE_CHANGED"/>'
                    '<action android:name="android.intent.action.TIME_SET"/>'
                    '<action android:name="android.intent.action.TIMEZONE_CHANGED"/></intent-filter>'
-                   '<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_ecal_info"/></receiver>\n')
+                   '<meta-data android:name="android.appwidget.provider" android:resource="@xml/widget_ecal_info"/></receiver>\n'
+                   '    <activity android:name="com.hunter.arisesolo.widget.EthDayActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:taskAffinity=""/>\n')
           assert "</application>" in s
           s = s.replace("</application>", block + "</application>", 1)
           open(p, "w", encoding="utf-8").write(s)
