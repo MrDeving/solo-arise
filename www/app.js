@@ -3011,7 +3011,7 @@ function saveGameState() {
 // ==========================================
 // --- CALENDAR EVENT NOTIFICATIONS ---
 // ==========================================
-const EVENT_NOTIFY_HOUR = 19;         // hour the notification fires (24h) -> 7 PM
+const EVENT_NOTIFY_HOUR = 11;         // hour the notification fires (24h) -> 11 AM
 const EVENT_NOTIFY_MIN = 0;           // minute
 const EVENT_NOTIFY_DAYS_BEFORE = 1;   // 1 = the day before, 0 = same day
 const EVENT_NOTIFY_DAYS_AHEAD = 60;   // how many days ahead to schedule

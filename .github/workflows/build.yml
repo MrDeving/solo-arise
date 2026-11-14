@@ -1422,7 +1422,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
               <solid android:color="#FFFFFFFF"/>
-              <corners android:radius="8dp"/>
+              <corners android:radius="11dp"/>
           </shape>
           WEOF
 
@@ -1430,7 +1430,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
               <stroke android:width="1dp" android:color="#FFFFFFFF"/>
-              <corners android:radius="8dp"/>
+              <corners android:radius="11dp"/>
           </shape>
           WEOF
 
@@ -1438,7 +1438,7 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
               <stroke android:width="2dp" android:color="#FFFFFFFF"/>
-              <corners android:radius="8dp"/>
+              <corners android:radius="11dp"/>
           </shape>
           WEOF
 
@@ -1535,7 +1535,7 @@ jobs:
                   a('        <FrameLayout android:id="@+id/ec_c%d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="2dp">' % i)
                   a('            <ImageView android:id="@+id/ec_f%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_fill"/>' % i)
                   a('            <ImageView android:id="@+id/ec_r%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_ring"/>' % i)
-                  a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="13sp" android:textStyle="bold" android:textColor="#F1F7FB"/>' % i)
+                  a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="13sp" android:textStyle="bold" android:textColor="#F1F7FB" android:shadowColor="#CC000000" android:shadowRadius="8"/>' % i)
                   a('        </FrameLayout>')
               a('    </LinearLayout>')
           a('</LinearLayout>')
@@ -1555,7 +1555,13 @@ jobs:
           import android.content.Context;
           import android.content.Intent;
           import android.content.SharedPreferences;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
           import android.graphics.Color;
+          import android.graphics.Paint;
+          import android.graphics.PorterDuff;
+          import android.graphics.PorterDuffXfermode;
+          import android.graphics.RectF;
           import android.net.Uri;
           import android.os.Bundle;
           import android.view.View;
@@ -1674,7 +1680,34 @@ jobs:
                   if ("once".equals(rec)) return d == dt[2] && m == dt[1] && y == dt[0];
                   return d == dt[2] && m == dt[1];
               }
+              // Approx. size of one day tile in dp, so the pie slices get the same proportions as in the app
+              static float[] cellDp(AppWidgetManager mgr, int id, int rows) {
+                  Bundle o = mgr.getAppWidgetOptions(id);
+                  float w = (o == null) ? 250f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
+                  float h = (o == null) ? 110f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110);
+                  return new float[] { Math.max(16f, (w - 20f) / 7f - 4f), Math.max(16f, (h - 75f) / rows - 4f) };
+              }
 
+              // Same look as the app's conic-gradient: equal slices from 12 o'clock, clockwise, on a rounded tile
+              static Bitmap pieBitmap(int[] cols, int n, float wDp, float hDp) {
+                  float k = 96f / Math.max(wDp, hDp);
+                  int w = Math.max(24, Math.round(wDp * k)), h = Math.max(24, Math.round(hDp * k));
+                  Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
+                  Canvas cv = new Canvas(bmp);
+                  Paint p = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  float big = (float) Math.hypot(w, h);
+                  RectF oval = new RectF(w / 2f - big, h / 2f - big, w / 2f + big, h / 2f + big);
+                  float sweep = 360f / n;
+                  for (int i = 0; i < n; i++) {
+                      p.setColor(cols[i]);
+                      cv.drawArc(oval, -90f + i * sweep, (i < n - 1) ? sweep + 0.6f : sweep, true, p);
+                  }
+                  Paint mask = new Paint(Paint.ANTI_ALIAS_FLAG);
+                  mask.setXfermode(new PorterDuffXfermode(PorterDuff.Mode.DST_IN));
+                  float r = 11f * k;
+                  cv.drawRoundRect(new RectF(0, 0, w, h), r, r, mask);
+                  return bmp;
+              }
               static int parse(String s, int fallback) {
                   try { return Color.parseColor(s) | 0xFF000000; } catch (Throwable t) { return fallback; }
               }
@@ -1721,6 +1754,7 @@ jobs:
                   int[] rowIds = { R.id.ec_row0, R.id.ec_row1, R.id.ec_row2, R.id.ec_row3, R.id.ec_row4, R.id.ec_row5 };
                   android.content.res.Resources res = ctx.getResources();
                   String pkg = ctx.getPackageName();
+                  float[] cd = cellDp(mgr, id, rows);
 
                   for (int r = 0; r < MAX_ROWS; r++) {
                       boolean on = r < rows;
@@ -1740,31 +1774,43 @@ jobs:
 
                           String titles = "";
                           int count = 0, first = accent;
+                          int[] cols = new int[events.length()];
                           for (int e = 0; e < events.length(); e++) {
                               JSONObject ev = events.optJSONObject(e);
                               if (ev == null || !hit(ev, dt)) continue;
-                              if (count == 0) first = parse(ev.optString("color", "#8b5cf6"), 0xFF38BDF8);
+                              cols[count] = parse(ev.optString("color", "#8b5cf6"), 0xFF38BDF8);
+                              if (count == 0) first = cols[count];
                               titles += (count == 0 ? "" : "\n") + "• " + ev.optString("title", "");
                               count++;
                           }
 
-                          int fillColor = 0xFF0F172A, fillAlpha = 153;
-                          int ringColor = 0xFFFFFFFF, ringAlpha = 31;
+                          // same rules as the app's calendar tiles
+                          int fillColor = 0xFFFFFFFF, fillAlpha = 12;   // plain day: rgba(255,255,255,0.045)
+                          int ringColor = 0xFFFFFFFF, ringAlpha = 31;   // plain border: rgba(255,255,255,0.12)
                           int ringRes = R.drawable.ecal_ring;
-                          if (count > 0) {
-                              fillColor = first; fillAlpha = (count > 1) ? 90 : 64;
+                          boolean pie = count > 1;
+                          if (count == 1) {                             // one event: its color at 25% + solid border in its color
+                              fillColor = first; fillAlpha = 64;
                               ringColor = first; ringAlpha = 255;
-                              if (count > 1) ringRes = R.drawable.ecal_ring2;
+                          } else if (pie) {                             // overlapping events: equal color slices, thicker soft border
+                              ringRes = R.drawable.ecal_ring2;
                           }
                           if (isToday) { ringColor = accent; ringAlpha = 255; ringRes = R.drawable.ecal_ring2; }
 
-                          v.setInt(fill, "setColorFilter", fillColor);
-                          v.setInt(fill, "setImageAlpha", fillAlpha);
+                          if (pie) {
+                              v.setImageViewBitmap(fill, pieBitmap(cols, count, cd[0], cd[1]));
+                              v.setInt(fill, "setColorFilter", 0x00000000);
+                              v.setInt(fill, "setImageAlpha", 255);
+                          } else {
+                              v.setImageViewResource(fill, R.drawable.ecal_fill);
+                              v.setInt(fill, "setColorFilter", fillColor);
+                              v.setInt(fill, "setImageAlpha", fillAlpha);
+                          }
                           v.setImageViewResource(ring, ringRes);
                           v.setInt(ring, "setColorFilter", ringColor);
                           v.setInt(ring, "setImageAlpha", ringAlpha);
                           v.setTextViewText(txt, String.valueOf(dt[2]));
-                          v.setTextColor(txt, (inMonth || isToday || count > 0) ? 0xFFF1F7FB : 0x66F1F7FB);
+                          v.setTextColor(txt, (count > 0 || isToday) ? 0xFFFFFFFF : (inMonth ? 0xFFF1F7FB : 0x66F1F7FB));
 
                           Intent ci = new Intent(ctx, EthCalendarWidget.class).setAction(ACT_CELL);
                           ci.putExtra("label", ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0]);
