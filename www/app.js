@@ -119,7 +119,7 @@ function _openSysDialog({ title, msg, icon, color, buttons, resolve }) {
 
     let btnsHtml = buttons.map(b => {
         const isCancel = b.label.toLowerCase() === 'cancel';
-        return `<button class="sl-btn-new" style="${isCancel ? 'border-color: rgba(255,255,255,0.15); color: #94a3b8;' : ''}">${b.label.toUpperCase()}</button>`;
+        return `<button class="sl-btn-new${isCancel ? ' sl-btn-cancel' : ''}">${b.label.toUpperCase()}</button>`;
     }).join('');
 
     overlay.innerHTML = `

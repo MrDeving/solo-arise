@@ -1788,6 +1788,50 @@ button.sci-fi-btn.filter-opt.active {
     box-shadow: 0 0 30px rgba(251,191,36,0.6);
 }
 
+/* ====== UNIFIED POPUP STYLE (matches gold reward popup) ====== */
+.sl-system-box { --pop: 56,189,248; }
+.sl-system-box.border-red { --pop: 248,113,113; }
+
+.sl-system-box:not(.border-gold):not(.border-ach) {
+    border-color: rgba(var(--pop), 0.35);
+    box-shadow: 0 0 0 1px rgba(var(--pop), 0.08), 0 20px 60px rgba(0,0,0,0.9), inset 0 0 40px rgba(var(--pop), 0.06);
+}
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-icon {
+    background: rgba(var(--pop), 0.08);
+    border-color: rgba(var(--pop), 0.4);
+    box-shadow: 0 0 20px rgba(var(--pop), 0.2);
+}
+/* message becomes the framed "reward card" panel */
+.sl-system-box:not(.border-gold):not(.border-ach):not(.wb-box) .sl-body-text {
+    width: 100%;
+    padding: 18px 20px;
+    background: linear-gradient(135deg, rgba(var(--pop), 0.1), rgba(var(--pop), 0.04));
+    border: 1px solid rgba(var(--pop), 0.25);
+    border-radius: 12px;
+    overflow: hidden;
+}
+.sl-system-box:not(.border-gold):not(.border-ach):not(.wb-box) .sl-body-text::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--pop), 0.6), transparent);
+}
+/* solid glowing primary button */
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new {
+    background: linear-gradient(135deg, rgba(var(--pop), 0.95), rgba(var(--pop), 0.75));
+    border-color: rgb(var(--pop));
+    color: #020617; font-weight: 900;
+    box-shadow: 0 0 20px rgba(var(--pop), 0.35);
+}
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new:active {
+    background: rgb(var(--pop));
+    box-shadow: 0 0 30px rgba(var(--pop), 0.6);
+}
+/* cancel stays a quiet ghost button */
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new.sl-btn-cancel {
+    background: transparent;
+    border-color: rgba(255,255,255,0.15);
+    color: #94a3b8; font-weight: 800; box-shadow: none;
+}
+.sl-system-box .wb-start-btn { text-shadow: none; }
 /* ====== ACHIEVEMENT UNLOCK POPUP ====== */
 .ach-popup-icon-ring {
     position: relative; width: 80px; height: 80px;
