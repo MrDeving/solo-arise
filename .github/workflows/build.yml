@@ -1497,9 +1497,9 @@ jobs:
           cat > android/app/src/main/res/xml/widget_ecal_info.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-              android:minWidth="250dp" android:minHeight="110dp"
-              android:minResizeWidth="180dp" android:minResizeHeight="110dp"
-              android:targetCellWidth="4" android:targetCellHeight="2"
+              android:minWidth="250dp" android:minHeight="250dp"
+              android:minResizeWidth="180dp" android:minResizeHeight="180dp"
+              android:targetCellWidth="4" android:targetCellHeight="4"
               android:updatePeriodMillis="1800000"
               android:initialLayout="@layout/widget_ecal"
               android:resizeMode="horizontal|vertical"
@@ -1512,11 +1512,11 @@ jobs:
           a('<?xml version="1.0" encoding="utf-8"?>')
           a('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
           a('    android:layout_width="match_parent" android:layout_height="match_parent"')
-          a('    android:orientation="vertical" android:padding="16dp"')
+          a('    android:orientation="vertical" android:padding="12dp"')
           a('    android:background="@drawable/ecal_panel">')
           # header: prev | month + number pill + year | next
           a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"')
-          a('        android:orientation="horizontal" android:gravity="center_vertical" android:paddingBottom="16dp">')
+          a('        android:orientation="horizontal" android:gravity="center_vertical" android:paddingBottom="8dp">')
           a('        <ImageView android:id="@+id/ec_today" android:layout_width="32dp" android:layout_height="32dp"')
           a('            android:padding="6dp" android:layout_marginEnd="8dp" android:src="@drawable/ic_ecal_today"/>')
           a('        <ImageView android:id="@+id/ec_prev" android:layout_width="32dp" android:layout_height="32dp"')
@@ -1553,7 +1553,7 @@ jobs:
               for c in range(7):
                   i = r * 7 + c
                   a('        <FrameLayout android:id="@+id/ec_c%d" android:layout_width="0dp" android:layout_height="match_parent" android:layout_weight="1" android:layout_margin="0dp">' % i)
-                  a('            <ImageView android:id="@+id/ec_f%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_fill"/>' % i)
+                  a('            <ImageView android:id="@+id/ec_f%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitCenter" android:src="@drawable/ecal_fill"/>' % i)
                   a('            <ImageView android:id="@+id/ec_r%d" android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/ecal_ring"/>' % i)
                   a('            <TextView android:id="@+id/ec_t%d" android:layout_width="match_parent" android:layout_height="match_parent" android:gravity="center" android:maxLines="1" android:textSize="14sp" android:textStyle="bold" android:textColor="#F1F7FB" android:shadowColor="#CC000000" android:shadowRadius="4"/>' % i)
                   a('        </FrameLayout>')
@@ -1616,7 +1616,7 @@ jobs:
               @Override
               public void onDeleted(Context ctx, int[] ids) {
                   SharedPreferences.Editor ed = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
-                  for (int id : ids) ed.remove("off_" + id);
+                  for (int id : ids) ed.remove("moff_" + id);
                   ed.apply();
               }
 
@@ -1629,10 +1629,10 @@ jobs:
                       int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
                       if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return;
                       SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-                      int off = p.getInt("off_" + id, 0);
+                      int off = p.getInt("moff_" + id, 0);
                       if (ACT_TODAY.equals(a)) off = 0;
-                      else off += ACT_NEXT.equals(a) ? rowsFor(mgr, id) : -rowsFor(mgr, id);
-                      p.edit().putInt("off_" + id, off).apply();
+                      else off += ACT_NEXT.equals(a) ? 1 : -1;
+                      p.edit().putInt("moff_" + id, off).apply();
                       safeRender(ctx, mgr, id);
                       return;
                   }
@@ -1658,13 +1658,15 @@ jobs:
                   }
               }
 
-              // Weeks that fit the widget's height (always at least the current week)
-              static int rowsFor(AppWidgetManager mgr, int id) {
-                  Bundle o = mgr.getAppWidgetOptions(id);
-                  int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
-                  if (h <= 0) return 1;
-                  float slot = (o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250) - 32f) / 7f;
-                  return Math.max(1, Math.min(MAX_ROWS, (int) ((h - 106f) / slot)));
+              // {year, month} that is `off` months away from today's month
+              static int[] monthAt(int[] t, int off) {
+                  long idx = t[0] * 13L + (t[1] - 1) + off;
+                  return new int[] { (int) Math.floorDiv(idx, 13L), (int) Math.floorMod(idx, 13L) + 1 };
+              }
+
+              // Week rows the month needs, so its last days are never cut off (5-6 normally, 1-2 for Pagume)
+              static int rowsFor(int y, int m) {
+                  return Math.min(MAX_ROWS, (weekday(y, m, 1) + dim(y, m) + 6) / 7);
               }
 
               // ---- Ethiopian date maths (same anchor as the app: 2018-6-2 == 9 Feb 2026, a Monday) ----
@@ -1701,17 +1703,21 @@ jobs:
                   if ("once".equals(rec)) return d == dt[2] && m == dt[1] && y == dt[0];
                   return d == dt[2] && m == dt[1];
               }
-              // Approx. size of one day tile in dp, so the pie slices get the same proportions as in the app
-              static float[] cellDp(AppWidgetManager mgr, int id, int rows) {
+              // Real size of one grid slot in dp (portrait: MIN width + MAX height, landscape: the reverse)
+              static float[] gridDp(Context ctx, AppWidgetManager mgr, int id, int rows) {
                   Bundle o = mgr.getAppWidgetOptions(id);
-                  float w = (o == null) ? 250f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
-                  float h = (o == null) ? 110f : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 110);
-                  return new float[] { Math.max(16f, (w - 32f) / 7f), Math.max(16f, (h - 100f) / rows) };
+                  boolean land = ctx.getResources().getConfiguration().orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE;
+                  float w = 250f, h = 250f;
+                  if (o != null) {
+                      w = o.getInt(land ? AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH : AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH, 250);
+                      h = o.getInt(land ? AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT : AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT, 250);
+                  }
+                  return new float[] { Math.max(16f, (w - 24f) / 7f), Math.max(16f, (h - 92f) / rows) };
               }
 
               // One day tile drawn with the same rules as the HTML preview
               static Bitmap cellBitmap(int[] cols, int n, boolean today, int accent, float wDp, float hDp) {
-                  float k = 96f / Math.max(wDp, hDp);
+                  float k = 128f / Math.max(wDp, hDp);
                   int w = Math.max(24, Math.round(wDp * k)), h = Math.max(24, Math.round(hDp * k));
                   Bitmap bmp = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                   Canvas cv = new Canvas(bmp);
@@ -1817,12 +1823,12 @@ jobs:
                   JSONArray events = data.optJSONArray("events");
                   if (events == null) events = new JSONArray();
                   int accent = parse(data.optString("accent", "#38bdf8"), 0xFF38BDF8);
-                  int rows = rowsFor(mgr, id);
-                  int off = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("off_" + id, 0);
+                  int off = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("moff_" + id, 0);
 
                   int[] t = today();
-                  int[] ws = addDays(t[0], t[1], t[2], off * 7 - weekday(t[0], t[1], t[2]));  // Monday of the first shown week
-                  int[] mid = addDays(ws[0], ws[1], ws[2], 3);                                // label = month of that week's Thursday
+                  int[] mid = monthAt(t, off);                                                // {year, month} being shown
+                  int rows = rowsFor(mid[0], mid[1]);                                         // whole month always fits
+                  int[] ws = addDays(mid[0], mid[1], 1, -weekday(mid[0], mid[1], 1));         // Monday on/before the 1st
 
                   v.setTextViewText(R.id.ec_month, ETH_MONTHS[mid[1]]);
                   v.setTextColor(R.id.ec_month, accent);
@@ -1833,14 +1839,19 @@ jobs:
                   v.setInt(R.id.ec_pillring, "setColorFilter", accent);
                   v.setOnClickPendingIntent(R.id.ec_prev, nav(ctx, id, ACT_PREV));
                   v.setOnClickPendingIntent(R.id.ec_next, nav(ctx, id, ACT_NEXT));
-                  v.setOnClickPendingIntent(R.id.ec_center, nav(ctx, id, ACT_TODAY));
+                  Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+                  if (launch != null) {
+                      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                      v.setOnClickPendingIntent(R.id.ec_center, PendingIntent.getActivity(ctx, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+                  }
                   v.setOnClickPendingIntent(R.id.ec_today, nav(ctx, id, ACT_TODAY));
                   v.setInt(R.id.ec_today, "setColorFilter", accent);
 
                   int[] rowIds = { R.id.ec_row0, R.id.ec_row1, R.id.ec_row2, R.id.ec_row3, R.id.ec_row4, R.id.ec_row5 };
                   android.content.res.Resources res = ctx.getResources();
                   String pkg = ctx.getPackageName();
-                  float[] cd = cellDp(mgr, id, rows);
+                  float[] cd = gridDp(ctx, mgr, id, rows);
+                  float side = Math.min(cd[0], cd[1]);   // tiles are squares of this size
                   java.util.HashMap<String, Bitmap> cache = new java.util.HashMap<>();
 
                   for (int r = 0; r < MAX_ROWS; r++) {
@@ -1886,12 +1897,14 @@ jobs:
 
                           String key = (isToday ? "T" : "N") + count + (count > 1 ? java.util.Arrays.toString(java.util.Arrays.copyOf(cols, count)) : (count == 1 ? Integer.toHexString(first) : ""));
                           Bitmap cb = cache.get(key);
-                          if (cb == null) { cb = cellBitmap(cols, count, isToday, accent, cd[0], cd[1]); cache.put(key, cb); }
+                          if (cb == null) { cb = cellBitmap(cols, count, isToday, accent, 40f, 40f); cache.put(key, cb); }
                           v.setImageViewBitmap(fill, cb);
+                          v.setInt(fill, "setImageAlpha", (inMonth || isToday) ? 255 : 80);
                           v.setViewVisibility(ring, View.GONE);
-                          v.setViewPadding(txt, 0, isToday ? (int) (6 * res.getDisplayMetrics().density) : 0, 0, 0);
+                          v.setViewPadding(txt, 0, isToday ? (int) (side * 0.16f * res.getDisplayMetrics().density) : 0, 0, 0);
                           v.setTextViewText(txt, String.valueOf(dt[2]));
-                          v.setTextColor(txt, (count > 0 || isToday) ? 0xFFFFFFFF : (inMonth ? 0xFFF1F7FB : 0x66F1F7FB));
+                          v.setTextViewTextSize(txt, android.util.TypedValue.COMPLEX_UNIT_DIP, Math.max(9f, Math.min(18f, side * 0.38f)));
+                          v.setTextColor(txt, (!inMonth && !isToday) ? 0x66F1F7FB : ((count > 0 || isToday) ? 0xFFFFFFFF : 0xFFF1F7FB));
 
                           Intent ci = new Intent(ctx, EthDayActivity.class);
                           ci.putExtra("label", ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0]);
