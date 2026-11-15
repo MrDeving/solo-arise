@@ -1832,6 +1832,159 @@ button.sci-fi-btn.filter-opt.active {
     color: #94a3b8; font-weight: 800; box-shadow: none;
 }
 .sl-system-box .wb-start-btn { text-shadow: none; }
+
+/* ====== HOLO POPUPS ====== */
+@property --ang { syntax: '<angle>'; inherits: false; initial-value: 0deg; }
+.sl-system-box { --pop: 56,189,248; }
+.sl-system-box.border-red { --pop: 248,113,113; }
+.sl-system-box.border-gold { --pop: 251,191,36; }
+
+/* frame: floating translucent glass screen. (the triple class just raises specificity) */
+.sl-system-box.sl-system-box.sl-system-box {
+    max-width: 380px;
+    border-radius: 6px;
+    overflow: visible;
+    background: linear-gradient(180deg, rgba(var(--pop),0.14) 0%, rgba(6,14,28,0.78) 38%, rgba(3,9,20,0.88) 100%) !important;
+    border: 1px solid rgba(var(--pop), 0.55);
+    box-shadow: 0 0 0 1px rgba(var(--pop),0.12), 0 0 36px rgba(var(--pop),0.28), 0 34px 60px -26px rgba(var(--pop),0.5), inset 0 0 60px rgba(var(--pop),0.10), inset 0 1px 0 rgba(var(--pop),0.55);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+    animation: holoSpring 0.6s cubic-bezier(.34,1.56,.64,1) both, holoFloat 6s ease-in-out 0.6s infinite;
+}
+.sl-system-box.sl-system-box.sl-system-box.wb-box { max-width: 420px; }
+.sl-system-box.sl-system-box.sl-system-box.border-gold,
+.sl-system-box.sl-system-box.sl-system-box.border-ach { animation: holoIn 0.45s cubic-bezier(.2,.8,.2,1) both, holoFloat 6s ease-in-out 0.45s infinite; }
+.sl-system-box.sl-system-box.sl-system-box.border-red { animation: holoFloat 6s ease-in-out infinite; }
+.sl-system-box.sl-system-box.sl-system-box.hiding { animation: holoBoxOut 0.3s ease forwards; }
+
+/* faint grid + scanlines */
+.sl-system-box.sl-system-box.sl-system-box::before {
+    content: ''; display: block; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; z-index: 0;
+    background:
+        repeating-linear-gradient(0deg, transparent 0 2px, rgba(var(--pop),0.035) 2px 4px),
+        linear-gradient(rgba(var(--pop),0.07) 1px, transparent 1px) 0 0 / 100% 28px,
+        linear-gradient(90deg, rgba(var(--pop),0.07) 1px, transparent 1px) 0 0 / 28px 100%;
+    -webkit-mask-image: radial-gradient(120% 90% at 50% 35%, #000 25%, transparent 100%);
+    mask-image: radial-gradient(120% 90% at 50% 35%, #000 25%, transparent 100%);
+}
+/* rotating border light (fades in after the open animation) */
+.sl-system-box.sl-system-box.sl-system-box::after {
+    content: ''; position: absolute; inset: -1px; border-radius: inherit; padding: 2px; pointer-events: none; z-index: 2;
+    background: conic-gradient(from var(--ang), transparent 0 62%, rgba(var(--pop),0.9) 85%, rgb(var(--pop)) 100%);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    filter: drop-shadow(0 0 6px rgba(var(--pop),0.9));
+    animation: holoRing 3.2s linear infinite, holoRingIn 0.4s ease 0.9s both;
+}
+.sl-system-box.sl-system-box.sl-system-box.border-ach::after {
+    background: conic-gradient(from var(--ang), transparent 0 62%, var(--ach-color, #38bdf8) 85%, var(--ach-color, #38bdf8) 100%);
+}
+/* HUD brackets floating just outside the frame */
+.sl-system-box.sl-system-box.sl-system-box .holo-corner {
+    display: block; width: 18px; height: 18px; border-width: 2px; opacity: 1;
+    border-color: rgb(var(--pop));
+    filter: drop-shadow(0 0 4px rgba(var(--pop),0.9));
+}
+.sl-system-box.sl-system-box.sl-system-box.border-ach .holo-corner { border-color: var(--ach-color, #38bdf8); }
+.sl-system-box.sl-system-box.sl-system-box .holo-corner.tl { top: -7px; left: -7px; }
+.sl-system-box.sl-system-box.sl-system-box .holo-corner.tr { top: -7px; right: -7px; }
+.sl-system-box.sl-system-box.sl-system-box .holo-corner.bl { bottom: -7px; left: -7px; }
+.sl-system-box.sl-system-box.sl-system-box .holo-corner.br { bottom: -7px; right: -7px; }
+/* title bar: text flanked by fading lines */
+.sl-system-box.sl-system-box.sl-system-box .sl-box-header {
+    display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; white-space: nowrap;
+}
+.sl-system-box.sl-system-box.sl-system-box .sl-box-header::before,
+.sl-system-box.sl-system-box.sl-system-box .sl-box-header::after {
+    content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, transparent, rgba(var(--pop),0.85));
+}
+.sl-system-box.sl-system-box.sl-system-box .sl-box-header::after { transform: scaleX(-1); }
+.sl-system-box.sl-system-box.sl-system-box .reward-xp-display { border-radius: 4px; }
+
+/* message becomes a framed panel; solid glowing buttons (blue + red popups) */
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-icon {
+    background: rgba(var(--pop), 0.08); border-color: rgba(var(--pop), 0.4); box-shadow: 0 0 20px rgba(var(--pop), 0.2);
+}
+.sl-system-box:not(.border-gold):not(.border-ach):not(.wb-box) .sl-body-text {
+    width: 100%; padding: 18px 20px; border-radius: 4px; overflow: hidden;
+    background: linear-gradient(135deg, rgba(var(--pop), 0.1), rgba(var(--pop), 0.04));
+    border: 1px solid rgba(var(--pop), 0.25);
+}
+.sl-system-box:not(.border-gold):not(.border-ach):not(.wb-box) .sl-body-text::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(var(--pop), 0.6), transparent);
+}
+.sl-system-box.sl-system-box.sl-system-box .sl-btn-new { border-radius: 4px; }
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new {
+    background: linear-gradient(135deg, rgba(var(--pop), 0.95), rgba(var(--pop), 0.75));
+    border-color: rgb(var(--pop)); color: #020617; font-weight: 900; box-shadow: 0 0 20px rgba(var(--pop), 0.35);
+}
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new:active { background: rgb(var(--pop)); box-shadow: 0 0 30px rgba(var(--pop), 0.6); }
+.sl-system-box:not(.border-gold):not(.border-ach) .sl-btn-new.sl-btn-cancel {
+    background: transparent; border-color: rgba(255,255,255,0.15); color: #94a3b8; font-weight: 800; box-shadow: none;
+}
+.sl-system-box .wb-start-btn { text-shadow: none; }
+
+/* staggered reveal: blue notifications + gold reward (not red / achievement) */
+.sl-system-box.sl-system-box.sl-system-box .sl-header-container,
+.sl-system-box.sl-system-box.sl-system-box .sl-body-text,
+.sl-system-box.sl-system-box.sl-system-box .reward-xp-display,
+.sl-system-box.sl-system-box.sl-system-box .sl-btn-row { animation: holoRise 0.55s cubic-bezier(.2,.8,.2,1) both; }
+.sl-system-box.sl-system-box.sl-system-box .sl-header-container { animation-delay: 0.12s; }
+.sl-system-box.sl-system-box.sl-system-box .sl-body-text,
+.sl-system-box.sl-system-box.sl-system-box .reward-xp-display { animation-delay: 0.3s; }
+.sl-system-box.sl-system-box.sl-system-box .sl-btn-row { animation-delay: 0.5s; }
+.sl-system-box.sl-system-box.sl-system-box .sl-body-text[style*="opacity"] { --o: 0.6; }
+.sl-system-box.sl-system-box.sl-system-box.border-red .sl-header-container,
+.sl-system-box.sl-system-box.sl-system-box.border-red .sl-body-text,
+.sl-system-box.sl-system-box.sl-system-box.border-red .sl-btn-row,
+.sl-system-box.sl-system-box.sl-system-box.border-ach .sl-header-container,
+.sl-system-box.sl-system-box.sl-system-box.border-ach .sl-body-text,
+.sl-system-box.sl-system-box.sl-system-box.border-ach .sl-btn-row { animation: none; }
+
+@keyframes holoIn { from { opacity: 0; transform: translateY(14px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes holoSpring { from { opacity: 0; transform: scale(0.8) translateY(24px); filter: blur(6px); } to { opacity: 1; transform: none; filter: blur(0); } }
+@keyframes holoFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes holoRise { from { opacity: 0; transform: translateY(12px); filter: blur(8px); } to { opacity: var(--o, 1); transform: none; filter: blur(0); } }
+@keyframes holoRing { to { --ang: 360deg; } }
+@keyframes holoRingIn { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+    .sl-system-box.sl-system-box.sl-system-box, .sl-system-box.sl-system-box.sl-system-box *,
+    .sl-system-box.sl-system-box.sl-system-box::after { animation: none !important; }
+}
+/* ====== HOLO POPUPS: SMOOTHNESS (same look + animations, cheaper to render) ====== */
+/* 1. one blur only: the dark overlay already blurs the page, so the box doesn't blur again every frame */
+.sl-system-box.sl-system-box.sl-system-box { -webkit-backdrop-filter: none; backdrop-filter: none; will-change: transform; }
+.sl-modal-overlay.sl-modal-overlay { -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+
+/* 2. border light now spins on the GPU (a rotating gradient inside a masked ring, injected by JS) */
+.sl-system-box.sl-system-box.sl-system-box::after { display: none; }
+.holo-ring {
+    position: absolute; inset: -1px; border-radius: inherit; padding: 2px; overflow: hidden;
+    pointer-events: none; z-index: 2;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    animation: holoRingIn 0.4s ease 0.9s both;
+}
+.holo-ring::before {
+    content: ''; position: absolute; left: 50%; top: 50%; width: 200%; aspect-ratio: 1;
+    background: conic-gradient(transparent 0 62%, rgba(var(--pop),0.9) 85%, rgb(var(--pop)) 100%);
+    transform: translate(-50%, -50%) rotate(0deg);
+    will-change: transform;
+    animation: holoSpin 3.2s linear infinite;
+}
+.border-ach .holo-ring::before { background: conic-gradient(transparent 0 62%, var(--ach-color, #38bdf8) 85%, var(--ach-color, #38bdf8) 100%); }
+@keyframes holoSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+/* 3. glitch copies: skip the heavy extras (they're only thin slices) */
+.gl-clone .holo-ring { display: none; }
+.sl-system-box.sl-system-box.gl-clone.gl-clone { box-shadow: none; }
+.sl-system-box.sl-system-box.gl-clone::before { display: none; }
+@media (prefers-reduced-motion: reduce) { .holo-ring::before { animation: none !important; } }
 /* ====== ACHIEVEMENT UNLOCK POPUP ====== */
 .ach-popup-icon-ring {
     position: relative; width: 80px; height: 80px;

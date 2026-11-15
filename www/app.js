@@ -1127,6 +1127,129 @@ function showDailyBonusModal(xp, done) {
     popupSound.currentTime = 0;
     popupSound.play().catch(() => {});
 }
+// ===== HOLO POPUP FX: title decode, count-up, glitch =====
+const _HG = '█▓▒░#$%&@01<>/\\|=+*';
+
+function _holoDecode(el, delay) {
+    const txt = el.textContent.trim();
+    if (!txt) return;
+    el.textContent = txt.replace(/\S/g, () => _HG[Math.random() * _HG.length | 0]);
+    let i = 0;
+    setTimeout(() => {
+        const iv = setInterval(() => {
+            i += 0.7;
+            el.textContent = txt.split('').map((ch, k) => ch === ' ' ? ' ' : (k < i ? ch : _HG[Math.random() * _HG.length | 0])).join('');
+            if (i >= txt.length) { el.textContent = txt; clearInterval(iv); }
+        }, 40);
+    }, delay);
+}
+
+function _holoCount(el, delay) {
+    const raw = el.textContent.trim(), tgt = parseInt(raw.replace(/\D/g, ''), 10);
+    if (!tgt) return;
+    const pre = raw.charAt(0) === '+' ? '+' : '';
+    el.textContent = pre + '0';
+    const t0 = performance.now() + delay;
+    (function step(now) {
+        const p = Math.max(0, Math.min(1, (now - t0) / 1000));
+        el.textContent = pre + Math.round(tgt * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(step);
+    })(performance.now());
+}
+
+function _holoGlitch(box) {
+    const par = box.parentElement;
+    if (!par) return;
+    const pr = par.getBoundingClientRect(), br = box.getBoundingClientRect();
+    const W = br.width, H = br.height;
+    const L = document.createElement('div');
+    L.style.cssText = `position:absolute;left:${br.left - pr.left}px;top:${br.top - pr.top}px;width:${W}px;height:${H}px;pointer-events:none;z-index:20`;
+    par.appendChild(L);
+    const clones = [0, 1, 2].map(() => {
+        const c = box.cloneNode(true);
+        c.querySelectorAll('[id]').forEach(e => e.removeAttribute('id'));
+        c.classList.add('gl-clone');
+        c.style.cssText = `position:absolute;left:0;top:0;width:${W}px;height:${H}px;margin:0;animation:none;pointer-events:none;opacity:0;will-change:transform,opacity;backdrop-filter:none;-webkit-backdrop-filter:none`;
+        L.appendChild(c);
+        return c;
+    });
+    const bars = [...Array(7)].map(() => { const b = document.createElement('div'); L.appendChild(b); return b; });
+    const nz = [...Array(6)].map(() => { const b = document.createElement('div'); L.appendChild(b); return b; });
+    const sc = ['#22d3ee', '#67e8f9', '#3b82f6', '#a855f7', '#e879f9', '#a5f3fc'];
+    const nc = ['#ff00ff', '#00ff66', '#ffee00', '#ff2040', '#2040ff', '#00ffff'];
+    const R = Math.random, total = 17;
+    let f = 0;
+    box.style.opacity = 0;
+    const iv = setInterval(() => {
+        f++;
+        if (f >= total || !box.isConnected) {
+            clearInterval(iv); L.remove();
+            box.style.opacity = ''; box.style.translate = ''; box.style.filter = '';
+            return;
+        }
+        const k = f < 11 ? 1 : 0.35; // intensity fades toward the end
+        box.style.opacity = R() < 0.3 * k ? 0.12 : 1;
+        box.style.translate = `${((R() * 10 - 5) * k) | 0}px 0`;
+        box.style.filter = R() < 0.7 * k
+            ? 'drop-shadow(-4px 0 rgba(255,30,100,.9)) drop-shadow(4px 0 rgba(0,190,255,.95))'
+            : (R() < 0.5 ? 'drop-shadow(-4px 0 rgba(168,85,247,.9)) drop-shadow(4px 0 rgba(56,189,248,.9))' : '');
+        clones.forEach(c => {
+            if (R() < 0.85 * k + 0.05) {
+                const h = 4 + R() * 20, top = R() * (100 - h);
+                c.style.opacity = 1;
+                c.style.clipPath = `inset(${top}% 0 ${100 - top - h}% 0)`;
+                c.style.transform = `translateX(${((R() < 0.5 ? -1 : 1) * (10 + R() * 40)) | 0}px)`;
+                c.style.filter = 'drop-shadow(-5px 0 rgba(255,40,110,.95)) drop-shadow(5px 0 rgba(0,200,255,.95))';
+            } else c.style.opacity = 0;
+        });
+        bars.forEach(b => {
+            if (R() < 0.75 * k) {
+                const w = 15 + R() * 60, l = R() * (100 - w), tp = R() * 97, hh = 2 + R() * 9, col = sc[R() * sc.length | 0];
+                b.style.cssText = `position:absolute;mix-blend-mode:screen;left:${l}%;top:${tp}%;width:${w}%;height:${hh}px;background:${col};box-shadow:-4px 0 0 rgba(255,30,90,.9),4px 0 0 rgba(30,120,255,.95),0 0 10px ${col}`;
+            } else b.style.cssText = 'display:none';
+        });
+        nz.forEach(b => {
+            if (R() < 0.5 * k) {
+                const w = 3 + R() * 9, l = R() * (100 - w), tp = R() * 95, hh = 3 + R() * 7;
+                b.style.cssText = `position:absolute;left:${l}%;top:${tp}%;width:${w}%;height:${hh}px;background:${nc[R() * nc.length | 0]};opacity:.85`;
+            } else b.style.cssText = 'display:none';
+        });
+    }, 45);
+}
+// border light ring (GPU-spun, see .holo-ring in style.css)
+function _holoRing(box) {
+    if (box.querySelector(':scope > .holo-ring')) return;
+    const r = document.createElement('div');
+    r.className = 'holo-ring';
+    box.appendChild(r);
+}
+// gold = decode + count-up, red = glitch + decode. blue / achievement = CSS only.
+function holoFx(overlay) {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const box = overlay.querySelector('.sl-system-box');
+    if (!box) return;
+    _holoRing(box);
+    const red = box.classList.contains('border-red'), gold = box.classList.contains('border-gold');
+    if (!red && !gold) return;
+    const head = box.querySelector('.sl-box-header');
+    if (red) _holoGlitch(box);
+    if (head) _holoDecode(head, gold ? 250 : 150);
+    if (gold) { const amt = box.querySelector('.reward-xp-amount'); if (amt) _holoCount(amt, 550); }
+}
+
+// hook every popup: overlays created in JS (gold/achievement) + static overlays shown via style.display = 'flex'
+(function () {
+    const seen = new WeakMap();
+    const styleMO = new MutationObserver(muts => muts.forEach(m => {
+        const el = m.target, shown = el.style.display === 'flex';
+        if (shown && !seen.get(el)) { seen.set(el, true); holoFx(el); }
+        else if (!shown) seen.set(el, false);
+    }));
+    document.querySelectorAll('.sl-modal-overlay').forEach(o => styleMO.observe(o, { attributes: true, attributeFilter: ['style'] }));
+    new MutationObserver(muts => muts.forEach(r => r.addedNodes.forEach(n => {
+        if (n.nodeType === 1 && n.classList.contains('sl-modal-overlay')) holoFx(n);
+    }))).observe(document.body, { childList: true });
+})();
 
 function showRankUpCinematic(fromRank, toRank, color, letter, done) {
     const existing = document.getElementById('rank-up-cinematic');
