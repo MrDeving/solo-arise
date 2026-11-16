@@ -3273,6 +3273,7 @@ function syncTaskWidgets() {
         const P = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.WidgetBridgePlugin;
         if (!P || !systemState || !systemState.quests) return;
         const colorOf = q => ({ trivial: '#38bdf8', easy: '#4ade80', medium: '#fbbf24', hard: '#f87171' }[q.difficulty] || '#38bdf8');
+        const noteOf = q => String(q.notes || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
         const now = new Date();
         const dailies = systemState.quests
             .filter(q => q.type === 'daily' || !q.type)
@@ -3285,8 +3286,8 @@ function syncTaskWidgets() {
         const logicalDay = _ld.getFullYear() + '-' + _p2(_ld.getMonth() + 1) + '-' + _p2(_ld.getDate());
         const claimedNow = systemState.streakIncrementedToday === true;
         const payload = JSON.stringify({
-            dailies: dailies.map(q => ({ t: q.title, d: q.completed ? 1 : 0, c: colorOf(q) })),
-            quests:  quests.map(q => ({ t: q.title, d: 0, c: colorOf(q) })),
+            dailies: dailies.map(q => ({ t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q) })),
+            quests:  quests.map(q => ({ t: q.title, n: noteOf(q), d: 0, c: colorOf(q) })),
             streak:  systemState.streak || 0,
             claimed: claimedNow,
             claimedDay: claimedNow ? logicalDay : '',

@@ -1040,12 +1040,11 @@ jobs:
                   v.setViewVisibility(R.id.w_bar, bar ? View.VISIBLE : View.GONE);
                   if (bar) v.setProgressBar(R.id.w_bar, 100, Math.round(done * 100f / total), false);
 
-                  // how many rows fit (each row is about 50dp including its gap)
-                  int maxRows = 5;
-                  if (h > 0) {
-                      int avail = h - 24 - (hideHeader ? 0 : 38 + (bar ? 12 : 0));
-                      maxRows = Math.max(1, avail / 50);
-                  }
+                  // how many rows fit (a row is ~50dp, ~68dp when it shows a note; both include the gap)
+                  int availDp = 5 * 50;
+                  if (h > 0) availDp = Math.max(50, h - 24 - (hideHeader ? 0 : 38 + (bar ? 12 : 0)));
+                  int maxRows = 8;
+                  int usedDp = 0;
 
                   int[] rowIds  = { R.id.r0, R.id.r1, R.id.r2, R.id.r3, R.id.r4, R.id.r5, R.id.r6, R.id.r7 };
                   int[] slabIds = { R.id.r0s, R.id.r1s, R.id.r2s, R.id.r3s, R.id.r4s, R.id.r5s, R.id.r6s, R.id.r7s };
@@ -1062,6 +1061,12 @@ jobs:
                           int col = 0xFF38BDF8;
                           try { col = android.graphics.Color.parseColor(t.optString("c", "#38bdf8")); } catch (Throwable ignored) {}
                           String title = t.optString("t", "");
+                          String note = t.optString("n", "").trim();
+
+                          // stop when the next row would not fit (rows with a note are taller)
+                          int cost = note.length() > 0 ? 68 : 50;
+                          if (usedDp + cost > availDp && shown > 0) { maxRows = shown; break; }
+                          usedDp += cost;
 
                           // essentials first: the text always shows, nothing below can stop it
                           v.setTextViewText(textIds[shown], title);
@@ -1070,10 +1075,16 @@ jobs:
 
                           // decorations: each one isolated so a single failure can't kill the row
                           try {
-                              if (isDone && title.length() > 0) {
-                                  android.text.SpannableString s = new android.text.SpannableString(title);
-                                  s.setSpan(new android.text.style.StrikethroughSpan(), 0, title.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                              if (title.length() > 0) {
+                                  String full = note.length() > 0 ? title + "\n" + note : title;
+                                  android.text.SpannableString s = new android.text.SpannableString(full);
+                                  if (isDone) s.setSpan(new android.text.style.StrikethroughSpan(), 0, title.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                  if (note.length() > 0) {
+                                      s.setSpan(new android.text.style.RelativeSizeSpan(0.8f), title.length() + 1, full.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                      s.setSpan(new android.text.style.ForegroundColorSpan(isDone ? 0x66FFFFFF : 0xB3CBD5E1), title.length() + 1, full.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                                  }
                                   v.setTextViewText(textIds[shown], s);
+                                  v.setInt(textIds[shown], "setMaxLines", note.length() > 0 ? 3 : 2);
                               }
                           } catch (Throwable ignored) {}
                           try { v.setTextColor(textIds[shown], isDone ? 0x8CFFFFFF : 0xFFFFFFFF); } catch (Throwable ignored) {}
@@ -1479,7 +1490,7 @@ jobs:
           cat > android/app/src/main/res/drawable/ecal_panel.xml << 'WEOF'
           <?xml version="1.0" encoding="utf-8"?>
           <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
-              <gradient android:startColor="#1A2431" android:endColor="#0D1824" android:angle="315"/>
+              <gradient android:startColor="#BD14243A" android:endColor="#940F172A" android:angle="315"/>
               <stroke android:width="1dp" android:color="#1FFFFFFF"/>
               <corners android:radius="22dp"/>
           </shape>

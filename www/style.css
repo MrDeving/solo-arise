@@ -1988,12 +1988,38 @@ button.sci-fi-btn.filter-opt.active {
 
 /* ====== URGENT QUESTS ====== */
 .system-panel.quest-item.urgent {
-    background: linear-gradient(135deg, rgba(248,113,113,0.16), rgba(30,41,59,0.72) 60%);
-    box-shadow: 0 0 0 1px rgba(248,113,113,0.4), 0 0 22px rgba(248,113,113,0.28), 0 4px 15px rgba(0,0,0,0.25);
+    background: linear-gradient(135deg, rgba(248,113,113,0.28), rgba(60,15,20,0.78) 65%);
+    box-shadow: 0 0 0 1px rgba(255,59,59,0.6), 0 0 26px rgba(255,59,59,0.45), 0 4px 15px rgba(0,0,0,0.25);
+    animation: urgentPulse 1.2s ease-in-out infinite;
+}
+@keyframes urgentPulse {
+    0%, 100% { box-shadow: 0 0 0 1px rgba(255,59,59,0.5), 0 0 16px rgba(255,59,59,0.3), 0 4px 15px rgba(0,0,0,0.25); }
+    50%      { box-shadow: 0 0 0 2px rgba(255,59,59,0.95), 0 0 42px rgba(255,59,59,0.7), 0 4px 15px rgba(0,0,0,0.25); }
+}
+/* red light sweeping across the card */
+.system-panel.quest-item.urgent::after {
+    content: ''; position: absolute; inset: 0; border-radius: inherit;
+    pointer-events: none; z-index: 1;
+    background: linear-gradient(105deg, transparent 35%, rgba(255,80,80,0.25) 50%, transparent 65%);
+    background-size: 250% 100%;
+    animation: urgentSweep 2.2s ease-in-out infinite;
+}
+@keyframes urgentSweep { 0% { background-position: 150% 0; } 100% { background-position: -50% 0; } }
+.quest-item.urgent .quest-title {
+    color: #ffe4e4;
+    text-shadow: 0 0 8px rgba(255,59,59,0.7);
+}
+.quest-item.urgent .quest-checkbox {
+    box-shadow: 0 0 0 2px #ff3b3b, 0 0 10px rgba(255,59,59,0.8);
+    animation: urgentCheck 1.2s ease-in-out infinite;
+}
+@keyframes urgentCheck {
+    0%, 100% { box-shadow: 0 0 0 2px rgba(255,59,59,0.6), 0 0 4px rgba(255,59,59,0.4); }
+    50%      { box-shadow: 0 0 0 2px #ff3b3b, 0 0 14px rgba(255,59,59,1); }
 }
 /* red energy flow: a bright arc spinning around the card outline (GPU-spun, same trick as the popups) */
 .quest-item > .urgent-ring {
-    position: absolute; inset: -1px; border-radius: inherit; padding: 2px; overflow: hidden;
+    position: absolute; inset: -1px; border-radius: inherit; padding: 3px; overflow: hidden;
     pointer-events: none; z-index: 3;
     -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
     -webkit-mask-composite: xor;
@@ -2002,19 +2028,22 @@ button.sci-fi-btn.filter-opt.active {
 }
 .urgent-ring::before {
     content: ''; position: absolute; left: 50%; top: 50%; width: 200%; aspect-ratio: 1;
-    background: conic-gradient(rgba(248,113,113,0.25) 0 40%, transparent 40% 55%, rgba(248,113,113,0.95) 82%, #ff3b3b 100%);
+    background: conic-gradient(rgba(255,59,59,0.5) 0 40%, transparent 40% 52%, #ff3b3b 80%, #ffffff 100%);
     transform: translate(-50%, -50%) rotate(0deg);
     will-change: transform;
-    animation: holoSpin 2.6s linear infinite;
+    animation: holoSpin 1.5s linear infinite;
 }
 .quest-urgent-badge {
     display: flex; align-items: center; gap: 3px;
-    font-size: 9px; font-weight: 900; letter-spacing: 1.5px; color: var(--neon-red);
-    animation: urgentBlink 1.4s ease-in-out infinite;
+    font-size: 10px; font-weight: 900; letter-spacing: 1.5px; color: #ff3b3b;
+    text-shadow: 0 0 6px rgba(255,59,59,0.7);
+    animation: urgentBlink 0.9s ease-in-out infinite;
 }
 @keyframes urgentBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) {
-    .urgent-ring::before, .quest-urgent-badge { animation: none !important; }
+    .urgent-ring::before, .quest-urgent-badge,
+    .system-panel.quest-item.urgent, .system-panel.quest-item.urgent::after,
+    .quest-item.urgent .quest-checkbox { animation: none !important; }
 }
 
 /* ====== ACHIEVEMENT UNLOCK POPUP ====== */
