@@ -733,7 +733,8 @@ function renderQuests() {
         wrapperEl.setAttribute('data-id', quest.id); // Sortable needs this on the wrapper now
 
         const questEl = document.createElement('div');
-        questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}`;
+        const isUrgent = quest.urgent && !quest.completed;
+        questEl.className = `system-panel quest-item ${quest.completed ? 'completed' : ''}${isUrgent ? ' urgent' : ''}`;
 
         // Map Colors (Trivial=Blue, Easy=Green, Medium=Yellow, Hard=Red)
         let diffColor = 'var(--neon-blue)';
@@ -763,6 +764,9 @@ function renderQuests() {
             : '';
 
         const hasChecklist = quest.checklist && quest.checklist.length > 0;
+        const urgentBadge = isUrgent
+            ? `<div class="quest-urgent-badge"><svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>URGENT</div>`
+            : '';
         const clDone = hasChecklist ? quest.checklist.filter(i => i.done).length : 0;
         const clTotal = hasChecklist ? quest.checklist.length : 0;
         const clIndicator = hasChecklist ? `
@@ -773,6 +777,7 @@ function renderQuests() {
             </div>` : '';
 
         questEl.innerHTML = `
+            ${isUrgent ? '<div class="urgent-ring"></div>' : ''}
             ${ageSlab}
             <div class="quest-checkbox" onclick="toggleQuest(${quest.id})"></div>
             <div class="quest-details" onclick="openEditQuestModal(${quest.id})">
@@ -785,6 +790,7 @@ function renderQuests() {
                 </div>
                 <div style="display:flex;align-items:center;gap:6px;">
                     ${clIndicator}
+                    ${urgentBadge}
                     ${streak}
                     ${reminderIcon}
                     ${pinIcon}
@@ -895,6 +901,10 @@ function toggleQuestMenu(id, btn) {
     menu.dataset.questId = id;
     menu.className = 'quest-dropdown open';
     menu.innerHTML = `
+        <div class="quest-dropdown-item" style="color:var(--neon-red);" onclick="event.stopPropagation();toggleUrgentQuest(${id});document.getElementById('floating-quest-menu')?.remove();">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="none"><path d="M13 2L3 14h8l-1 8 10-12h-8l1-8z"/></svg>
+            ${quest.urgent ? 'Remove urgent' : 'Mark urgent'}
+        </div>
         <div class="quest-dropdown-item" onclick="event.stopPropagation();togglePinQuest(${id});document.getElementById('floating-quest-menu')?.remove();">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"/><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"/></svg>
             ${quest.pinned ? 'Unpin' : 'Pin'}
@@ -931,6 +941,13 @@ function toggleChecklistVisibility(questId, btn) {
     if (!systemState.checklistOpen) systemState.checklistOpen = {};
     systemState.checklistOpen[questId] = newState;
     saveGameState();
+}
+function toggleUrgentQuest(id) {
+    const quest = systemState.quests.find(q => q.id === id);
+    if (!quest) return;
+    quest.urgent = !quest.urgent;
+    saveGameState();
+    renderQuests();
 }
 function togglePinQuest(id) {
     const quest = systemState.quests.find(q => q.id === id);
