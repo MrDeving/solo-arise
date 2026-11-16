@@ -988,6 +988,38 @@ jobs:
                       c.get(java.util.Calendar.YEAR), c.get(java.util.Calendar.MONTH) + 1, c.get(java.util.Calendar.DAY_OF_MONTH));
               }
 
+              // ---- widget taps: write the changed list back, queue the change for the app, remember open checklists ----
+              static void save(Context ctx, JSONObject d) {
+                  try { ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE).edit().putString("tasks", d.toString()).apply(); } catch (Exception ignored) {}
+              }
+
+              static void queue(Context ctx, JSONObject act) {
+                  try {
+                      SharedPreferences p = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                      JSONArray a = new JSONArray(p.getString("widget_actions", "[]"));
+                      a.put(act);
+                      p.edit().putString("widget_actions", a.toString()).apply();
+                  } catch (Exception ignored) {}
+              }
+
+              static void setOpenTab(Context ctx, String tab) {
+                  try { ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE).edit().putString("widget_open_tab", tab).apply(); } catch (Exception ignored) {}
+              }
+
+              static boolean isExpanded(Context ctx, String key) {
+                  try { return ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE).getStringSet("exp", new java.util.HashSet<String>()).contains(key); }
+                  catch (Throwable t) { return false; }
+              }
+
+              static void toggleExpanded(Context ctx, String key) {
+                  try {
+                      SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
+                      java.util.Set<String> s = new java.util.HashSet<String>(p.getStringSet("exp", new java.util.HashSet<String>()));
+                      if (!s.remove(key)) s.add(key);
+                      p.edit().putStringSet("exp", s).apply();
+                  } catch (Throwable ignored) {}
+              }
+
               static JSONArray list(Context ctx, String kind) {
                   JSONArray a = load(ctx).optJSONArray(kind);
                   return a == null ? new JSONArray() : a;
@@ -1153,7 +1185,7 @@ jobs:
               }
 
               private void render(Context ctx, AppWidgetManager mgr, int id) {
-                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks_list);
+                  RemoteViews v = new RemoteViews(ctx.getPackageName(), "dailies".equals(kind()) ? R.layout.widget_tasks_dailies : R.layout.widget_tasks_quests);
 
                   JSONArray items = WidgetData.list(ctx, kind());
                   int total = 0, done = 0;
@@ -1178,7 +1210,7 @@ jobs:
                   v.setTextViewText(R.id.w_empty, emptyText());
                   v.setTextColor(R.id.w_count, countColor);
 
-                  PendingIntent open = openApp(ctx, false);
+                  PendingIntent open = actionIntent(ctx, "open", kind(), false);
                   v.setOnClickPendingIntent(R.id.w_header, open);
                   v.setOnClickPendingIntent(R.id.w_empty, open);
 
@@ -1191,13 +1223,13 @@ jobs:
                   if (bar) v.setProgressBar(R.id.w_bar, 100, Math.round(done * 100f / total), false);
 
                   // scrollable list: every task, the list scrolls when they don't all fit
-                  Intent svc = new Intent(ctx, TasksWidgetService.class);
+                  Intent svc = new Intent(ctx, TaskRowsService.class);
                   svc.putExtra("kind", kind());
                   svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
                   svc.setData(Uri.parse("arise://tasks/" + kind() + "/" + id));
                   v.setRemoteAdapter(R.id.w_list, svc);
                   v.setEmptyView(R.id.w_list, R.id.w_empty);
-                  v.setPendingIntentTemplate(R.id.w_list, openApp(ctx, true));
+                  v.setPendingIntentTemplate(R.id.w_list, actionIntent(ctx, "open", kind(), true));
 
                   v.setTextViewText(R.id.w_count, count);
                   v.setViewVisibility(R.id.w_count, count.length() == 0 ? View.GONE : View.VISIBLE);
@@ -1228,6 +1260,37 @@ jobs:
                   try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row_done_bg : R.drawable.widget_row_bg); } catch (Throwable ignored) {}
                   try { rv.setOnClickPendingIntent(R.id.row_card, open); } catch (Throwable ignored) {}
                   return rv;
+              }
+
+              // Tap target for the widgets: WidgetActionActivity (opens the right tab / ticks things). One per widget kind.
+              static PendingIntent actionIntent(Context ctx, String act, String kind, boolean mutable) {
+                  Intent i = new Intent(ctx, WidgetActionActivity.class);
+                  i.putExtra("act", act);
+                  i.putExtra("kind", kind);
+                  i.setData(Uri.parse("arise://act/" + act + "/" + kind));
+                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                  if (mutable) {
+                      if (Build.VERSION.SDK_INT >= 31) flags |= PendingIntent.FLAG_MUTABLE;
+                  } else if (Build.VERSION.SDK_INT >= 23) {
+                      flags |= PendingIntent.FLAG_IMMUTABLE;
+                  }
+                  return PendingIntent.getActivity(ctx, (act + ":" + kind).hashCode() + (mutable ? 1 : 0), i, flags);
+              }
+
+              // Redraw both task widgets (after a tap changed the saved list)
+              static void refreshAll(Context ctx) {
+                  try {
+                      AppWidgetManager m = AppWidgetManager.getInstance(ctx);
+                      Class<?>[] cs = { DailiesWidget.class, QuestsWidget.class };
+                      for (Class<?> c : cs) {
+                          int[] ids = m.getAppWidgetIds(new android.content.ComponentName(ctx, c));
+                          if (ids == null || ids.length == 0) continue;
+                          Intent u = new Intent(ctx, c).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
+                          u.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
+                          ctx.sendBroadcast(u);
+                      }
+                  } catch (Throwable ignored) {}
               }
 
               static PendingIntent openApp(Context ctx, boolean mutable) {
@@ -1506,6 +1569,537 @@ jobs:
           </vector>
           WEOF
 
+      - name: Create widget v2 (glass cards, urgent glow, checklists, tap actions)
+        run: |
+          python3 << 'PYEOF'
+          import os
+          res = "android/app/src/main/res/"
+          os.makedirs(res + "drawable", exist_ok=True)
+          os.makedirs(res + "layout", exist_ok=True)
+          XH = '<?xml version="1.0" encoding="utf-8"?>\n'
+          NS = 'xmlns:android="http://schemas.android.com/apk/res/android"'
+
+          def w(p, t):
+              with open(res + p, "w", encoding="utf-8") as f:
+                  f.write(XH + t.replace("@NS@", NS).strip() + "\n")
+
+          # ---------- per-widget glass card, pill, scrollbar thumb, progress bar ----------
+          for kind, hx in (("dailies", "38BDF8"), ("quests", "FBBF24")):
+              w("drawable/widget_card_%s.xml" % kind, """
+          <layer-list @NS@>
+              <item><shape android:shape="rectangle">
+                  <gradient android:angle="315" android:startColor="#BD14243A" android:endColor="#940F172A"/>
+                  <corners android:radius="24dp"/>
+              </shape></item>
+              <item><shape android:shape="rectangle">
+                  <gradient android:type="radial" android:centerX="1.0" android:centerY="0.0" android:gradientRadius="190dp" android:startColor="#42@HX@" android:endColor="#00@HX@"/>
+                  <corners android:radius="24dp"/>
+              </shape></item>
+              <item android:height="120dp" android:gravity="top"><shape android:shape="rectangle">
+                  <gradient android:angle="270" android:startColor="#17FFFFFF" android:endColor="#00FFFFFF"/>
+                  <corners android:topLeftRadius="24dp" android:topRightRadius="24dp"/>
+              </shape></item>
+              <item><shape android:shape="rectangle">
+                  <stroke android:width="1dp" android:color="#29FFFFFF"/>
+                  <corners android:radius="24dp"/>
+              </shape></item>
+          </layer-list>""".replace("@HX@", hx))
+              w("drawable/widget_pill_%s.xml" % kind, """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#40@HX@"/>
+              <stroke android:width="1dp" android:color="#8C@HX@"/>
+              <corners android:radius="30dp"/>
+          </shape>""".replace("@HX@", hx))
+              w("drawable/widget_thumb_%s.xml" % kind, """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#B3@HX@"/>
+              <size android:width="3dp"/>
+              <corners android:radius="2dp"/>
+          </shape>""".replace("@HX@", hx))
+
+          w("drawable/widget_bar_dailies.xml", """
+          <layer-list @NS@>
+              <item android:id="@android:id/background"><shape android:shape="rectangle">
+                  <solid android:color="#1AFFFFFF"/>
+                  <corners android:radius="4dp"/>
+              </shape></item>
+              <item android:id="@android:id/progress"><clip><shape android:shape="rectangle">
+                  <gradient android:angle="0" android:startColor="#38BDF8" android:endColor="#7DD3FC"/>
+                  <corners android:radius="4dp"/>
+              </shape></clip></item>
+          </layer-list>""")
+
+          # ---------- row pieces (same look as the preview) ----------
+          w("drawable/widget_row2_bg.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#12FFFFFF"/>
+              <stroke android:width="1dp" android:color="#1CFFFFFF"/>
+              <corners android:radius="16dp"/>
+          </shape>""")
+          w("drawable/widget_row2_done.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#09FFFFFF"/>
+              <stroke android:width="1dp" android:color="#0FFFFFFF"/>
+              <corners android:radius="16dp"/>
+          </shape>""")
+          w("drawable/widget_row2_urgent.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <gradient android:angle="315" android:startColor="#4DF87171" android:endColor="#CC3C0F14"/>
+              <stroke android:width="1.5dp" android:color="#B3FF3B3B"/>
+              <corners android:radius="16dp"/>
+          </shape>""")
+          w("drawable/widget_slab2.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#FFFFFFFF"/>
+              <corners android:topLeftRadius="16dp" android:bottomLeftRadius="16dp"/>
+          </shape>""")
+          w("drawable/widget_chk.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#52000000"/>
+              <corners android:radius="7dp"/>
+          </shape>""")
+          w("drawable/widget_chk_done.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#80000000"/>
+              <corners android:radius="7dp"/>
+          </shape>""")
+          w("drawable/widget_chk_urgent.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#52000000"/>
+              <stroke android:width="2dp" android:color="#FF3B3B"/>
+              <corners android:radius="7dp"/>
+          </shape>""")
+          w("drawable/widget_chip2.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#14FFFFFF"/>
+              <stroke android:width="1dp" android:color="#1FFFFFFF"/>
+              <corners android:radius="7dp"/>
+          </shape>""")
+          w("drawable/widget_chip2_open.xml", """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="#29FFFFFF"/>
+              <stroke android:width="1dp" android:color="#2EFFFFFF"/>
+              <corners android:radius="7dp"/>
+          </shape>""")
+          w("drawable/widget_clc.xml", """
+          <shape @NS@ android:shape="oval">
+              <stroke android:width="2dp" android:color="#F87171"/>
+          </shape>""")
+          w("drawable/widget_clc_on.xml", """
+          <shape @NS@ android:shape="oval">
+              <solid android:color="#47F87171"/>
+              <stroke android:width="2dp" android:color="#F87171"/>
+          </shape>""")
+          w("drawable/widget_cl_row_bg.xml", """
+          <layer-list @NS@>
+              <item android:height="1dp" android:gravity="top"><shape android:shape="rectangle">
+                  <solid android:color="#0FFFFFFF"/>
+              </shape></item>
+          </layer-list>""")
+
+          # ---------- urgent border: a red light that runs around the card (12 frames) ----------
+          LONG, SHORT, THICK = "72dp", "44dp", "3dp"
+          frames = []
+          for g, ins in (("top|start", ' android:left="16dp"'), ("top|center_horizontal", ""), ("top|end", ' android:right="16dp"')):
+              frames.append((g, ins, LONG, THICK, 0))
+          for g, ins in (("end|top", ' android:top="16dp"'), ("end|center_vertical", ""), ("end|bottom", ' android:bottom="16dp"')):
+              frames.append((g, ins, THICK, SHORT, 270))
+          for g, ins in (("bottom|end", ' android:right="16dp"'), ("bottom|center_horizontal", ""), ("bottom|start", ' android:left="16dp"')):
+              frames.append((g, ins, LONG, THICK, 180))
+          for g, ins in (("start|bottom", ' android:bottom="16dp"'), ("start|center_vertical", ""), ("start|top", ' android:top="16dp"')):
+              frames.append((g, ins, THICK, SHORT, 90))
+          for n, (g, ins, fw, fh, ang) in enumerate(frames):
+              w("drawable/widget_urg_f%d.xml" % n, """
+          <layer-list @NS@>
+              <item android:gravity="%s"%s android:width="%s" android:height="%s"><shape android:shape="rectangle">
+                  <gradient android:angle="%d" android:startColor="#00FF3B3B" android:endColor="#FFFF8A8A"/>
+                  <corners android:radius="2dp"/>
+              </shape></item>
+          </layer-list>""" % (g, ins, fw, fh, ang))
+
+          # ---------- one task row ----------
+          cl = ""
+          for i in range(10):
+              cl += """
+                      <LinearLayout android:id="@+id/cl%d"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical"
+                          android:paddingStart="42dp" android:paddingEnd="12dp" android:paddingTop="9dp" android:paddingBottom="9dp"
+                          android:background="@drawable/widget_cl_row_bg" android:visibility="gone">
+                          <TextView android:id="@+id/cl%dc" android:layout_width="18dp" android:layout_height="18dp"
+                              android:gravity="center" android:background="@drawable/widget_clc"
+                              android:textSize="10sp" android:textStyle="bold" android:textColor="#FFFFFF"/>
+                          <TextView android:id="@+id/cl%dt" android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:layout_marginStart="14dp" android:maxLines="2" android:ellipsize="end"
+                              android:textSize="13sp" android:textColor="#FFFFFF"/>
+                      </LinearLayout>""" % (i, i, i)
+          fr = ""
+          for n in range(12):
+              fr += '\n                <ImageView android:layout_width="match_parent" android:layout_height="match_parent" android:scaleType="fitXY" android:src="@drawable/widget_urg_f%d"/>' % n
+          w("layout/widget_task_row.xml", """
+          <LinearLayout @NS@
+              android:layout_width="match_parent" android:layout_height="wrap_content"
+              android:orientation="vertical" android:paddingBottom="7dp">
+              <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
+                  <LinearLayout android:id="@+id/row_card"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="vertical" android:background="@drawable/widget_row2_bg">
+                      <LinearLayout android:id="@+id/row_main"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="horizontal" android:gravity="center_vertical">
+                          <FrameLayout android:id="@+id/row_slab" android:layout_width="52dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/row_bar"
+                                  android:layout_width="match_parent" android:layout_height="match_parent"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_slab2"/>
+                              <TextView android:id="@+id/row_check"
+                                  android:layout_width="24dp" android:layout_height="24dp"
+                                  android:layout_gravity="center" android:gravity="center"
+                                  android:background="@drawable/widget_chk"
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                          </FrameLayout>
+                          <LinearLayout
+                              android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                              android:orientation="vertical" android:gravity="center_vertical" android:minHeight="44dp"
+                              android:paddingStart="16dp" android:paddingEnd="8dp" android:paddingTop="10dp" android:paddingBottom="10dp">
+                              <TextView android:id="@+id/row_title"
+                                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:maxLines="2" android:ellipsize="end"
+                                  android:fontFamily="sans-serif-medium" android:textSize="14sp" android:textColor="#FFFFFF"/>
+                              <TextView android:id="@+id/row_note"
+                                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                                  android:layout_marginTop="2dp" android:maxLines="2" android:ellipsize="end"
+                                  android:textSize="11sp" android:textColor="#B9C8DA" android:visibility="gone"/>
+                          </LinearLayout>
+                          <LinearLayout
+                              android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:orientation="vertical" android:gravity="end" android:paddingEnd="10dp">
+                              <LinearLayout android:id="@+id/row_urgent"
+                                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                  android:orientation="horizontal" android:gravity="center_vertical" android:visibility="gone">
+                                  <ImageView android:layout_width="10dp" android:layout_height="10dp" android:src="@drawable/ic_widget_bolt"/>
+                                  <TextView android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                      android:paddingStart="2dp" android:text="URGENT" android:textSize="9sp" android:textStyle="bold"
+                                      android:letterSpacing="0.12" android:textColor="#FF3B3B"/>
+                              </LinearLayout>
+                              <TextView android:id="@+id/row_cl"
+                                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                  android:layout_marginTop="4dp" android:background="@drawable/widget_chip2"
+                                  android:paddingStart="7dp" android:paddingEnd="7dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+                                  android:textSize="10sp" android:textStyle="bold" android:textColor="#FFFFFF" android:visibility="gone"/>
+                              <LinearLayout android:id="@+id/row_streak"
+                                  android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                  android:layout_marginTop="4dp" android:orientation="horizontal" android:gravity="center_vertical"
+                                  android:visibility="gone">
+                                  <ImageView android:layout_width="9dp" android:layout_height="7dp" android:src="@drawable/ic_widget_chev"/>
+                                  <TextView android:id="@+id/row_streak_n"
+                                      android:layout_width="wrap_content" android:layout_height="wrap_content"
+                                      android:paddingStart="3dp" android:textSize="9sp" android:textStyle="bold" android:textColor="#80FFFFFF"/>
+                              </LinearLayout>
+                          </LinearLayout>
+                      </LinearLayout>
+                      <LinearLayout android:id="@+id/row_cl_list"
+                          android:layout_width="match_parent" android:layout_height="wrap_content"
+                          android:orientation="vertical" android:visibility="gone">@CL@
+                      </LinearLayout>
+                  </LinearLayout>
+                  <ViewFlipper android:id="@+id/row_glow"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:flipInterval="110" android:autoStart="true" android:visibility="gone">@FR@
+                  </ViewFlipper>
+              </FrameLayout>
+          </LinearLayout>""".replace("@CL@", cl).replace("@FR@", fr))
+
+          # ---------- the two widget bodies (accent colours like the preview) ----------
+          for kind, hx in (("dailies", "38BDF8"), ("quests", "FBBF24")):
+              w("layout/widget_tasks_%s.xml" % kind, """
+          <LinearLayout @NS@
+              android:id="@+id/w_root"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:paddingTop="14dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingBottom="12dp"
+              android:background="@drawable/widget_card_@K@">
+              <LinearLayout android:id="@+id/w_top"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:orientation="vertical" android:paddingBottom="10dp">
+                  <LinearLayout android:id="@+id/w_header"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical"
+                      android:paddingStart="4dp" android:paddingEnd="4dp">
+                      <TextView android:id="@+id/w_title"
+                          android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                          android:textSize="15sp" android:textStyle="bold" android:letterSpacing="0.16"
+                          android:maxLines="1" android:ellipsize="end" android:fontFamily="@font/rajdhani"
+                          android:textColor="#@HX@" android:shadowColor="#99@HX@" android:shadowRadius="10" android:shadowDx="0" android:shadowDy="0"/>
+                      <TextView android:id="@+id/w_count"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:layout_marginStart="8dp" android:background="@drawable/widget_pill_@K@"
+                          android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+                          android:maxLines="1" android:textSize="12sp" android:textStyle="bold" android:letterSpacing="0.08"
+                          android:fontFamily="@font/rajdhani" android:textColor="#F1F7FB"/>
+                  </LinearLayout>
+                  <ProgressBar android:id="@+id/w_bar" style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent" android:layout_height="4dp"
+                      android:layout_marginTop="10dp" android:layout_marginStart="4dp" android:layout_marginEnd="4dp"
+                      android:minHeight="4dp" android:maxHeight="4dp" android:max="100" android:progress="0"
+                      android:indeterminate="false" android:progressDrawable="@drawable/widget_bar_dailies"/>
+              </LinearLayout>
+              <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+                  <ListView android:id="@+id/w_list"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:divider="@null" android:dividerHeight="0dp"
+                      android:listSelector="@android:color/transparent" android:cacheColorHint="@android:color/transparent"
+                      android:clipToPadding="false" android:paddingTop="2dp" android:paddingBottom="4dp" android:paddingEnd="4dp" android:overScrollMode="never"
+                      android:scrollbars="vertical" android:fadeScrollbars="false" android:scrollbarSize="3dp"
+                      android:scrollbarStyle="outsideOverlay" android:scrollbarThumbVertical="@drawable/widget_thumb_@K@"/>
+                  <TextView android:id="@+id/w_empty"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:gravity="center" android:textSize="13sp" android:textStyle="bold"
+                      android:letterSpacing="0.14" android:fontFamily="@font/rajdhani" android:textColor="#64748B"
+                      android:visibility="gone"/>
+              </FrameLayout>
+          </LinearLayout>""".replace("@K@", kind).replace("@HX@", hx))
+          print("widget v2 resources created")
+          PYEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/TaskRowsService.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.content.Context;
+          import android.content.Intent;
+          import android.graphics.Color;
+          import android.text.SpannableString;
+          import android.text.Spanned;
+          import android.text.style.StrikethroughSpan;
+          import android.view.View;
+          import android.widget.RemoteViews;
+          import android.widget.RemoteViewsService;
+          import com.hunter.arisesolo.R;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Feeds the scrolling lists of the Dailies and Quests widgets (rows, checklists, urgent glow).
+          public class TaskRowsService extends RemoteViewsService {
+              @Override
+              public RemoteViewsFactory onGetViewFactory(Intent intent) {
+                  return new Factory(getApplicationContext(), intent.getStringExtra("kind"));
+              }
+
+              static class Factory implements RemoteViewsService.RemoteViewsFactory {
+                  private static final int[] CL  = { R.id.cl0, R.id.cl1, R.id.cl2, R.id.cl3, R.id.cl4, R.id.cl5, R.id.cl6, R.id.cl7, R.id.cl8, R.id.cl9 };
+                  private static final int[] CLC = { R.id.cl0c, R.id.cl1c, R.id.cl2c, R.id.cl3c, R.id.cl4c, R.id.cl5c, R.id.cl6c, R.id.cl7c, R.id.cl8c, R.id.cl9c };
+                  private static final int[] CLT = { R.id.cl0t, R.id.cl1t, R.id.cl2t, R.id.cl3t, R.id.cl4t, R.id.cl5t, R.id.cl6t, R.id.cl7t, R.id.cl8t, R.id.cl9t };
+
+                  private final Context ctx;
+                  private final String kind;
+                  private JSONArray items = new JSONArray();
+
+                  Factory(Context c, String k) {
+                      ctx = c;
+                      kind = (k == null) ? "dailies" : k;
+                  }
+
+                  @Override public void onCreate() { onDataSetChanged(); }
+                  @Override public void onDestroy() {}
+
+                  @Override
+                  public void onDataSetChanged() {
+                      // pending tasks first, finished ones (struck through) after
+                      JSONArray src = WidgetData.list(ctx, kind);
+                      JSONArray out = new JSONArray();
+                      for (int pass = 0; pass < 2; pass++) {
+                          for (int i = 0; i < src.length(); i++) {
+                              JSONObject o = src.optJSONObject(i);
+                              if (o == null) continue;
+                              boolean done = o.optInt("d", 0) == 1;
+                              if ((pass == 0 && !done) || (pass == 1 && done)) out.put(o);
+                          }
+                      }
+                      items = out;
+                  }
+
+                  @Override public int getCount() { return items.length(); }
+
+                  // what a tap sends to WidgetActionActivity (merged into the list's template intent)
+                  private Intent fill(String act, String tid, int j) {
+                      Intent f = new Intent();
+                      f.putExtra("act", act);
+                      f.putExtra("kind", kind);
+                      f.putExtra("tid", tid);
+                      f.putExtra("j", j);
+                      return f;
+                  }
+
+                  @Override
+                  public RemoteViews getViewAt(int pos) {
+                      RemoteViews rv = new RemoteViews(ctx.getPackageName(), R.layout.widget_task_row);
+                      JSONObject o = items.optJSONObject(pos);
+                      if (o == null) return rv;
+                      boolean done = o.optInt("d", 0) == 1;
+                      String tid = o.optString("i", "");
+                      String title = o.optString("t", "");
+                      String note = o.optString("n", "").trim();
+                      boolean urgent = o.optInt("u", 0) == 1 && !done;
+                      int streak = o.optInt("s", 0);
+                      int color;
+                      try { color = Color.parseColor(o.optString("c", "#38bdf8")); }
+                      catch (Exception e) { color = 0xFF38BDF8; }
+                      JSONArray cl = o.optJSONArray("cl");
+                      int clTotal = (cl == null) ? 0 : cl.length();
+                      int clDone = 0;
+                      for (int j = 0; j < clTotal; j++) {
+                          JSONArray c = cl.optJSONArray(j);
+                          if (c != null && c.optInt(1, 0) == 1) clDone++;
+                      }
+                      boolean open = clTotal > 0 && WidgetData.isExpanded(ctx, kind + ":" + tid);
+
+                      // essentials first: the text always shows, nothing below can stop it
+                      rv.setTextViewText(R.id.row_title, title);
+                      rv.setTextViewText(R.id.row_check, done ? "✓" : "");
+
+                      // taps: check button = tick, 1/3 chip = drop the checklist, rest of the row = open the app
+                      try { rv.setOnClickFillInIntent(R.id.row_slab, fill("task", tid, -1)); } catch (Throwable ignored) {}
+                      try { rv.setOnClickFillInIntent(R.id.row_main, fill("open", tid, -1)); } catch (Throwable ignored) {}
+
+                      // decorations: each one isolated so a single failure can't kill the row
+                      try {
+                          if (done && title.length() > 0) {
+                              SpannableString s = new SpannableString(title);
+                              s.setSpan(new StrikethroughSpan(), 0, title.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                              rv.setTextViewText(R.id.row_title, s);
+                          }
+                      } catch (Throwable ignored) {}
+                      try { rv.setTextColor(R.id.row_title, done ? 0x73FFFFFF : (urgent ? 0xFFFFE4E4 : 0xFFFFFFFF)); } catch (Throwable ignored) {}
+                      try {
+                          rv.setViewVisibility(R.id.row_note, note.length() > 0 ? View.VISIBLE : View.GONE);
+                          rv.setTextViewText(R.id.row_note, note);
+                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : 0xFFB9C8DA);
+                      } catch (Throwable ignored) {}
+                      try { rv.setViewVisibility(R.id.row_urgent, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
+                      try { rv.setViewVisibility(R.id.row_glow, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
+                      try {
+                          rv.setViewVisibility(R.id.row_cl, clTotal > 0 ? View.VISIBLE : View.GONE);
+                          rv.setTextViewText(R.id.row_cl, clDone + "/" + clTotal);
+                          rv.setInt(R.id.row_cl, "setBackgroundResource", open ? R.drawable.widget_chip2_open : R.drawable.widget_chip2);
+                          rv.setOnClickFillInIntent(R.id.row_cl, fill("exp", tid, -1));
+                      } catch (Throwable ignored) {}
+                      try {
+                          rv.setViewVisibility(R.id.row_streak, streak > 0 ? View.VISIBLE : View.GONE);
+                          rv.setTextViewText(R.id.row_streak_n, String.valueOf(streak));
+                      } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_bar, "setColorFilter", done ? ((color & 0x00FFFFFF) | 0x78000000) : ((color & 0x00FFFFFF) | 0xE0000000)); } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_check, "setBackgroundResource", done ? R.drawable.widget_chk_done : (urgent ? R.drawable.widget_chk_urgent : R.drawable.widget_chk)); } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row2_done : (urgent ? R.drawable.widget_row2_urgent : R.drawable.widget_row2_bg)); } catch (Throwable ignored) {}
+
+                      // checklist dropdown (first 10 items)
+                      try {
+                          rv.setViewVisibility(R.id.row_cl_list, open ? View.VISIBLE : View.GONE);
+                          for (int j = 0; j < CL.length; j++) {
+                              JSONArray c = (open && j < clTotal) ? cl.optJSONArray(j) : null;
+                              if (c == null) { rv.setViewVisibility(CL[j], View.GONE); continue; }
+                              boolean cd = c.optInt(1, 0) == 1;
+                              String ct = c.optString(0, "");
+                              rv.setViewVisibility(CL[j], View.VISIBLE);
+                              rv.setTextViewText(CLC[j], cd ? "✓" : "");
+                              rv.setInt(CLC[j], "setBackgroundResource", cd ? R.drawable.widget_clc_on : R.drawable.widget_clc);
+                              SpannableString cs = new SpannableString(ct);
+                              if (cd && ct.length() > 0) cs.setSpan(new StrikethroughSpan(), 0, ct.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+                              rv.setTextViewText(CLT[j], cs);
+                              rv.setTextColor(CLT[j], cd ? 0x80FFFFFF : 0xFFFFFFFF);
+                              rv.setOnClickFillInIntent(CL[j], fill("cl", tid, j));
+                          }
+                      } catch (Throwable ignored) {}
+                      return rv;
+                  }
+
+                  @Override public RemoteViews getLoadingView() { return null; }
+                  @Override public int getViewTypeCount() { return 1; }
+                  @Override public long getItemId(int position) { return position; }
+                  @Override public boolean hasStableIds() { return false; }
+              }
+          }
+          WEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/WidgetActionActivity.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.os.Bundle;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Invisible stop for every widget tap: opens the app on the right tab, ticks a task, ticks a checklist
+          // item, or drops a checklist down. It finishes immediately, so the user never sees it.
+          public class WidgetActionActivity extends Activity {
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  try { handle(getIntent()); } catch (Throwable ignored) {}
+                  finish();
+                  overridePendingTransition(0, 0);
+              }
+
+              private void handle(Intent in) throws Exception {
+                  if (in == null) return;
+                  String act = in.getStringExtra("act");
+                  String kind = in.getStringExtra("kind");
+                  if (act == null || kind == null) return;
+                  if ("open".equals(act)) { openApp(kind); return; }
+
+                  String tid = in.getStringExtra("tid");
+                  int j = in.getIntExtra("j", -1);
+                  if (tid == null || tid.length() == 0) return;
+
+                  if ("exp".equals(act)) {
+                      WidgetData.toggleExpanded(this, kind + ":" + tid);
+                      TasksWidgetBase.refreshAll(this);
+                      return;
+                  }
+
+                  JSONObject d = WidgetData.load(this);
+                  JSONArray arr = d.optJSONArray(kind);
+                  if (arr == null) return;
+                  for (int i = 0; i < arr.length(); i++) {
+                      JSONObject o = arr.optJSONObject(i);
+                      if (o == null || !tid.equals(o.optString("i", ""))) continue;
+                      JSONObject q = new JSONObject();
+                      q.put("id", tid);
+                      if ("task".equals(act)) {
+                          int nd = (o.optInt("d", 0) == 1) ? 0 : 1;
+                          q.put("t", "task");
+                          q.put("d", nd);
+                          if ("quests".equals(kind) && nd == 1) arr.remove(i);   // a finished quest leaves the list, like in the app
+                          else o.put("d", nd);
+                      } else if ("cl".equals(act)) {
+                          JSONArray cl = o.optJSONArray("cl");
+                          JSONArray c = (cl == null || j < 0) ? null : cl.optJSONArray(j);
+                          if (c == null) return;
+                          int nd = (c.optInt(1, 0) == 1) ? 0 : 1;
+                          c.put(1, nd);
+                          q.put("t", "cl");
+                          q.put("j", j);
+                          q.put("d", nd);
+                      } else {
+                          return;
+                      }
+                      WidgetData.queue(this, q);   // the app applies it (XP, streak, sounds) next time it opens
+                      WidgetData.save(this, d);
+                      break;
+                  }
+                  TasksWidgetBase.refreshAll(this);
+              }
+
+              private void openApp(String kind) {
+                  String tab = "quests".equals(kind) ? "quests" : ("calendar".equals(kind) ? "analytics" : "home");
+                  WidgetData.setOpenTab(this, tab);
+                  Intent i = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                  if (i == null) return;
+                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
+                  startActivity(i);
+              }
+          }
+          WEOF
+
       - name: Register task widgets in AndroidManifest
         run: |
           python3 << 'PYEOF'
@@ -1518,7 +2112,9 @@ jobs:
           block = (recv("DailiesWidget", "Arise Dailies", "widget_dailies_info")
                  + recv("QuestsWidget", "Arise Quests", "widget_quests_info")
                  + recv("StreakWidget", "Arise Streak", "widget_streak_info")
-                 + '    <service android:name="com.hunter.arisesolo.widget.TasksWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n')
+                 + '    <service android:name="com.hunter.arisesolo.widget.TasksWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'
+                 + '    <service android:name="com.hunter.arisesolo.widget.TaskRowsService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'
+                 + '    <activity android:name="com.hunter.arisesolo.widget.WidgetActionActivity" android:exported="false" android:theme="@android:style/Theme.Translucent.NoTitleBar" android:excludeFromRecents="true" android:noHistory="true" android:taskAffinity=""/>\n')
           assert "</application>" in s
           s = s.replace("</application>", block + "</application>", 1)
           open(p, "w", encoding="utf-8").write(s)
@@ -1623,7 +2219,7 @@ jobs:
           a('<?xml version="1.0" encoding="utf-8"?>')
           a('<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"')
           a('    android:layout_width="match_parent" android:layout_height="match_parent"')
-          a('    android:orientation="vertical" android:padding="12dp"')
+          a('    android:id="@+id/ec_root" android:orientation="vertical" android:padding="12dp"')
           a('    android:background="@drawable/ecal_panel">')
           # header: prev | month + number pill + year | next
           a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"')
@@ -1950,11 +2546,9 @@ jobs:
                   v.setInt(R.id.ec_pillring, "setColorFilter", accent);
                   v.setOnClickPendingIntent(R.id.ec_prev, nav(ctx, id, ACT_PREV));
                   v.setOnClickPendingIntent(R.id.ec_next, nav(ctx, id, ACT_NEXT));
-                  Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
-                  if (launch != null) {
-                      launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED);
-                      v.setOnClickPendingIntent(R.id.ec_center, PendingIntent.getActivity(ctx, 0, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
-                  }
+                  PendingIntent openCal = TasksWidgetBase.actionIntent(ctx, "open", "calendar", false);
+                  v.setOnClickPendingIntent(R.id.ec_center, openCal);
+                  v.setOnClickPendingIntent(R.id.ec_root, openCal);
                   v.setOnClickPendingIntent(R.id.ec_today, nav(ctx, id, ACT_TODAY));
                   v.setInt(R.id.ec_today, "setColorFilter", accent);
 

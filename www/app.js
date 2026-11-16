@@ -334,6 +334,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (rtInput) rtInput.value = localStorage.getItem('resetTime') || '00:00';
        initSortable();     // 6. Initialize drag-and-drop reordering
     syncTaskWidgets();  // 7. Push current data to the home-screen widgets
+    applyWidgetActions(); // 7b. Apply anything ticked on the widgets while the app was closed
     updateArcadeComingSoon();
     
     // 7. Render Calendar (No Lucide required anymore!)
@@ -421,6 +422,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 try { AppPlugin = window.Capacitor.registerPlugin('App'); } catch (e) {}
             }
             if (AppPlugin && AppPlugin.addListener) {
+                AppPlugin.addListener('resume', () => { applyWidgetActions(); });
                 AppPlugin.addListener('backButton', () => {
                     let closed = false;
                     try { closed = handlePhoneBackButton(); } catch (e) { closed = false; }
@@ -3274,6 +3276,7 @@ function syncTaskWidgets() {
         if (!P || !systemState || !systemState.quests) return;
         const colorOf = q => ({ trivial: '#38bdf8', easy: '#4ade80', medium: '#fbbf24', hard: '#f87171' }[q.difficulty] || '#38bdf8');
         const noteOf = q => String(q.notes || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
+        const clOf = q => (q.checklist || []).slice(0, 10).map(i => [String(i.text || i.title || i.name || '').slice(0, 80), i.done ? 1 : 0]);
         const now = new Date();
         const dailies = systemState.quests
             .filter(q => q.type === 'daily' || !q.type)
@@ -3286,8 +3289,8 @@ function syncTaskWidgets() {
         const logicalDay = _ld.getFullYear() + '-' + _p2(_ld.getMonth() + 1) + '-' + _p2(_ld.getDate());
         const claimedNow = systemState.streakIncrementedToday === true;
         const payload = JSON.stringify({
-            dailies: dailies.map(q => ({ t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, k: (q.checklist || []).filter(i => i.done).length, kt: (q.checklist || []).length })),
-            quests:  quests.map(q => ({ t: q.title, n: noteOf(q), d: 0, c: colorOf(q), u: q.urgent ? 1 : 0, k: (q.checklist || []).filter(i => i.done).length, kt: (q.checklist || []).length })),
+            dailies: dailies.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, cl: clOf(q) })),
+            quests:  quests.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: 0, c: colorOf(q), u: q.urgent ? 1 : 0, cl: clOf(q) })),
             streak:  systemState.streak || 0,
             claimed: claimedNow,
             claimedDay: claimedNow ? logicalDay : '',
@@ -3311,6 +3314,42 @@ function syncTaskWidgets() {
         }, 400);
     } catch (e) { /* ignore */ }
 }
+
+// Applies what was tapped on the home-screen widgets (tick a task / checklist item, open a tab)
+let _applyingWidgetActions = false;
+async function applyWidgetActions() {
+    if (_applyingWidgetActions) return;
+    try {
+        const Pref = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Preferences;
+        if (!Pref || !systemState || !systemState.quests) return;
+        _applyingWidgetActions = true;
+        const acts = await Pref.get({ key: 'widget_actions' });
+        const tab = await Pref.get({ key: 'widget_open_tab' });
+        let changed = false;
+        if (acts && acts.value) {
+            await Pref.remove({ key: 'widget_actions' });
+            let list = [];
+            try { list = JSON.parse(acts.value) || []; } catch (e) {}
+            list.forEach(a => {
+                const q = systemState.quests.find(z => String(z.id) === String(a.id));
+                if (!q) return;
+                if (a.t === 'task') {
+                    if (!!q.completed !== !!a.d) { toggleQuest(q.id); changed = true; }
+                } else if (a.t === 'cl') {
+                    const it = q.checklist && q.checklist[a.j];
+                    if (it && !!it.done !== !!a.d) { toggleChecklistItem(q.id, a.j); changed = true; }
+                }
+            });
+        }
+        if (tab && tab.value) {
+            await Pref.remove({ key: 'widget_open_tab' });
+            if (['home', 'quests', 'analytics'].indexOf(tab.value) !== -1) switchTab(tab.value);
+        }
+        if (changed) { _lastWidgetPayload = ''; syncTaskWidgets(); }
+    } catch (e) { /* plugin missing (browser) */ }
+    _applyingWidgetActions = false;
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) applyWidgetActions(); });
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
