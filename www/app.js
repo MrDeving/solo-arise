@@ -3286,8 +3286,8 @@ function syncTaskWidgets() {
         const logicalDay = _ld.getFullYear() + '-' + _p2(_ld.getMonth() + 1) + '-' + _p2(_ld.getDate());
         const claimedNow = systemState.streakIncrementedToday === true;
         const payload = JSON.stringify({
-            dailies: dailies.map(q => ({ t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q) })),
-            quests:  quests.map(q => ({ t: q.title, n: noteOf(q), d: 0, c: colorOf(q) })),
+            dailies: dailies.map(q => ({ t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, k: (q.checklist || []).filter(i => i.done).length, kt: (q.checklist || []).length })),
+            quests:  quests.map(q => ({ t: q.title, n: noteOf(q), d: 0, c: colorOf(q), u: q.urgent ? 1 : 0, k: (q.checklist || []).filter(i => i.done).length, kt: (q.checklist || []).length })),
             streak:  systemState.streak || 0,
             claimed: claimedNow,
             claimedDay: claimedNow ? logicalDay : '',
