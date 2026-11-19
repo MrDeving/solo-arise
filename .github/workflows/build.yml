@@ -1986,7 +1986,7 @@ jobs:
                           rv.setViewVisibility(R.id.row_streak, streak > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_streak_n, String.valueOf(streak));
                       } catch (Throwable ignored) {}
-                      try { rv.setInt(R.id.row_bar, "setColorFilter", done ? ((color & 0x00FFFFFF) | 0x78000000) : ((color & 0x00FFFFFF) | 0xE0000000)); } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_bar, "setColorFilter", color | 0xFF000000); rv.setInt(R.id.row_bar, "setImageAlpha", done ? 115 : 224); } catch (Throwable ignored) {}
                       try { rv.setInt(R.id.row_check, "setBackgroundResource", done ? R.drawable.widget_chk_done : (urgent ? R.drawable.widget_chk_urgent : R.drawable.widget_chk)); } catch (Throwable ignored) {}
                       try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row2_done : (urgent ? R.drawable.widget_row2_urgent : R.drawable.widget_row2_bg)); } catch (Throwable ignored) {}
 
