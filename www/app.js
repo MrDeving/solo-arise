@@ -3275,7 +3275,8 @@ function syncTaskWidgets() {
     try {
         const P = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.WidgetBridgePlugin;
         if (!P || !systemState || !systemState.quests) return;
-        const colorOf = q => ({ trivial: '#38bdf8', easy: '#4ade80', medium: '#fbbf24', hard: '#f87171' }[q.difficulty] || '#38bdf8');
+        // same colours as the in-app slab: Dailies by streak, Quests by age
+        const colorOf = q => (q.type === 'daily' || !q.type) ? getDailyStreakColor(q.dailyStreak ?? 0) : (getQuestAgeColor(q) || '#38bdf8');
         const noteOf = q => String(q.notes || '').replace(/<br\s*\/?>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 140);
         const clOf = q => (q.checklist || []).slice(0, 10).map(i => [String(i.text || i.title || i.name || '').slice(0, 80), i.done ? 1 : 0]);
         const now = new Date();
@@ -3293,6 +3294,7 @@ function syncTaskWidgets() {
             dailies: dailies.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, cl: clOf(q) })),
             quests:  quests.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: 0, c: colorOf(q), u: q.urgent ? 1 : 0, cl: clOf(q) })),
             streak:  systemState.streak || 0,
+            th:      (typeof window.getWidgetThemes === 'function' ? window.getWidgetThemes() : {}),
             claimed: claimedNow,
             claimedDay: claimedNow ? logicalDay : '',
             resetMin: _rh * 60 + _rm

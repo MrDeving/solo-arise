@@ -961,6 +961,14 @@ jobs:
           final class WidgetData {
               private WidgetData() {}
 
+              // true when this widget kind uses the Frost theme (chosen in the app's Theme Studio; default is Obsidian)
+              static boolean frost(Context ctx, String kind) {
+                  try {
+                      JSONObject t = load(ctx).optJSONObject("th");
+                      return t != null && "frost".equals(t.optString(kind, "obsidian"));
+                  } catch (Throwable e) { return false; }
+              }
+
               static JSONObject load(Context ctx) {
                   try {
                       SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
@@ -1112,7 +1120,7 @@ jobs:
                       try {
                           rv.setViewVisibility(R.id.row_note, note.length() > 0 ? android.view.View.VISIBLE : android.view.View.GONE);
                           rv.setTextViewText(R.id.row_note, note);
-                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : 0xFFB9C8DA);
+                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : (WidgetData.frost(ctx, kind) ? 0xB3FFFFFF : 0xFF8B9BB0));
                       } catch (Throwable ignored) {}
                       try { rv.setViewVisibility(R.id.row_urgent, urgent ? android.view.View.VISIBLE : android.view.View.GONE); } catch (Throwable ignored) {}
                       try {
@@ -1206,8 +1214,11 @@ jobs:
                           count = String.valueOf(total);
                       }
                   }
+                  boolean fr = WidgetData.frost(ctx, kind());
+                  v.setInt(R.id.w_root, "setBackgroundResource", fr ? R.drawable.widget_card_frost : R.drawable.widget_card_obs);
+                  v.setInt(R.id.w_count, "setBackgroundResource", fr ? R.drawable.widget_pill_frost : R.drawable.widget_pill_obs);
                   v.setTextViewText(R.id.w_title, title());
-                  v.setTextColor(R.id.w_title, accent());
+                  v.setTextColor(R.id.w_title, fr ? 0xFFFFFFFF : 0xFFE8EEF6);
                   v.setTextViewText(R.id.w_empty, emptyText());
                   v.setTextColor(R.id.w_count, countColor);
 
@@ -1626,7 +1637,7 @@ jobs:
                   <corners android:radius="4dp"/>
               </shape></item>
               <item android:id="@android:id/progress"><clip><shape android:shape="rectangle">
-                  <gradient android:angle="0" android:startColor="#38BDF8" android:endColor="#7DD3FC"/>
+                  <gradient android:angle="0" android:startColor="#FFFFFF" android:endColor="#E2E8F0"/>
                   <corners android:radius="4dp"/>
               </shape></clip></item>
           </layer-list>""")
@@ -1653,7 +1664,7 @@ jobs:
           w("drawable/widget_slab2.xml", """
           <shape @NS@ android:shape="rectangle">
               <solid android:color="#FFFFFFFF"/>
-              <corners android:topLeftRadius="16dp" android:bottomLeftRadius="16dp"/>
+              <corners android:radius="2dp"/>
           </shape>""")
           w("drawable/widget_chk.xml", """
           <shape @NS@ android:shape="rectangle">
@@ -1749,20 +1760,23 @@ jobs:
                       <LinearLayout android:id="@+id/row_main"
                           android:layout_width="match_parent" android:layout_height="wrap_content"
                           android:orientation="horizontal" android:gravity="center_vertical">
-                          <FrameLayout android:id="@+id/row_slab" android:layout_width="52dp" android:layout_height="match_parent">
-                              <ImageView android:id="@+id/row_bar"
-                                  android:layout_width="match_parent" android:layout_height="match_parent"
-                                  android:scaleType="fitXY" android:src="@drawable/widget_slab2"/>
+                          <ImageView android:id="@+id/row_bar"
+                              android:layout_width="3dp" android:layout_height="match_parent"
+                              android:layout_marginStart="8dp" android:layout_marginTop="10dp" android:layout_marginBottom="10dp"
+                              android:scaleType="fitXY" android:src="@drawable/widget_slab2"/>
+                          <FrameLayout android:id="@+id/row_slab" android:layout_width="40dp" android:layout_height="match_parent">
+                              <ImageView android:id="@+id/row_ring"
+                                  android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center"
+                                  android:scaleType="fitXY" android:src="@drawable/widget_ring"/>
                               <TextView android:id="@+id/row_check"
                                   android:layout_width="24dp" android:layout_height="24dp"
                                   android:layout_gravity="center" android:gravity="center"
-                                  android:background="@drawable/widget_chk"
-                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#F2FFFFFF"/>
+                                  android:textSize="14sp" android:textStyle="bold" android:textColor="#06101C"/>
                           </FrameLayout>
                           <LinearLayout
                               android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                               android:orientation="vertical" android:gravity="center_vertical" android:minHeight="44dp"
-                              android:paddingStart="16dp" android:paddingEnd="8dp" android:paddingTop="10dp" android:paddingBottom="10dp">
+                              android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="10dp" android:paddingBottom="10dp">
                               <TextView android:id="@+id/row_title"
                                   android:layout_width="match_parent" android:layout_height="wrap_content"
                                   android:maxLines="2" android:ellipsize="end"
@@ -1828,7 +1842,7 @@ jobs:
                           android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                           android:textSize="15sp" android:textStyle="bold" android:letterSpacing="0.16"
                           android:maxLines="1" android:ellipsize="end" android:fontFamily="@font/rajdhani"
-                          android:textColor="#@HX@" android:shadowColor="#99@HX@" android:shadowRadius="10" android:shadowDx="0" android:shadowDy="0"/>
+                          android:textColor="#@HX@"/>
                       <TextView android:id="@+id/w_count"
                           android:layout_width="wrap_content" android:layout_height="wrap_content"
                           android:layout_marginStart="8dp" android:background="@drawable/widget_pill_@K@"
@@ -1857,6 +1871,50 @@ jobs:
                       android:visibility="gone"/>
               </FrameLayout>
           </LinearLayout>""".replace("@K@", kind).replace("@HX@", hx))
+          # ---------- THEMES: Obsidian (solid, quiet) and Frost (frosted glass) ----------
+          TH = {
+              "obs":   dict(scrim="#F00B101A", top0="#00FFFFFF", top1="#00FFFFFF", cs="#1FFFFFFF", cr=20, pill="#0DFFFFFF", ps="#1AFFFFFF",
+                            row="#0AFFFFFF", rs="#14FFFFFF", rd="#05FFFFFF", rds="#0AFFFFFF", rr=14, u0="#38FF4D4D", u1="#0AFFFFFF"),
+              "frost": dict(scrim="#6B101826", top0="#33FFFFFF", top1="#14FFFFFF", cs="#47FFFFFF", cr=28, pill="#29FFFFFF", ps="#47FFFFFF",
+                            row="#1FFFFFFF", rs="#33FFFFFF", rd="#10FFFFFF", rds="#1AFFFFFF", rr=20, u0="#66FF4D4D", u1="#14FFFFFF"),
+          }
+          for tk, c in TH.items():
+              w("drawable/widget_card_%s.xml" % tk, """
+          <layer-list @NS@>
+              <item><shape android:shape="rectangle"><solid android:color="@SCRIM@"/><corners android:radius="@CR@dp"/></shape></item>
+              <item><shape android:shape="rectangle"><gradient android:angle="315" android:startColor="@T0@" android:endColor="@T1@"/><corners android:radius="@CR@dp"/></shape></item>
+              <item><shape android:shape="rectangle"><stroke android:width="1dp" android:color="@CS@"/><corners android:radius="@CR@dp"/></shape></item>
+          </layer-list>""".replace("@SCRIM@", c["scrim"]).replace("@T0@", c["top0"]).replace("@T1@", c["top1"]).replace("@CS@", c["cs"]).replace("@CR@", str(c["cr"])))
+              w("drawable/widget_pill_%s.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="@P@"/>
+              <stroke android:width="1dp" android:color="@PS@"/>
+              <corners android:radius="30dp"/>
+          </shape>""".replace("@P@", c["pill"]).replace("@PS@", c["ps"]))
+              w("drawable/widget_row_%s_bg.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="@C@"/>
+              <stroke android:width="1dp" android:color="@S@"/>
+              <corners android:radius="@R@dp"/>
+          </shape>""".replace("@C@", c["row"]).replace("@S@", c["rs"]).replace("@R@", str(c["rr"])))
+              w("drawable/widget_row_%s_done.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <solid android:color="@C@"/>
+              <stroke android:width="1dp" android:color="@S@"/>
+              <corners android:radius="@R@dp"/>
+          </shape>""".replace("@C@", c["rd"]).replace("@S@", c["rds"]).replace("@R@", str(c["rr"])))
+              w("drawable/widget_row_%s_urgent.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <gradient android:angle="315" android:startColor="@U0@" android:endColor="@U1@"/>
+              <stroke android:width="1.5dp" android:color="#E6FF4D4D"/>
+              <corners android:radius="@R@dp"/>
+          </shape>""".replace("@U0@", c["u0"]).replace("@U1@", c["u1"]).replace("@R@", str(c["rr"])))
+          w("drawable/widget_ring.xml", """
+          <shape @NS@ android:shape="oval"><stroke android:width="2dp" android:color="#FFFFFFFF"/></shape>""")
+          w("drawable/widget_ring_tint.xml", """
+          <shape @NS@ android:shape="oval"><solid android:color="#47FFFFFF"/><stroke android:width="2dp" android:color="#FFFFFFFF"/></shape>""")
+          w("drawable/widget_disc.xml", """
+          <shape @NS@ android:shape="oval"><solid android:color="#FFFFFFFF"/></shape>""")
           print("widget v2 resources created")
           PYEOF
 
@@ -1972,7 +2030,7 @@ jobs:
                       try {
                           rv.setViewVisibility(R.id.row_note, note.length() > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_note, note);
-                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : 0xFFB9C8DA);
+                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : (WidgetData.frost(ctx, kind) ? 0xB3FFFFFF : 0xFF8B9BB0));
                       } catch (Throwable ignored) {}
                       try { rv.setViewVisibility(R.id.row_urgent, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
                       try {
@@ -1985,9 +2043,14 @@ jobs:
                           rv.setViewVisibility(R.id.row_streak, streak > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_streak_n, String.valueOf(streak));
                       } catch (Throwable ignored) {}
-                      try { rv.setInt(R.id.row_bar, "setColorFilter", color | 0xFF000000); rv.setInt(R.id.row_bar, "setImageAlpha", done ? 115 : 224); } catch (Throwable ignored) {}
-                      try { rv.setInt(R.id.row_check, "setBackgroundResource", done ? R.drawable.widget_chk_done : (urgent ? R.drawable.widget_chk_urgent : R.drawable.widget_chk)); } catch (Throwable ignored) {}
-                      try { rv.setInt(R.id.row_card, "setBackgroundResource", done ? R.drawable.widget_row2_done : (urgent ? R.drawable.widget_row2_urgent : R.drawable.widget_row2_bg)); } catch (Throwable ignored) {}
+                      boolean fr = WidgetData.frost(ctx, kind);
+                      try { rv.setInt(R.id.row_bar, "setColorFilter", color | 0xFF000000); rv.setInt(R.id.row_bar, "setImageAlpha", done ? 90 : 255); } catch (Throwable ignored) {}
+                      try {
+                          rv.setImageViewResource(R.id.row_ring, done ? R.drawable.widget_disc : (fr ? R.drawable.widget_ring_tint : R.drawable.widget_ring));
+                          rv.setInt(R.id.row_ring, "setColorFilter", color | 0xFF000000);
+                          rv.setInt(R.id.row_ring, "setImageAlpha", done ? 170 : 255);
+                      } catch (Throwable ignored) {}
+                      try { rv.setInt(R.id.row_card, "setBackgroundResource", fr ? (done ? R.drawable.widget_row_frost_done : (urgent ? R.drawable.widget_row_frost_urgent : R.drawable.widget_row_frost_bg)) : (done ? R.drawable.widget_row_obs_done : (urgent ? R.drawable.widget_row_obs_urgent : R.drawable.widget_row_obs_bg))); } catch (Throwable ignored) {}
 
                       // checklist dropdown (first 10 items)
                       try {

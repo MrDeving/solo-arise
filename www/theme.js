@@ -14,6 +14,14 @@
         set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
     };
 
+    /* ---------- widget themes (home-screen widgets: obsidian | frost, one choice per widget) ---------- */
+    const WKEY = 'ariseWidgetTheme';
+    function getWT() {
+        try { const o = JSON.parse(store.get(WKEY) || '{}'); return { dailies: o.dailies === 'frost' ? 'frost' : 'obsidian', quests: o.quests === 'frost' ? 'frost' : 'obsidian' }; }
+        catch (e) { return { dailies: 'obsidian', quests: 'obsidian' }; }
+    }
+    window.getWidgetThemes = getWT;
+
     /* ---------- data ---------- */
     function hexToHsl(hex) {
         const n = parseInt(hex.slice(1), 16), r = (n >> 16) / 255, g = ((n >> 8) & 255) / 255, b = (n & 255) / 255;
@@ -449,7 +457,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
 
     /* ---------- studio UI ---------- */
     let studio = null, pane = 'look', closing = null;
-    const PANES = ['look', 'fx', 'tune'];
+    const PANES = ['look', 'fx', 'tune', 'widgets'];
     function modeCols(p) {
         const light = S.mode === 'light' || (S.mode === 'auto' && sysLight.matches), am = S.mode === 'amoled';
         return { a: light ? hsl(p.h, Math.max(p.s, 62), Math.min(p.l, 44)) : hsl(p.h, p.s, p.l), b1: light ? hsl(p.bgH, 45, 97) : am ? hsl(p.bgH, 30, 5) : hsl(p.bgH, 38, 14), b2: light ? hsl(p.bgH, 40, 89) : am ? '#000' : hsl(p.bgH, 50, 4) };
@@ -465,7 +473,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         let k = 0;
         studio.innerHTML = `
         <div class="ts-top"><div class="ts-title"></div><button class="ts-btn" data-act="reset">RESET</button><button class="ts-btn" data-act="close">DONE</button></div>
-        <div class="ts-tabs" style="--n:3;--i:0"><b class="ts-ink"></b>${[['look', 'LOOK'], ['fx', 'EFFECTS'], ['tune', 'TUNE']].map(([v, n]) => `<button data-tab="${v}" aria-selected="false">${n}</button>`).join('')}</div>
+        <div class="ts-tabs" style="--n:4;--i:0"><b class="ts-ink"></b>${[['look', 'LOOK'], ['fx', 'EFFECTS'], ['tune', 'TUNE'], ['widgets', 'WIDGETS']].map(([v, n]) => `<button data-tab="${v}" aria-selected="false">${n}</button>`).join('')}</div>
         <div class="ts-body">
           <div class="ts-pane" data-pane="look">
             <div><div class="ts-lbl">BRIGHTNESS</div>${seg('mode', [['dark', 'DARK'], ['light', 'LIGHT'], ['amoled', 'AMOLED'], ['auto', 'AUTO']])}</div>
@@ -485,6 +493,11 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
             <div><div class="ts-lbl">ACCENT HUE · DRAG TO MAKE YOUR OWN THEME</div><input type="range" id="ts-hue" min="0" max="360" value="0" style="--trk:linear-gradient(90deg,hsl(0 85% 62%),hsl(60 85% 62%),hsl(120 85% 62%),hsl(180 85% 62%),hsl(240 85% 62%),hsl(300 85% 62%),hsl(360 85% 62%))"></div>
             <div>${slider('ts-glass', 'Panels', 10, 100, S.glass, '%')}${slider('ts-rad', 'Corners', 6, 28, S.radius, 'px')}</div>
           </div>
+          <div class="ts-pane" data-pane="widgets" hidden>
+            <div><div class="ts-lbl">DAILIES WIDGET</div>${seg('wd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+            <div><div class="ts-lbl">QUESTS WIDGET</div>${seg('wq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+            <p class="ts-note">Obsidian is solid and quiet. Frost is frosted glass that lets your wallpaper show through. The change appears on your home screen within a few seconds.</p>
+          </div>
         </div>`;
     }
 
@@ -498,6 +511,11 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         $q('.ts-pane').forEach(p => { const show = p.dataset.pane === pane; if (p.hidden === show) p.hidden = !show; });
         const m = studio.querySelector('[data-seg="mode"]'); const mi = ['dark', 'light', 'amoled', 'auto'].indexOf(S.mode);
         m.style.setProperty('--i', mi); $q('button', m).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.mode));
+        const wt = getWT();
+        [['wd', 'dailies'], ['wq', 'quests']].forEach(([s, k]) => {
+            const el = studio.querySelector('[data-seg="' + s + '"]'); if (!el) return;
+            el.style.setProperty('--i', wt[k] === 'frost' ? 1 : 0); $q('button', el).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === wt[k]));
+        });
         $q('.ts-card').forEach(c => {
             const id = c.dataset.id, on = id === 'custom' ? S.custom : (!S.custom && S.pack === id);
             c.setAttribute('aria-pressed', on);
@@ -576,6 +594,13 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
                     S.custom = false; S.pack = id; S.hue = p.h;
                 }
                 pop(c); changed({ ripple: pt }); return;
+            }
+            const ws = t.closest('[data-seg="wd"] button, [data-seg="wq"] button');
+            if (ws) {
+                const k = ws.closest('.ts-seg').dataset.seg === 'wd' ? 'dailies' : 'quests';
+                const w = getWT(); w[k] = ws.dataset.v; store.set(WKEY, JSON.stringify(w)); syncStudio();
+                try { if (typeof syncTaskWidgets === 'function') syncTaskWidgets(); } catch (e) {}
+                return;
             }
             const sg = t.closest('.ts-seg button'); if (sg) { S.mode = sg.dataset.v; changed({ ripple: pt }); return; }
             const fx = t.closest('[data-fx]'); if (fx) { S.fx = fx.dataset.fx; pop(fx); changed(); return; }
