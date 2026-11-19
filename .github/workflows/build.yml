@@ -969,6 +969,13 @@ jobs:
                   } catch (Throwable e) { return false; }
               }
 
+              static boolean anim(Context ctx) {
+                  try {
+                      JSONObject t = load(ctx).optJSONObject("th");
+                      return t == null || t.optBoolean("anim", true);
+                  } catch (Throwable e) { return true; }
+              }
+
               static JSONObject load(Context ctx) {
                   try {
                       SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
@@ -1768,6 +1775,9 @@ jobs:
                               <ImageView android:id="@+id/row_ring"
                                   android:layout_width="24dp" android:layout_height="24dp" android:layout_gravity="center"
                                   android:scaleType="fitXY" android:src="@drawable/widget_ring"/>
+                    <ImageView android:id="@+id/row_hole"
+                        android:layout_width="20dp" android:layout_height="20dp" android:layout_gravity="center"
+                        android:scaleType="fitXY" android:src="@drawable/widget_hole" android:visibility="invisible"/>
                               <TextView android:id="@+id/row_check"
                                   android:layout_width="24dp" android:layout_height="24dp"
                                   android:layout_gravity="center" android:gravity="center"
@@ -1819,6 +1829,13 @@ jobs:
                       </LinearLayout>
                   </LinearLayout>
 
+                  <ViewFlipper android:id="@+id/row_pulse"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:autoStart="true" android:flipInterval="1000" android:visibility="gone">
+                      <ImageView android:id="@+id/row_pulse_a" android:layout_width="match_parent" android:layout_height="match_parent"
+                          android:scaleType="fitXY" android:src="@drawable/widget_pulse_obs"/>
+                      <View android:layout_width="match_parent" android:layout_height="match_parent"/>
+                  </ViewFlipper>
               </FrameLayout>
           </LinearLayout>""".replace("@CL@", cl).replace("@FR@", fr))
 
@@ -1913,6 +1930,14 @@ jobs:
           <shape @NS@ android:shape="oval"><stroke android:width="2dp" android:color="#FFFFFFFF"/></shape>""")
           w("drawable/widget_ring_tint.xml", """
           <shape @NS@ android:shape="oval"><solid android:color="#47FFFFFF"/><stroke android:width="2dp" android:color="#FFFFFFFF"/></shape>""")
+          w("drawable/widget_hole.xml", """
+          <shape @NS@ android:shape="oval"><solid android:color="#FF0D121C"/></shape>""")
+          for tk, rr in (("obs", 14), ("frost", 20)):
+              w("drawable/widget_pulse_%s.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <stroke android:width="3dp" android:color="#A6FF4D4D"/>
+              <corners android:radius="@R@dp"/>
+          </shape>""".replace("@R@", str(rr)))
           w("drawable/widget_disc.xml", """
           <shape @NS@ android:shape="oval"><solid android:color="#FFFFFFFF"/></shape>""")
           print("widget v2 resources created")
@@ -2046,7 +2071,11 @@ jobs:
                       boolean fr = WidgetData.frost(ctx, kind);
                       try { rv.setInt(R.id.row_bar, "setColorFilter", color | 0xFF000000); rv.setInt(R.id.row_bar, "setImageAlpha", done ? 90 : 255); } catch (Throwable ignored) {}
                       try {
-                          rv.setImageViewResource(R.id.row_ring, done ? R.drawable.widget_disc : (fr ? R.drawable.widget_ring_tint : R.drawable.widget_ring));
+                          rv.setImageViewResource(R.id.row_ring, (done || !fr) ? R.drawable.widget_disc : R.drawable.widget_ring_tint);
+                          rv.setViewVisibility(R.id.row_hole, (!done && !fr) ? View.VISIBLE : View.INVISIBLE);
+                          boolean pulse = urgent && WidgetData.anim(ctx);
+                          rv.setViewVisibility(R.id.row_pulse, pulse ? View.VISIBLE : View.GONE);
+                          if (pulse) rv.setImageViewResource(R.id.row_pulse_a, fr ? R.drawable.widget_pulse_frost : R.drawable.widget_pulse_obs);
                           rv.setInt(R.id.row_ring, "setColorFilter", color | 0xFF000000);
                           rv.setInt(R.id.row_ring, "setImageAlpha", done ? 170 : 255);
                       } catch (Throwable ignored) {}

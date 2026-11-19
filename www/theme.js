@@ -17,8 +17,8 @@
     /* ---------- widget themes (home-screen widgets: obsidian | frost, one choice per widget) ---------- */
     const WKEY = 'ariseWidgetTheme';
     function getWT() {
-        try { const o = JSON.parse(store.get(WKEY) || '{}'); return { dailies: o.dailies === 'frost' ? 'frost' : 'obsidian', quests: o.quests === 'frost' ? 'frost' : 'obsidian' }; }
-        catch (e) { return { dailies: 'obsidian', quests: 'obsidian' }; }
+        try { const o = JSON.parse(store.get(WKEY) || '{}'); return { dailies: o.dailies === 'frost' ? 'frost' : 'obsidian', quests: o.quests === 'frost' ? 'frost' : 'obsidian', anim: o.anim !== false }; }
+        catch (e) { return { dailies: 'obsidian', quests: 'obsidian', anim: true }; }
     }
     window.getWidgetThemes = getWT;
 
@@ -496,6 +496,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
           <div class="ts-pane" data-pane="widgets" hidden>
             <div><div class="ts-lbl">DAILIES WIDGET</div>${seg('wd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
             <div><div class="ts-lbl">QUESTS WIDGET</div>${seg('wq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+            <div><div class="ts-lbl">URGENT PULSE ANIMATION</div>${seg('wa', [['on', 'ON'], ['off', 'OFF']])}</div>
             <p class="ts-note">Obsidian is solid and quiet. Frost is frosted glass that lets your wallpaper show through. The change appears on your home screen within a few seconds.</p>
           </div>
         </div>`;
@@ -516,6 +517,8 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
             const el = studio.querySelector('[data-seg="' + s + '"]'); if (!el) return;
             el.style.setProperty('--i', wt[k] === 'frost' ? 1 : 0); $q('button', el).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === wt[k]));
         });
+        const wa = studio.querySelector('[data-seg="wa"]');
+        if (wa) { const av = wt.anim ? 'on' : 'off'; wa.style.setProperty('--i', wt.anim ? 0 : 1); $q('button', wa).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === av)); }
         $q('.ts-card').forEach(c => {
             const id = c.dataset.id, on = id === 'custom' ? S.custom : (!S.custom && S.pack === id);
             c.setAttribute('aria-pressed', on);
@@ -595,10 +598,12 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
                 }
                 pop(c); changed({ ripple: pt }); return;
             }
-            const ws = t.closest('[data-seg="wd"] button, [data-seg="wq"] button');
+            const ws = t.closest('[data-seg="wd"] button, [data-seg="wq"] button, [data-seg="wa"] button');
             if (ws) {
-                const k = ws.closest('.ts-seg').dataset.seg === 'wd' ? 'dailies' : 'quests';
-                const w = getWT(); w[k] = ws.dataset.v; store.set(WKEY, JSON.stringify(w)); syncStudio();
+                const sk = ws.closest('.ts-seg').dataset.seg;
+                const w = getWT();
+                if (sk === 'wa') w.anim = ws.dataset.v === 'on'; else w[sk === 'wd' ? 'dailies' : 'quests'] = ws.dataset.v;
+                store.set(WKEY, JSON.stringify(w)); syncStudio();
                 try { if (typeof syncTaskWidgets === 'function') syncTaskWidgets(); } catch (e) {}
                 return;
             }
