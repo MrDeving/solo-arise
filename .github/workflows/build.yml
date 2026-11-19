@@ -1064,15 +1064,16 @@ jobs:
 
                   @Override
                   public void onDataSetChanged() {
-                      // pending tasks first, finished ones (struck through) after
+                      // urgent first, then the other pending tasks, finished ones (struck through) last
                       JSONArray src = WidgetData.list(ctx, kind);
                       JSONArray out = new JSONArray();
-                      for (int pass = 0; pass < 2; pass++) {
+                      for (int pass = 0; pass < 3; pass++) {
                           for (int i = 0; i < src.length(); i++) {
                               JSONObject o = src.optJSONObject(i);
                               if (o == null) continue;
                               boolean done = o.optInt("d", 0) == 1;
-                              if ((pass == 0 && !done) || (pass == 1 && done)) out.put(o);
+                              boolean urg = o.optInt("u", 0) == 1 && !done;
+                              if ((pass == 0 && urg) || (pass == 1 && !urg && !done) || (pass == 2 && done)) out.put(o);
                           }
                       }
                       items = out;
@@ -1286,6 +1287,7 @@ jobs:
                       for (Class<?> c : cs) {
                           int[] ids = m.getAppWidgetIds(new android.content.ComponentName(ctx, c));
                           if (ids == null || ids.length == 0) continue;
+                          m.notifyAppWidgetViewDataChanged(ids, R.id.w_list);
                           Intent u = new Intent(ctx, c).setAction(AppWidgetManager.ACTION_APPWIDGET_UPDATE);
                           u.putExtra(AppWidgetManager.EXTRA_APPWIDGET_IDS, ids);
                           ctx.sendBroadcast(u);
@@ -1644,8 +1646,8 @@ jobs:
           </shape>""")
           w("drawable/widget_row2_urgent.xml", """
           <shape @NS@ android:shape="rectangle">
-              <gradient android:angle="315" android:startColor="#4DF87171" android:endColor="#CC3C0F14"/>
-              <stroke android:width="1.5dp" android:color="#B3FF3B3B"/>
+              <gradient android:angle="315" android:startColor="#73F87171" android:endColor="#E63C0F14"/>
+              <stroke android:width="2dp" android:color="#FFFF3B3B"/>
               <corners android:radius="16dp"/>
           </shape>""")
           w("drawable/widget_slab2.xml", """
@@ -1802,10 +1804,7 @@ jobs:
                           android:orientation="vertical" android:visibility="gone">@CL@
                       </LinearLayout>
                   </LinearLayout>
-                  <ViewFlipper android:id="@+id/row_glow"
-                      android:layout_width="match_parent" android:layout_height="match_parent"
-                      android:flipInterval="110" android:autoStart="true" android:visibility="gone">@FR@
-                  </ViewFlipper>
+
               </FrameLayout>
           </LinearLayout>""".replace("@CL@", cl).replace("@FR@", fr))
 
@@ -1975,7 +1974,6 @@ jobs:
                           rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : 0xFFB9C8DA);
                       } catch (Throwable ignored) {}
                       try { rv.setViewVisibility(R.id.row_urgent, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
-                      try { rv.setViewVisibility(R.id.row_glow, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
                       try {
                           rv.setViewVisibility(R.id.row_cl, clTotal > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_cl, clDone + "/" + clTotal);
@@ -2048,7 +2046,10 @@ jobs:
 
                   String tid = in.getStringExtra("tid");
                   int j = in.getIntExtra("j", -1);
-                  if (tid == null || tid.length() == 0) return;
+                  if (tid == null || tid.length() == 0) {
+                      android.widget.Toast.makeText(getApplicationContext(), "Widget: no task id received. Open the app once and try again.", android.widget.Toast.LENGTH_LONG).show();
+                      return;
+                  }
 
                   if ("exp".equals(act)) {
                       WidgetData.toggleExpanded(this, kind + ":" + tid);
@@ -2059,9 +2060,11 @@ jobs:
                   JSONObject d = WidgetData.load(this);
                   JSONArray arr = d.optJSONArray(kind);
                   if (arr == null) return;
+                  boolean hit = false;
                   for (int i = 0; i < arr.length(); i++) {
                       JSONObject o = arr.optJSONObject(i);
                       if (o == null || !tid.equals(o.optString("i", ""))) continue;
+                      hit = true;
                       JSONObject q = new JSONObject();
                       q.put("id", tid);
                       if ("task".equals(act)) {
@@ -2086,6 +2089,7 @@ jobs:
                       WidgetData.save(this, d);
                       break;
                   }
+                  if (!hit) android.widget.Toast.makeText(getApplicationContext(), "Widget: task not found. Open the app once to refresh it.", android.widget.Toast.LENGTH_LONG).show();
                   TasksWidgetBase.refreshAll(this);
               }
 

@@ -702,7 +702,8 @@ function renderQuests() {
     if (homeContainer) homeContainer.innerHTML = '';
     if (mainContainer) mainContainer.innerHTML = '';
 
-    systemState.quests.forEach(quest => {
+    // urgent (unfinished) tasks are pinned to the top; everything else keeps its saved order
+    [...systemState.quests].sort((a, b) => ((b.urgent && !b.completed) ? 1 : 0) - ((a.urgent && !a.completed) ? 1 : 0)).forEach(quest => {
         const isDaily = quest.type === 'daily' || !quest.type;
         const activeFilter = isDaily ? filters.home : filters.quests;
 
@@ -3670,6 +3671,7 @@ function checkDailyReset() {
 // Called immediately by checkDailyReset(), OR later by confirmWelcomeBack()
 // once the player has reviewed missed Dailies.
 function finishDailyReset(today) {
+    const missedUrgent = [];   // urgent Dailies that were due yesterday and are still undone
     // RESET ONLY DAILY QUESTS & TODAY'S XP
     systemState.quests.forEach(q => {
         if (q.type === 'daily' || !q.type) {
@@ -3679,6 +3681,7 @@ function finishDailyReset(today) {
                 if (wasActive) {
                     q.dailyStreak = 0;
                     q.lastStreakDate = null;
+                    if (q.urgent) missedUrgent.push(q.title || 'Untitled');
                 }
             }
             q.completed = false;
@@ -3687,6 +3690,18 @@ function finishDailyReset(today) {
             }
         }
     });
+
+    // --- URGENT PENALTY: each urgent Daily left undone costs 20% of the XP needed for the current level ---
+    if (missedUrgent.length > 0) {
+        const perTask = Math.max(1, Math.round(getXpForLevel(Math.max(1, systemState.level || 1)) * 0.2));
+        const lost = Math.min(systemState.totalXp || 0, perTask * missedUrgent.length);
+        systemState.totalXp = (systemState.totalXp || 0) - lost;
+        const names = missedUrgent.map(t => '- ' + String(t).replace(/</g, '&lt;')).join('\n');
+        queuePopup('penalty', (done) => {
+            try { updateStats(); } catch (e) {}
+            sysAlert(`You left ${missedUrgent.length} urgent task${missedUrgent.length > 1 ? 's' : ''} undone:\n${names}\n\nPenalty: -${lost} XP`, { title: 'URGENT TASKS MISSED', icon: 'alert', color: 'red' }).then(done);
+        });
+    }
 
     // --- Save yesterday's XP to History before resetting ---
     const yesterdayDate = new Date();
