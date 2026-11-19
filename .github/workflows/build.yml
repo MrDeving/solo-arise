@@ -1834,7 +1834,7 @@ jobs:
                       android:autoStart="true" android:flipInterval="1000" android:visibility="gone">
                       <ImageView android:id="@+id/row_pulse_a" android:layout_width="match_parent" android:layout_height="match_parent"
                           android:scaleType="fitXY" android:src="@drawable/widget_pulse_obs"/>
-                      <View android:layout_width="match_parent" android:layout_height="match_parent"/>
+                      <ImageView android:layout_width="match_parent" android:layout_height="match_parent"/>
                   </ViewFlipper>
               </FrameLayout>
           </LinearLayout>""".replace("@CL@", cl).replace("@FR@", fr))
