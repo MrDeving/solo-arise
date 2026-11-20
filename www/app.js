@@ -3281,8 +3281,10 @@ function syncTaskWidgets() {
         const clOf = q => (q.checklist || []).slice(0, 10).map(i => [String(i.text || i.title || i.name || '').slice(0, 80), i.done ? 1 : 0]);
         const now = new Date();
         const dailies = systemState.quests
-            .filter(q => q.type === 'daily' || !q.type)
-            .filter(q => isQuestActiveOnDate(q, now));
+            .filter(q => q.type === 'daily' || !q.type);
+        // every daily is sent with a 31-day "is it due" strip, so the widget can pick the right list on a new day without the app
+        const baseDay = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+        const maskOf = q => { let s = ''; for (let k = 0; k < 31; k++) s += isQuestActiveOnDate(q, new Date(now.getFullYear(), now.getMonth(), now.getDate() + k, 12)) ? '1' : '0'; return s; };
         const quests = systemState.quests.filter(q => q.type && q.type !== 'daily' && !q.completed);
         // The app's "day" starts at the reset time (not always midnight); the widget needs it to know when a streak claim expires
         const { h: _rh, m: _rm } = getResetTime();
@@ -3291,12 +3293,14 @@ function syncTaskWidgets() {
         const logicalDay = _ld.getFullYear() + '-' + _p2(_ld.getMonth() + 1) + '-' + _p2(_ld.getDate());
         const claimedNow = systemState.streakIncrementedToday === true;
         const payload = JSON.stringify({
-            dailies: dailies.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, cl: clOf(q) })),
+            dailies: dailies.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: q.completed ? 1 : 0, c: colorOf(q), u: q.urgent ? 1 : 0, s: q.dailyStreak || 0, cl: clOf(q), a: maskOf(q) })),
             quests:  quests.map(q => ({ i: String(q.id), t: q.title, n: noteOf(q), d: 0, c: colorOf(q), u: q.urgent ? 1 : 0, cl: clOf(q) })),
             streak:  systemState.streak || 0,
             th:      (typeof window.getWidgetThemes === 'function' ? window.getWidgetThemes() : {}),
             claimed: claimedNow,
             claimedDay: claimedNow ? logicalDay : '',
+            day: logicalDay,
+            base: baseDay,
             resetMin: _rh * 60 + _rm
         });
         if (payload === _lastWidgetPayload) return;      // nothing changed, skip

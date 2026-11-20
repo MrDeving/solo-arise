@@ -1035,9 +1035,55 @@ jobs:
                   } catch (Throwable ignored) {}
               }
 
+              // New app day while the app is closed: un-check every daily and its checklist, and remember the new day
+              private static void roll(Context ctx, JSONObject o) {
+                  try {
+                      String day = o.optString("day", "");
+                      if (day.length() == 0) return;
+                      String now = logicalDay(o.optInt("resetMin", 0));
+                      if (day.equals(now)) return;
+                      JSONArray a = o.optJSONArray("dailies");
+                      if (a != null) for (int i = 0; i < a.length(); i++) {
+                          JSONObject it = a.optJSONObject(i);
+                          if (it == null) continue;
+                          it.put("d", 0);
+                          JSONArray cl = it.optJSONArray("cl");
+                          if (cl != null) for (int j = 0; j < cl.length(); j++) { JSONArray pr = cl.optJSONArray(j); if (pr != null && pr.length() > 1) pr.put(1, 0); }
+                      }
+                      o.put("day", now);
+                      ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE).edit().putString("tasks", o.toString()).apply();
+                  } catch (Throwable ignored) {}
+              }
+
+              // days between the day the app last synced and today (real calendar days, same as the app's schedule check)
+              private static int dayOffset(String base) {
+                  try {
+                      String[] p = base.split("-");
+                      java.util.Calendar b = java.util.Calendar.getInstance();
+                      b.set(Integer.parseInt(p[0]), Integer.parseInt(p[1]) - 1, Integer.parseInt(p[2]), 12, 0, 0);
+                      java.util.Calendar n = java.util.Calendar.getInstance();
+                      n.set(java.util.Calendar.HOUR_OF_DAY, 12); n.set(java.util.Calendar.MINUTE, 0); n.set(java.util.Calendar.SECOND, 0);
+                      long diff = Math.round((n.getTimeInMillis() - b.getTimeInMillis()) / 86400000.0);
+                      return diff < 0 ? 0 : (int) diff;
+                  } catch (Throwable e) { return -1; }
+              }
+
               static JSONArray list(Context ctx, String kind) {
-                  JSONArray a = load(ctx).optJSONArray(kind);
-                  return a == null ? new JSONArray() : a;
+                  JSONObject o = load(ctx);
+                  JSONArray a = o.optJSONArray(kind);
+                  if (a == null) return new JSONArray();
+                  if (!"dailies".equals(kind)) return a;
+                  int off = dayOffset(o.optString("base", ""));
+                  if (off < 0) return a;
+                  JSONArray r = new JSONArray();
+                  for (int i = 0; i < a.length(); i++) {
+                      JSONObject it = a.optJSONObject(i);
+                      if (it == null) continue;
+                      String m = it.optString("a", "");
+                      if (m.length() > off && m.charAt(off) == '0') continue;   // not due today
+                      r.put(it);
+                  }
+                  return r;
               }
           }
           WEOF
@@ -1378,6 +1424,7 @@ jobs:
                       AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
                       int[] ids = mgr.getAppWidgetIds(new ComponentName(ctx, StreakWidget.class));
                       for (int id : ids) safeRender(ctx, mgr, id);
+                      TasksWidgetBase.refreshAll(ctx);   // Dailies/Quests flip to the new day too
                       return;
                   }
                   super.onReceive(ctx, intent);
@@ -1933,9 +1980,15 @@ jobs:
           w("drawable/widget_hole.xml", """
           <shape @NS@ android:shape="oval"><solid android:color="#FF0D121C"/></shape>""")
           for tk, rr in (("obs", 14), ("frost", 20)):
+              w("drawable/widget_row_%s_urgentdim.xml" % tk, """
+          <shape @NS@ android:shape="rectangle">
+              <gradient android:angle="315" android:startColor="#26FF4D4D" android:endColor="#0AFFFFFF"/>
+              <stroke android:width="1dp" android:color="#29FF4D4D"/>
+              <corners android:radius="@R@dp"/>
+          </shape>""".replace("@R@", str(rr)))
               w("drawable/widget_pulse_%s.xml" % tk, """
           <shape @NS@ android:shape="rectangle">
-              <stroke android:width="3dp" android:color="#A6FF4D4D"/>
+              <stroke android:width="3dp" android:color="#FFFF3B3B"/>
               <corners android:radius="@R@dp"/>
           </shape>""".replace("@R@", str(rr)))
           w("drawable/widget_disc.xml", """
@@ -2079,7 +2132,8 @@ jobs:
                           rv.setInt(R.id.row_ring, "setColorFilter", color | 0xFF000000);
                           rv.setInt(R.id.row_ring, "setImageAlpha", done ? 170 : 255);
                       } catch (Throwable ignored) {}
-                      try { rv.setInt(R.id.row_card, "setBackgroundResource", fr ? (done ? R.drawable.widget_row_frost_done : (urgent ? R.drawable.widget_row_frost_urgent : R.drawable.widget_row_frost_bg)) : (done ? R.drawable.widget_row_obs_done : (urgent ? R.drawable.widget_row_obs_urgent : R.drawable.widget_row_obs_bg))); } catch (Throwable ignored) {}
+                      boolean ua = urgent && WidgetData.anim(ctx);
+                      try { rv.setInt(R.id.row_card, "setBackgroundResource", fr ? (done ? R.drawable.widget_row_frost_done : (urgent ? (ua ? R.drawable.widget_row_frost_urgentdim : R.drawable.widget_row_frost_urgent) : R.drawable.widget_row_frost_bg)) : (done ? R.drawable.widget_row_obs_done : (urgent ? (ua ? R.drawable.widget_row_obs_urgentdim : R.drawable.widget_row_obs_urgent) : R.drawable.widget_row_obs_bg))); } catch (Throwable ignored) {}
 
                       // checklist dropdown (first 10 items)
                       try {
@@ -2104,8 +2158,11 @@ jobs:
 
                   @Override public RemoteViews getLoadingView() { return null; }
                   @Override public int getViewTypeCount() { return 1; }
-                  @Override public long getItemId(int position) { return position; }
-                  @Override public boolean hasStableIds() { return false; }
+                  @Override public long getItemId(int position) {
+                      JSONObject o = items.optJSONObject(position);
+                      return o == null ? position : (kind + ":" + o.optString("i", "")).hashCode();
+                  }
+                  @Override public boolean hasStableIds() { return true; }
               }
           }
           WEOF
@@ -2609,7 +2666,7 @@ jobs:
               static JSONObject loadData(Context ctx) {
                   try {
                       String raw = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE).getString("widget_data", null);
-                      if (raw != null) return new JSONObject(raw);
+                      if (raw != null) { JSONObject o = new JSONObject(raw); roll(ctx, o); return o; }
                   } catch (Throwable ignored) {}
                   return new JSONObject();
               }
