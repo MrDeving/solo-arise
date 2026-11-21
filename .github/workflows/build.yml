@@ -2480,6 +2480,7 @@ jobs:
                   v.setInt(R.id.w_root, "setBackgroundResource", fr ? R.drawable.widget_card_frost : R.drawable.widget_card_obs);
                   v.setInt(R.id.w_count, "setBackgroundResource", fr ? R.drawable.widget_pill_frost : R.drawable.widget_pill_obs);
                   int dim = fr ? 0xB3FFFFFF : 0xFF8B9BB0;
+                  v.setInt(R.id.w_root, "setBackgroundColor", 0xFFFF0000);
                   v.setTextColor(R.id.w_tab_d, dl ? 0xFF38BDF8 : dim);
                   v.setTextColor(R.id.w_tab_q, dl ? dim : 0xFFFBBF24);
                   v.setInt(R.id.w_tab_d, "setBackgroundResource", dl ? R.drawable.widget_tab_on : R.drawable.widget_tab_off);
