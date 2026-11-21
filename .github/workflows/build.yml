@@ -1275,10 +1275,6 @@ jobs:
                   v.setTextViewText(R.id.w_empty, emptyText());
                   v.setTextColor(R.id.w_count, countColor);
 
-                                    // tighter spacing so more tasks fit in the same frame
-                  float dn = ctx.getResources().getDisplayMetrics().density;
-                  v.setViewPadding(R.id.w_root, (int) (12 * dn), (int) (9 * dn), (int) (12 * dn), (int) (8 * dn));
-                  v.setViewPadding(R.id.w_top, 0, 0, 0, (int) (6 * dn));
                   PendingIntent open = actionIntent(ctx, "open", kind(), false);
                   v.setOnClickPendingIntent(R.id.w_header, open);
                   v.setOnClickPendingIntent(R.id.w_empty, open);
@@ -1810,7 +1806,7 @@ jobs:
           w("layout/widget_task_row.xml", """
           <LinearLayout @NS@
               android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:orientation="vertical" android:paddingBottom="4dp">
+              android:orientation="vertical" android:paddingBottom="7dp">
               <FrameLayout android:layout_width="match_parent" android:layout_height="wrap_content">
                   <LinearLayout android:id="@+id/row_card"
                       android:layout_width="match_parent" android:layout_height="wrap_content"
@@ -1836,8 +1832,8 @@ jobs:
                           </FrameLayout>
                           <LinearLayout
                               android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
-                              android:orientation="vertical" android:gravity="center_vertical" android:minHeight="34dp"
-                              android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="6dp" android:paddingBottom="6dp">
+                              android:orientation="vertical" android:gravity="center_vertical" android:minHeight="44dp"
+                              android:paddingStart="8dp" android:paddingEnd="8dp" android:paddingTop="10dp" android:paddingBottom="10dp">
                               <TextView android:id="@+id/row_title"
                                   android:layout_width="match_parent" android:layout_height="wrap_content"
                                   android:maxLines="2" android:ellipsize="end"
@@ -2494,10 +2490,6 @@ jobs:
                   v.setTextColor(R.id.w_count, countColor);
 
                   PendingIntent open = TasksWidgetBase.actionIntent(ctx, "open", kind, false);
-                  // tighter spacing so more tasks fit in the same frame
-                  float dn = ctx.getResources().getDisplayMetrics().density;
-                  v.setViewPadding(R.id.w_root, (int) (12 * dn), (int) (9 * dn), (int) (12 * dn), (int) (8 * dn));
-                  v.setViewPadding(R.id.w_top, 0, 0, 0, (int) (6 * dn));
                   v.setOnClickPendingIntent(R.id.w_count, open);
                   v.setOnClickPendingIntent(R.id.w_empty, open);
 
