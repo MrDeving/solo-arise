@@ -1347,7 +1347,7 @@ jobs:
               static void refreshAll(Context ctx) {
                   try {
                       AppWidgetManager m = AppWidgetManager.getInstance(ctx);
-                      Class<?>[] cs = { DailiesWidget.class, QuestsWidget.class };
+                      Class<?>[] cs = { DailiesWidget.class, QuestsWidget.class, DualTasksWidget.class };
                       for (Class<?> c : cs) {
                           int[] ids = m.getAppWidgetIds(new android.content.ComponentName(ctx, c));
                           if (ids == null || ids.length == 0) continue;
@@ -2023,6 +2023,10 @@ jobs:
                   private static final int[] CL  = { R.id.cl0, R.id.cl1, R.id.cl2, R.id.cl3, R.id.cl4, R.id.cl5, R.id.cl6, R.id.cl7, R.id.cl8, R.id.cl9 };
                   private static final int[] CLC = { R.id.cl0c, R.id.cl1c, R.id.cl2c, R.id.cl3c, R.id.cl4c, R.id.cl5c, R.id.cl6c, R.id.cl7c, R.id.cl8c, R.id.cl9c };
                   private static final int[] CLT = { R.id.cl0t, R.id.cl1t, R.id.cl2t, R.id.cl3t, R.id.cl4t, R.id.cl5t, R.id.cl6t, R.id.cl7t, R.id.cl8t, R.id.cl9t };
+                                    // theme key: the single widgets use their own kind; the dual widget passes "dd" / "dq"
+                  private String tkey = null;
+                  Factory(Context c, String k, String t) { this(c, k); tkey = t; }
+                  private String tk() { return tkey == null ? kind : tkey; }
 
                   private final Context ctx;
                   private final String kind;
@@ -2108,7 +2112,7 @@ jobs:
                       try {
                           rv.setViewVisibility(R.id.row_note, note.length() > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_note, note);
-                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : (WidgetData.frost(ctx, kind) ? 0xB3FFFFFF : 0xFF8B9BB0));
+                          rv.setTextColor(R.id.row_note, done ? 0x66B9C8DA : (WidgetData.frost(ctx, tk()) ? 0xB3FFFFFF : 0xFF8B9BB0));
                       } catch (Throwable ignored) {}
                       try { rv.setViewVisibility(R.id.row_urgent, urgent ? View.VISIBLE : View.GONE); } catch (Throwable ignored) {}
                       try {
@@ -2121,7 +2125,7 @@ jobs:
                           rv.setViewVisibility(R.id.row_streak, streak > 0 ? View.VISIBLE : View.GONE);
                           rv.setTextViewText(R.id.row_streak_n, String.valueOf(streak));
                       } catch (Throwable ignored) {}
-                      boolean fr = WidgetData.frost(ctx, kind);
+                      boolean fr = WidgetData.frost(ctx, tk());
                       try { rv.setInt(R.id.row_bar, "setColorFilter", color | 0xFF000000); rv.setInt(R.id.row_bar, "setImageAlpha", done ? 90 : 255); } catch (Throwable ignored) {}
                       try {
                           rv.setImageViewResource(R.id.row_ring, (done || !fr) ? R.drawable.widget_disc : R.drawable.widget_ring_tint);
@@ -2253,7 +2257,263 @@ jobs:
               }
           }
           WEOF
+      - name: Create dual widget (Dailies + Quests tabs in one widget)
+        run: |
+          cat > android/app/src/main/res/drawable/widget_tab_on.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#26FFFFFF"/>
+              <stroke android:width="1dp" android:color="#38FFFFFF"/>
+              <corners android:radius="30dp"/>
+          </shape>
+          WEOF
 
+          cat > android/app/src/main/res/drawable/widget_tab_off.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+              <solid android:color="#00FFFFFF"/>
+              <corners android:radius="30dp"/>
+          </shape>
+          WEOF
+
+          cat > android/app/src/main/res/xml/widget_dual_info.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+              android:minWidth="180dp" android:minHeight="180dp"
+              android:minResizeWidth="70dp" android:minResizeHeight="70dp"
+              android:targetCellWidth="3" android:targetCellHeight="3"
+              android:updatePeriodMillis="1800000"
+              android:initialLayout="@layout/widget_loading"
+              android:resizeMode="horizontal|vertical"
+              android:widgetCategory="home_screen"/>
+          WEOF
+
+          cat > android/app/src/main/res/layout/widget_tasks_dual.xml << 'WEOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              android:id="@+id/w_root"
+              android:layout_width="match_parent" android:layout_height="match_parent"
+              android:orientation="vertical"
+              android:paddingTop="14dp" android:paddingStart="12dp" android:paddingEnd="12dp" android:paddingBottom="12dp"
+              android:background="@drawable/widget_card_obs">
+              <LinearLayout android:id="@+id/w_top"
+                  android:layout_width="match_parent" android:layout_height="wrap_content"
+                  android:orientation="vertical" android:paddingBottom="10dp">
+                  <LinearLayout android:id="@+id/w_header"
+                      android:layout_width="match_parent" android:layout_height="wrap_content"
+                      android:orientation="horizontal" android:gravity="center_vertical"
+                      android:paddingStart="0dp" android:paddingEnd="4dp">
+                      <LinearLayout
+                          android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                          android:orientation="horizontal" android:gravity="center_vertical">
+                          <TextView android:id="@+id/w_tab_d"
+                              android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                              android:text="DAILIES" android:textSize="12sp" android:textStyle="bold" android:letterSpacing="0.12"
+                              android:maxLines="1" android:fontFamily="@font/rajdhani"
+                              android:background="@drawable/widget_tab_on" android:textColor="#38BDF8"/>
+                          <TextView android:id="@+id/w_tab_q"
+                              android:layout_width="wrap_content" android:layout_height="wrap_content"
+                              android:layout_marginStart="4dp"
+                              android:paddingStart="10dp" android:paddingEnd="10dp" android:paddingTop="4dp" android:paddingBottom="4dp"
+                              android:text="QUESTS" android:textSize="12sp" android:textStyle="bold" android:letterSpacing="0.12"
+                              android:maxLines="1" android:fontFamily="@font/rajdhani"
+                              android:background="@drawable/widget_tab_off" android:textColor="#8B9BB0"/>
+                      </LinearLayout>
+                      <TextView android:id="@+id/w_count"
+                          android:layout_width="wrap_content" android:layout_height="wrap_content"
+                          android:layout_marginStart="8dp" android:background="@drawable/widget_pill_obs"
+                          android:paddingStart="11dp" android:paddingEnd="11dp" android:paddingTop="3dp" android:paddingBottom="3dp"
+                          android:maxLines="1" android:textSize="12sp" android:textStyle="bold" android:letterSpacing="0.08"
+                          android:fontFamily="@font/rajdhani" android:textColor="#F1F7FB"/>
+                  </LinearLayout>
+                  <ProgressBar android:id="@+id/w_bar" style="?android:attr/progressBarStyleHorizontal"
+                      android:layout_width="match_parent" android:layout_height="4dp"
+                      android:layout_marginTop="10dp" android:layout_marginStart="4dp" android:layout_marginEnd="4dp"
+                      android:minHeight="4dp" android:maxHeight="4dp" android:max="100" android:progress="0"
+                      android:indeterminate="false" android:progressDrawable="@drawable/widget_bar_dailies"/>
+              </LinearLayout>
+              <FrameLayout android:layout_width="match_parent" android:layout_height="0dp" android:layout_weight="1">
+                  <ListView android:id="@+id/w_list"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:divider="@null" android:dividerHeight="0dp"
+                      android:listSelector="@android:color/transparent" android:cacheColorHint="@android:color/transparent"
+                      android:clipToPadding="false" android:paddingTop="2dp" android:paddingBottom="4dp" android:paddingEnd="4dp" android:overScrollMode="never"
+                      android:scrollbars="vertical" android:fadeScrollbars="false" android:scrollbarSize="3dp"
+                      android:scrollbarStyle="outsideOverlay" android:scrollbarThumbVertical="@drawable/widget_thumb_dailies"/>
+                  <TextView android:id="@+id/w_empty"
+                      android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:gravity="center" android:textSize="13sp" android:textStyle="bold"
+                      android:letterSpacing="0.14" android:fontFamily="@font/rajdhani" android:textColor="#64748B"
+                      android:visibility="gone"/>
+              </FrameLayout>
+          </LinearLayout>
+          WEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/DualTasksWidget.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.app.PendingIntent;
+          import android.appwidget.AppWidgetManager;
+          import android.appwidget.AppWidgetProvider;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.View;
+          import android.widget.RemoteViews;
+          import com.hunter.arisesolo.R;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // ONE widget with a Dailies tab and a Quests tab. Same rows, taps and resizing as the two separate widgets.
+          // Its own themes are stored under "dd" (Dailies tab) and "dq" (Quests tab).
+          public class DualTasksWidget extends AppWidgetProvider {
+              static final String ACTION_TAB = "com.hunter.arisesolo.widget.DUAL_TAB";
+
+              private static SharedPreferences prefs(Context ctx) {
+                  return ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
+              }
+
+              static String tabOf(Context ctx, int id) {
+                  try { return "quests".equals(prefs(ctx).getString("dualtab_" + id, "dailies")) ? "quests" : "dailies"; }
+                  catch (Throwable t) { return "dailies"; }
+              }
+
+              @Override
+              public void onUpdate(Context ctx, AppWidgetManager mgr, int[] ids) {
+                  for (int id : ids) safeRender(ctx, mgr, id);
+              }
+
+              @Override
+              public void onAppWidgetOptionsChanged(Context ctx, AppWidgetManager mgr, int id, Bundle newOptions) {
+                  safeRender(ctx, mgr, id);
+              }
+
+              @Override
+              public void onDeleted(Context ctx, int[] ids) {
+                  try {
+                      SharedPreferences.Editor e = prefs(ctx).edit();
+                      for (int id : ids) e.remove("dualtab_" + id);
+                      e.apply();
+                  } catch (Throwable ignored) {}
+              }
+
+              @Override
+              public void onReceive(Context ctx, Intent intent) {
+                  super.onReceive(ctx, intent);
+                  if (intent != null && ACTION_TAB.equals(intent.getAction())) {
+                      int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, -1);
+                      String tab = intent.getStringExtra("tab");
+                      if (id != -1 && tab != null) {
+                          try { prefs(ctx).edit().putString("dualtab_" + id, tab).apply(); } catch (Throwable ignored) {}
+                          safeRender(ctx, AppWidgetManager.getInstance(ctx), id);
+                      }
+                  }
+              }
+
+              private void safeRender(Context ctx, AppWidgetManager mgr, int id) {
+                  try {
+                      render(ctx, mgr, id);
+                  } catch (Throwable t) {
+                      try { mgr.updateAppWidget(id, WidgetData.errorViews(ctx, t)); } catch (Throwable ignored) {}
+                  }
+              }
+
+              private static PendingIntent tabIntent(Context ctx, int id, String tab) {
+                  Intent i = new Intent(ctx, DualTasksWidget.class).setAction(ACTION_TAB);
+                  i.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+                  i.putExtra("tab", tab);
+                  i.setData(Uri.parse("arise://dualtab/" + id + "/" + tab));
+                  int flags = PendingIntent.FLAG_UPDATE_CURRENT;
+                  if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
+                  return PendingIntent.getBroadcast(ctx, id * 10 + ("quests".equals(tab) ? 2 : 1), i, flags);
+              }
+
+              private void render(Context ctx, AppWidgetManager mgr, int id) {
+                  String kind = tabOf(ctx, id);
+                  boolean dl = "dailies".equals(kind);
+                  String tk = dl ? "dd" : "dq";
+                  RemoteViews v = new RemoteViews(ctx.getPackageName(), R.layout.widget_tasks_dual);
+
+                  JSONArray items = WidgetData.list(ctx, kind);
+                  int total = 0, done = 0;
+                  for (int i = 0; i < items.length(); i++) {
+                      JSONObject o = items.optJSONObject(i);
+                      if (o == null) continue;
+                      total++;
+                      if (o.optInt("d", 0) == 1) done++;
+                  }
+                  String count = "";
+                  int countColor = 0xFF9FB3C8;
+                  if (total > 0) {
+                      if (dl) {
+                          if (done == total) { count = "ALL DONE"; countColor = 0xFF34D399; }
+                          else count = done + "/" + total;
+                      } else {
+                          count = String.valueOf(total);
+                      }
+                  }
+
+                  boolean fr = WidgetData.frost(ctx, tk);
+                  v.setInt(R.id.w_root, "setBackgroundResource", fr ? R.drawable.widget_card_frost : R.drawable.widget_card_obs);
+                  v.setInt(R.id.w_count, "setBackgroundResource", fr ? R.drawable.widget_pill_frost : R.drawable.widget_pill_obs);
+                  int dim = fr ? 0xB3FFFFFF : 0xFF8B9BB0;
+                  v.setTextColor(R.id.w_tab_d, dl ? 0xFF38BDF8 : dim);
+                  v.setTextColor(R.id.w_tab_q, dl ? dim : 0xFFFBBF24);
+                  v.setInt(R.id.w_tab_d, "setBackgroundResource", dl ? R.drawable.widget_tab_on : R.drawable.widget_tab_off);
+                  v.setInt(R.id.w_tab_q, "setBackgroundResource", dl ? R.drawable.widget_tab_off : R.drawable.widget_tab_on);
+                  v.setOnClickPendingIntent(R.id.w_tab_d, tabIntent(ctx, id, "dailies"));
+                  v.setOnClickPendingIntent(R.id.w_tab_q, tabIntent(ctx, id, "quests"));
+                  v.setTextViewText(R.id.w_empty, dl ? "NOTHING DUE TODAY" : "NO ACTIVE QUESTS");
+                  v.setTextColor(R.id.w_count, countColor);
+
+                  PendingIntent open = TasksWidgetBase.actionIntent(ctx, "open", kind, false);
+                  v.setOnClickPendingIntent(R.id.w_count, open);
+                  v.setOnClickPendingIntent(R.id.w_empty, open);
+
+                  // the header always stays (it holds the tabs); only the progress bar hides when the widget is very short
+                  Bundle o = mgr.getAppWidgetOptions(id);
+                  int h = (o == null) ? 0 : o.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0);
+                  boolean bar = dl && total > 0 && !(h > 0 && h < 90);
+                  v.setViewVisibility(R.id.w_bar, bar ? View.VISIBLE : View.GONE);
+                  if (bar) v.setProgressBar(R.id.w_bar, 100, Math.round(done * 100f / total), false);
+
+                  // same scrollable rows as the single widgets; "tk" tells the rows which theme to use
+                  Intent svc = new Intent(ctx, DualRowsService.class);
+                  svc.putExtra("kind", kind);
+                  svc.putExtra("tk", tk);
+                  svc.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
+                  svc.setData(Uri.parse("arise://dual/" + kind + "/" + id));
+                  v.setRemoteAdapter(R.id.w_list, svc);
+                  v.setEmptyView(R.id.w_list, R.id.w_empty);
+                  v.setPendingIntentTemplate(R.id.w_list, TasksWidgetBase.actionIntent(ctx, "open", kind, true));
+
+                  v.setTextViewText(R.id.w_count, count);
+                  v.setViewVisibility(R.id.w_count, count.length() == 0 ? View.GONE : View.VISIBLE);
+
+                  mgr.updateAppWidget(id, v);
+                  mgr.notifyAppWidgetViewDataChanged(id, R.id.w_list);
+              }
+          }
+          WEOF
+
+          cat > android/app/src/main/java/com/hunter/arisesolo/widget/DualRowsService.java << 'WEOF'
+          package com.hunter.arisesolo.widget;
+
+          import android.content.Intent;
+          import android.widget.RemoteViewsService;
+
+          // Feeds the list of the dual widget: the same rows as the single widgets, themed by the tab ("dd" or "dq").
+          public class DualRowsService extends RemoteViewsService {
+              @Override
+              public RemoteViewsFactory onGetViewFactory(Intent intent) {
+                  return new TaskRowsService.Factory(getApplicationContext(), intent.getStringExtra("kind"), intent.getStringExtra("tk"));
+              }
+          }
+          WEOF
       - name: Register task widgets in AndroidManifest
         run: |
           python3 << 'PYEOF'
@@ -2265,6 +2525,8 @@ jobs:
                       '<meta-data android:name="android.appwidget.provider" android:resource="@xml/%s"/></receiver>\n') % (cls, label, res)
           block = (recv("DailiesWidget", "Arise Dailies", "widget_dailies_info")
                  + recv("QuestsWidget", "Arise Quests", "widget_quests_info")
+                 + recv("DualTasksWidget", "Arise Quests + Dailies", "widget_dual_info")
+                 + '    <service android:name="com.hunter.arisesolo.widget.DualRowsService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'
                  + recv("StreakWidget", "Arise Streak", "widget_streak_info")
                  + '    <service android:name="com.hunter.arisesolo.widget.TasksWidgetService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'
                  + '    <service android:name="com.hunter.arisesolo.widget.TaskRowsService" android:permission="android.permission.BIND_REMOTEVIEWS" android:exported="false"/>\n'

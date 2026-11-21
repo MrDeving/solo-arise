@@ -17,8 +17,8 @@
     /* ---------- widget themes (home-screen widgets: obsidian | frost, one choice per widget) ---------- */
     const WKEY = 'ariseWidgetTheme';
     function getWT() {
-        try { const o = JSON.parse(store.get(WKEY) || '{}'); return { dailies: o.dailies === 'frost' ? 'frost' : 'obsidian', quests: o.quests === 'frost' ? 'frost' : 'obsidian', anim: o.anim !== false }; }
-        catch (e) { return { dailies: 'obsidian', quests: 'obsidian', anim: true }; }
+        try { const o = JSON.parse(store.get(WKEY) || '{}'); return { dailies: o.dailies === 'frost' ? 'frost' : 'obsidian', quests: o.quests === 'frost' ? 'frost' : 'obsidian', dd: o.dd === 'frost' ? 'frost' : 'obsidian', dq: o.dq === 'frost' ? 'frost' : 'obsidian', anim: o.anim !== false }; }
+        catch (e) { return { dailies: 'obsidian', quests: 'obsidian', dd: 'obsidian', dq: 'obsidian', anim: true }; }
     }
     window.getWidgetThemes = getWT;
 
@@ -495,7 +495,8 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
           </div>
           <div class="ts-pane" data-pane="widgets" hidden>
             <div><div class="ts-lbl">DAILIES WIDGET</div>${seg('wd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
-            <div><div class="ts-lbl">QUESTS WIDGET</div>${seg('wq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+                        <div><div class="ts-lbl">DUAL WIDGET · DAILIES TAB</div>${seg('wdd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+            <div><div class="ts-lbl">DUAL WIDGET · QUESTS TAB</div>${seg('wdq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
             <div><div class="ts-lbl">URGENT PULSE ANIMATION</div>${seg('wa', [['on', 'ON'], ['off', 'OFF']])}</div>
             <p class="ts-note">Obsidian is solid and quiet. Frost is frosted glass that lets your wallpaper show through. The change appears on your home screen within a few seconds.</p>
           </div>
@@ -513,7 +514,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         const m = studio.querySelector('[data-seg="mode"]'); const mi = ['dark', 'light', 'amoled', 'auto'].indexOf(S.mode);
         m.style.setProperty('--i', mi); $q('button', m).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === S.mode));
         const wt = getWT();
-        [['wd', 'dailies'], ['wq', 'quests']].forEach(([s, k]) => {
+        [['wd', 'dailies'], ['wq', 'quests'], ['wdd', 'dd'], ['wdq', 'dq']].forEach(([s, k]) => {
             const el = studio.querySelector('[data-seg="' + s + '"]'); if (!el) return;
             el.style.setProperty('--i', wt[k] === 'frost' ? 1 : 0); $q('button', el).forEach(b => b.setAttribute('aria-pressed', b.dataset.v === wt[k]));
         });
@@ -598,11 +599,11 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
                 }
                 pop(c); changed({ ripple: pt }); return;
             }
-            const ws = t.closest('[data-seg="wd"] button, [data-seg="wq"] button, [data-seg="wa"] button');
+            const ws = t.closest('[data-seg="wd"] button, [data-seg="wq"] button, [data-seg="wdd"] button, [data-seg="wdq"] button, [data-seg="wa"] button');
             if (ws) {
                 const sk = ws.closest('.ts-seg').dataset.seg;
                 const w = getWT();
-                if (sk === 'wa') w.anim = ws.dataset.v === 'on'; else w[sk === 'wd' ? 'dailies' : 'quests'] = ws.dataset.v;
+                if (sk === 'wa') w.anim = ws.dataset.v === 'on'; else w[{ wd: 'dailies', wq: 'quests', wdd: 'dd', wdq: 'dq' }[sk]] = ws.dataset.v;
                 store.set(WKEY, JSON.stringify(w)); syncStudio();
                 try { if (typeof syncTaskWidgets === 'function') syncTaskWidgets(); } catch (e) {}
                 return;

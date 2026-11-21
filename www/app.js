@@ -3311,10 +3311,11 @@ function syncTaskWidgets() {
                 try { await P.setRegisteredWidgets({ widgets: [
                     'com.hunter.arisesolo.widget.DailiesWidget',
                     'com.hunter.arisesolo.widget.QuestsWidget',
-                    'com.hunter.arisesolo.widget.StreakWidget'
+                    'com.hunter.arisesolo.widget.StreakWidget',
+                    'com.hunter.arisesolo.widget.DualTasksWidget'
                 ] }); } catch (e) {}
                 await P.setItem({ group: 'AriseWidgets', key: 'tasks', value: payload });
-                ['DailiesWidget', 'QuestsWidget', 'StreakWidget'].forEach(k => {
+                ['DailiesWidget', 'QuestsWidget', 'StreakWidget', 'DualTasksWidget'].forEach(k => {
                     P.reloadTimelines({ ofKind: 'com.hunter.arisesolo.widget.' + k }).catch(() => {});
                 });
             } catch (e) { /* plugin missing (browser) */ }
