@@ -980,7 +980,7 @@ jobs:
                   try {
                       SharedPreferences p = ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
                       String raw = p.getString("tasks", null);
-                      if (raw != null) return new JSONObject(raw);
+                      if (raw != null) { JSONObject o = new JSONObject(raw); roll(ctx, o); return o; }
                   } catch (Exception ignored) {}
                   return new JSONObject();
               }
@@ -2666,7 +2666,7 @@ jobs:
               static JSONObject loadData(Context ctx) {
                   try {
                       String raw = ctx.getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE).getString("widget_data", null);
-                      if (raw != null) { JSONObject o = new JSONObject(raw); roll(ctx, o); return o; }
+                      if (raw != null) return new JSONObject(raw);
                   } catch (Throwable ignored) {}
                   return new JSONObject();
               }
