@@ -3396,12 +3396,28 @@ async function exportData() {
 
     const dataString = JSON.stringify(masterSave, null, 2);
 
+    const d = new Date();
+    const fname = 'arise-solo-backup-' + d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0') + '.json';
     try {
-        await navigator.clipboard.writeText(dataString);
-        _sfx('success');
-        sysAlert("Save data copied to clipboard!\n\nPaste it into any text editor and save as a .json file to keep it safe.", { title: 'EXPORT COMPLETE', icon: 'check', color: 'blue' });
+        const FS = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Filesystem;
+        const SH = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.Share;
+        if (FS && SH && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+            // Android: write the file, then open the system share sheet (Save to Files / Drive / Telegram / email ...)
+            const r = await FS.writeFile({ path: fname, data: dataString, directory: 'CACHE', encoding: 'utf8' });
+            await SH.share({ title: 'Arise Solo save data', text: 'Arise Solo backup', url: r.uri, dialogTitle: 'Save your backup' });
+            _sfx('success');
+        } else {
+            // browser fallback: normal file download
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([dataString], { type: 'application/json' }));
+            a.download = fname;
+            document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+            _sfx('success');
+        }
     } catch (err) {
-        sysAlert("Clipboard access was blocked. Please allow clipboard permissions and try again.", { title: 'COPY FAILED', icon: 'error', color: 'red' });
+        if (/cancel/i.test(String((err && err.message) || err))) return;   // you closed the share sheet
+        sysAlert("Could not create the backup file. " + String((err && err.message) || err), { title: 'EXPORT FAILED', icon: 'error', color: 'red' });
     }
 }
 
