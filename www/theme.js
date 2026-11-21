@@ -495,7 +495,8 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
           </div>
           <div class="ts-pane" data-pane="widgets" hidden>
             <div><div class="ts-lbl">DAILIES WIDGET</div>${seg('wd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
-                        <div><div class="ts-lbl">DUAL WIDGET · DAILIES TAB</div>${seg('wdd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+                        <div><div class="ts-lbl">QUESTS WIDGET</div>${seg('wq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
+            <div><div class="ts-lbl">DUAL WIDGET · DAILIES TAB</div>${seg('wdd', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
             <div><div class="ts-lbl">DUAL WIDGET · QUESTS TAB</div>${seg('wdq', [['obsidian', 'OBSIDIAN'], ['frost', 'FROST']])}</div>
             <div><div class="ts-lbl">URGENT PULSE ANIMATION</div>${seg('wa', [['on', 'ON'], ['off', 'OFF']])}</div>
             <p class="ts-note">Obsidian is solid and quiet. Frost is frosted glass that lets your wallpaper show through. The change appears on your home screen within a few seconds.</p>

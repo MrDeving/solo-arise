@@ -2197,6 +2197,7 @@ jobs:
                   String kind = in.getStringExtra("kind");
                   if (act == null || kind == null) return;
                   if ("open".equals(act)) { openApp(kind); return; }
+                  if ("dualtab".equals(act)) { dualTab(kind, in.getIntExtra("wid", -1)); return; }
 
                   String tid = in.getStringExtra("tid");
                   int j = in.getIntExtra("j", -1);
@@ -2247,6 +2248,20 @@ jobs:
                   TasksWidgetBase.refreshAll(this);
               }
 
+              private void dualTab(String tab, int wid) {
+                  if (wid == -1) return;
+                  android.content.SharedPreferences p = getSharedPreferences("AriseWidgets", MODE_PRIVATE);
+                  long now = System.currentTimeMillis();
+                  long last = p.getLong("duallast_" + wid, 0L);
+                  String lastTab = p.getString("duallasttab_" + wid, "");
+                  if (tab.equals(lastTab) && now - last < 700) {   // quick second tap on the same tab: open the app on that section
+                      p.edit().remove("duallast_" + wid).apply();
+                      openApp(tab);
+                      return;
+                  }
+                  p.edit().putString("dualtab_" + wid, tab).putLong("duallast_" + wid, now).putString("duallasttab_" + wid, tab).apply();
+                  DualTasksWidget.refresh(this, wid);
+              }
               private void openApp(String kind) {
                   String tab = "quests".equals(kind) ? "quests" : ("calendar".equals(kind) ? "analytics" : "home");
                   WidgetData.setOpenTab(this, tab);
@@ -2372,6 +2387,7 @@ jobs:
           // Its own themes are stored under "dd" (Dailies tab) and "dq" (Quests tab).
           public class DualTasksWidget extends AppWidgetProvider {
               static final String ACTION_TAB = "com.hunter.arisesolo.widget.DUAL_TAB";
+              static void refresh(Context ctx, int id) { new DualTasksWidget().safeRender(ctx, AppWidgetManager.getInstance(ctx), id); }
 
               private static SharedPreferences prefs(Context ctx) {
                   return ctx.getSharedPreferences("AriseWidgets", Context.MODE_PRIVATE);
@@ -2423,13 +2439,16 @@ jobs:
               }
 
               private static PendingIntent tabIntent(Context ctx, int id, String tab) {
-                  Intent i = new Intent(ctx, DualTasksWidget.class).setAction(ACTION_TAB);
-                  i.putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, id);
-                  i.putExtra("tab", tab);
+                  // goes through the invisible WidgetActionActivity: one tap switches the tab, a quick second tap on the same tab opens the app there
+                  Intent i = new Intent(ctx, WidgetActionActivity.class);
+                  i.putExtra("act", "dualtab");
+                  i.putExtra("kind", tab);
+                  i.putExtra("wid", id);
                   i.setData(Uri.parse("arise://dualtab/" + id + "/" + tab));
+                  i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                   int flags = PendingIntent.FLAG_UPDATE_CURRENT;
                   if (Build.VERSION.SDK_INT >= 23) flags |= PendingIntent.FLAG_IMMUTABLE;
-                  return PendingIntent.getBroadcast(ctx, id * 10 + ("quests".equals(tab) ? 2 : 1), i, flags);
+                  return PendingIntent.getActivity(ctx, id * 10 + ("quests".equals(tab) ? 2 : 1), i, flags);
               }
 
               private void render(Context ctx, AppWidgetManager mgr, int id) {
