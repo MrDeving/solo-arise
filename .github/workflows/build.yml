@@ -1279,6 +1279,7 @@ jobs:
                   float dn = ctx.getResources().getDisplayMetrics().density;
                   v.setViewPadding(R.id.w_root, (int) (12 * dn), (int) (9 * dn), (int) (12 * dn), (int) (8 * dn));
                   v.setViewPadding(R.id.w_top, 0, 0, 0, (int) (6 * dn));
+                  PendingIntent open = actionIntent(ctx, "open", kind(), false);
                   v.setOnClickPendingIntent(R.id.w_header, open);
                   v.setOnClickPendingIntent(R.id.w_empty, open);
 
