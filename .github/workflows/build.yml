@@ -3602,7 +3602,10 @@ jobs:
                   stopKeyCatcher();
                   try { if (player != null) { player.stop(); player.release(); } } catch (Throwable ignored) {}
                   player = null;
-                  try { if (vibrator != null) vibrator.cancel(); } catch (Throwable ignored) {}
+                  try {
+                      if (vibrator == null) vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                      if (vibrator != null) vibrator.cancel();
+                  } catch (Throwable ignored) {}
                   try {
                       if (audio != null) {
                           if (Build.VERSION.SDK_INT >= 26 && focusReq != null) audio.abandonAudioFocusRequest(focusReq);
@@ -3642,7 +3645,50 @@ jobs:
 
               // Backup for locked / black-screen mode, where the volume key may never reach the media session:
               // if the alarm volume is pushed down while ringing, treat it as "silence" and put the volume back.
+              private final int[] watchStreams = { AudioManager.STREAM_ALARM, AudioManager.STREAM_RING, AudioManager.STREAM_MUSIC, AudioManager.STREAM_NOTIFICATION, AudioManager.STREAM_SYSTEM };
+              private final int[] watchVol = new int[5];
+              private int watchRinger = AudioManager.RINGER_MODE_NORMAL;
+
+              // Volume-down on the lock screen / in silent or vibrate mode usually changes the RING volume or the ringer mode,
+              // not the alarm stream. So watch every stream plus the ringer mode, and treat any drop as "silence".
               private void startVolumeWatcher() {
+                  try {
+                      stopVolumeWatcher();
+                      final AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
+                      for (int i = 0; i < watchStreams.length; i++) watchVol[i] = am.getStreamVolume(watchStreams[i]);
+                      watchRinger = am.getRingerMode();
+                      volPoll = new Runnable() {
+                          @Override public void run() {
+                              if (!active) return;
+                              try {
+                                  int rm = am.getRingerMode();
+                                  boolean pressed = rm < watchRinger;
+                                  boolean[] dropped = new boolean[watchStreams.length];
+                                  for (int i = 0; i < watchStreams.length; i++) {
+                                      int v = am.getStreamVolume(watchStreams[i]);
+                                      if (v < watchVol[i]) { pressed = true; dropped[i] = true; }
+                                      else watchVol[i] = v;
+                                  }
+                                  if (pressed) {
+                                      if (rm == watchRinger) {
+                                          for (int i = 0; i < watchStreams.length; i++) {
+                                              if (dropped[i]) { try { am.setStreamVolume(watchStreams[i], watchVol[i], 0); } catch (Throwable ignored) {} }
+                                          }
+                                      }
+                                      silence();
+                                      return;
+                                  }
+                                  watchRinger = rm;
+                              } catch (Throwable ignored) {}
+                              handler.postDelayed(this, 100);
+                          }
+                      };
+                      handler.postDelayed(volPoll, 300);
+                  } catch (Throwable ignored) {}
+              }
+
+              @SuppressWarnings("unused")
+              private void startVolumeWatcherLegacy() {
                   try {
                       stopVolumeWatcher();
                       final AudioManager am = (AudioManager) getSystemService(AUDIO_SERVICE);
