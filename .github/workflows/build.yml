@@ -3424,6 +3424,7 @@ jobs:
               static final String ACTION_STOP = "com.hunter.arisesolo.ALARM_STOP";
               static final String ACTION_SNOOZE = "com.hunter.arisesolo.ALARM_SNOOZE";
               static final String ACTION_COMPLETE = "com.hunter.arisesolo.ALARM_COMPLETE";
+              static final String ACTION_SILENCE = "com.hunter.arisesolo.ALARM_SILENCE";
               static final String BROADCAST_STOPPED = "com.hunter.arisesolo.ALARM_STOPPED";
               static final String CHANNEL = "arise_alarm";
               static final int NOTIF_ID = 7421;
@@ -3433,6 +3434,8 @@ jobs:
               private MediaPlayer player;
               private Vibrator vibrator;
               private PowerManager.WakeLock wl;
+              private android.media.session.MediaSession keySession;
+              private boolean active = false;
               private AudioManager audio;
               private AudioFocusRequest focusReq;
               private final Handler handler = new Handler(Looper.getMainLooper());
@@ -3455,6 +3458,7 @@ jobs:
               public int onStartCommand(Intent intent, int flags, int startId) {
                   if (intent == null) { stopSelf(); return START_NOT_STICKY; }
                   String act = intent.getAction();
+                  if (ACTION_SILENCE.equals(act)) { silence(); return START_NOT_STICKY; }
                   if (ACTION_STOP.equals(act)) { stopRinging(); return START_NOT_STICKY; }
                   if (ACTION_SNOOZE.equals(act)) { snooze(intent.getIntExtra("minutes", SNOOZE_MIN)); stopRinging(); return START_NOT_STICKY; }
                   if (ACTION_COMPLETE.equals(act)) { complete(); stopRinging(); return START_NOT_STICKY; }
@@ -3518,6 +3522,8 @@ jobs:
                       wl.acquire(RING_MS + 15000L);
                   } catch (Throwable ignored) {}
                   int rm = ringerMode();
+                  active = true;
+                  startKeyCatcher();
                   if (rm == AudioManager.RINGER_MODE_NORMAL) startSound();
                   if (rm != AudioManager.RINGER_MODE_SILENT) startVibration();
                   handler.removeCallbacks(timeout);
@@ -3589,6 +3595,7 @@ jobs:
 
               @SuppressWarnings("deprecation")
               private void releaseMedia() {
+                  stopKeyCatcher();
                   try { if (player != null) { player.stop(); player.release(); } } catch (Throwable ignored) {}
                   player = null;
                   try { if (vibrator != null) vibrator.cancel(); } catch (Throwable ignored) {}
@@ -3600,6 +3607,43 @@ jobs:
                   } catch (Throwable ignored) {}
                   try { if (wl != null && wl.isHeld()) wl.release(); } catch (Throwable ignored) {}
                   wl = null;
+              }
+
+              // Volume-down while ringing: stop the sound and vibration, keep the alarm on screen
+              private void silence() {
+                  if (!active) { stopSelf(); return; }
+                  releaseMedia();
+              }
+
+              // Lets the volume-down button reach us even when the alarm screen is not in front
+              private void startKeyCatcher() {
+                  try {
+                      stopKeyCatcher();
+                      android.media.session.MediaSession ms = new android.media.session.MediaSession(this, "AriseAlarm");
+                      ms.setPlaybackState(new android.media.session.PlaybackState.Builder()
+                          .setState(android.media.session.PlaybackState.STATE_PLAYING, 0, 1f).build());
+                      ms.setPlaybackToRemote(new android.media.VolumeProvider(android.media.VolumeProvider.VOLUME_CONTROL_RELATIVE, 100, 50) {
+                          @Override public void onAdjustVolume(final int direction) {
+                              if (direction < 0) {
+                                  handler.post(new Runnable() {
+                                      @Override public void run() { silence(); }
+                                  });
+                              }
+                          }
+                      });
+                      ms.setActive(true);
+                      keySession = ms;
+                  } catch (Throwable ignored) {}
+              }
+
+              private void stopKeyCatcher() {
+                  try {
+                      if (keySession != null) {
+                          keySession.setActive(false);
+                          keySession.release();
+                      }
+                  } catch (Throwable ignored) {}
+                  keySession = null;
               }
 
               private void snooze(int minutes) {
@@ -3645,6 +3689,7 @@ jobs:
               private void stopRinging() {
                   handler.removeCallbacks(timeout);
                   releaseMedia();
+                  active = false;
                   try { sendBroadcast(new Intent(BROADCAST_STOPPED).setPackage(getPackageName())); } catch (Throwable ignored) {}
                   try { stopForeground(true); } catch (Throwable ignored) {}
                   try { ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(NOTIF_ID); } catch (Throwable ignored) {}
@@ -3879,6 +3924,22 @@ jobs:
 
               private static int withAlpha(int color, int a) {
                   return (color & 0x00FFFFFF) | (a << 24);
+              }
+
+              // Volume-down on the alarm screen = silence (and don't change the system volume)
+              @Override
+              public boolean onKeyDown(int keyCode, android.view.KeyEvent event) {
+                  if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) {
+                      startService(new Intent(this, AlarmService.class).setAction(AlarmService.ACTION_SILENCE));
+                      return true;
+                  }
+                  return super.onKeyDown(keyCode, event);
+              }
+
+              @Override
+              public boolean onKeyUp(int keyCode, android.view.KeyEvent event) {
+                  if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN) return true;
+                  return super.onKeyUp(keyCode, event);
               }
 
               private void blink(View v) {
