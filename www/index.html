@@ -69,6 +69,7 @@
         <!-- HOME VIEW -->
         <div id="view-home" class="view active">
             
+            <div id="next-up-banner" class="next-up-banner" style="display:none;"><span class="next-up-label">NEXT</span><span id="next-up-text" class="next-up-text"></span></div>
             <!-- Daily Quests Header -->
             <div class="section-header">
                 <h3 class="glow-title">DAILY QUESTS</h3>
@@ -380,6 +381,34 @@
                     </div>
                     <div id="rmode-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
                 </div>
+                <!-- Reminder Countdown -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">REMINDER COUNTDOWN</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="rcount-on" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderCountdown(true)">ON</button>
+                        <button id="rcount-off" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderCountdown(false)">OFF</button>
+                    </div>
+                    <div id="rcount-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Next Up Banner -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">NEXT UP BANNER</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="nextup-on" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setNextUp(true)">ON</button>
+                        <button id="nextup-off" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setNextUp(false)">OFF</button>
+                    </div>
+                    <div id="nextup-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Snooze Length -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">SNOOZE LENGTH</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="snz-5" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(5)">5 MIN</button>
+                        <button id="snz-10" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(10)">10 MIN</button>
+                        <button id="snz-15" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(15)">15 MIN</button>
+                    </div>
+                    <div id="snz-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
                 <!-- Alarm Test -->
                 <div class="data-management-card" style="flex-direction:column;gap:10px;">
                     <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">ALARM TEST</div>
@@ -623,6 +652,7 @@
                     <button class="sci-fi-btn outline filter-opt" id="filter-due" onclick="setFilter('due')">DUE</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-scheduled" onclick="setFilter('scheduled')" style="display: none;">SCHEDULED</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-done" onclick="setFilter('done')">DONE</button>
+                    <button class="sci-fi-btn outline" id="sort-soonest-btn" onclick="toggleSortSoonest()">SORT: SOONEST FIRST</button>
                 </div>
             </div>
         </div>
@@ -794,6 +824,7 @@
             </div>
             <div class="notif-body-area"><div class="notif-desc" id="notif-desc">You have unread messages.</div></div>
         </div>
+        <div class="notif-snooze-row"><span class="notif-snooze-label">SNOOZE</span><button class="notif-snooze-btn" onclick="snoozeFromNotification(5)">5M</button><button class="notif-snooze-btn" onclick="snoozeFromNotification(10)">10M</button><button class="notif-snooze-btn" onclick="snoozeFromNotification(15)">15M</button></div>
         <div class="notif-actions"><button class="notif-complete-btn" id="notif-complete-btn" onclick="completeFromNotification()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>COMPLETE</button></div>
     </div>
 

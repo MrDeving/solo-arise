@@ -590,6 +590,8 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
         }
 
         updateReminderCountdowns();
+        checkSnoozes();
+        updateNextUpBanner();
         // --- REMINDER CHECKER ---
         const now = new Date();
         const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -626,7 +628,168 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
 }
 
 // --- REMINDER COUNTDOWN (HH:MM:SS shown on quests that have a reminder) ---
+// ---- Compact countdown text: 1y / 3m / 2w / 5d / 3h / 4:12 ----
+function formatCompactCountdown(s) {
+    s = Math.max(0, Math.round(s));
+    const d = Math.floor(s / 86400);
+    if (d >= 365) return Math.floor(d / 365) + 'y';
+    if (d >= 30) return Math.floor(d / 30) + 'm';
+    if (d >= 7) return Math.floor(d / 7) + 'w';
+    if (d >= 1) return d + 'd';
+    if (s >= 3600) return Math.floor(s / 3600) + 'h';
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function getDueMs(quest) {
+    const isDaily = quest.type === 'daily' || !quest.type;
+    if (isDaily || !quest.dueDate) return null;
+    const p = String(quest.dueDate).split('-').map(Number);
+    const t = new Date(p[0], (p[1] || 1) - 1, p[2] || 1, 23, 59, 59).getTime();
+    return isNaN(t) ? null : t;
+}
+
+// What the countdown (and "soonest" sort) aims at: due date if set, otherwise next reminder
+function getCountdownTargetMs(quest) {
+    const d = getDueMs(quest);
+    return d !== null ? d : getNextReminderTime(quest);
+}
+
+// ---- Snooze ----
+function loadSnoozes() {
+    try { const a = JSON.parse(localStorage.getItem('qSnoozes') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function saveSnoozes(list) {
+    try { localStorage.setItem('qSnoozes', JSON.stringify(list)); } catch (e) {}
+}
+function getActiveSnoozes() {
+    const now = Date.now();
+    return loadSnoozes().filter(s => s && s.at > now);
+}
+function snoozeQuest(id, mins) {
+    const now = Date.now();
+    const list = loadSnoozes().filter(s => s.id != id && s.at > now - 60000);
+    list.push({ id: id, at: now + mins * 60000 });
+    saveSnoozes(list);
+    syncQuestNotificationsDebounced();
+    updateReminderCountdowns();
+    updateNextUpBanner();
+}
+function checkSnoozes() {
+    const list = loadSnoozes();
+    if (!list.length) return;
+    const now = Date.now();
+    const due = list.filter(s => s.at <= now);
+    if (!due.length) return;
+    saveSnoozes(list.filter(s => s.at > now));
+    due.forEach(s => {
+        if (now - s.at > 60000) return; // stale, app was closed
+        const q = (systemState.quests || []).find(x => x.id == s.id);
+        if (q && !q.completed) triggerSystemAlert(q);
+    });
+}
+function getSnoozeMins() {
+    try { const n = parseInt(localStorage.getItem('snoozeMins'), 10); return [5, 10, 15].includes(n) ? n : 10; } catch (e) { return 10; }
+}
+function setSnoozeMins(n) {
+    try { localStorage.setItem('snoozeMins', String(n)); } catch (e) {}
+    updateSnoozeUI();
+}
+function updateSnoozeUI() {
+    const cur = getSnoozeMins();
+    [5, 10, 15].forEach(n => {
+        const b = document.getElementById('snz-' + n);
+        if (b) b.classList.toggle('outline', n !== cur);
+    });
+    const hint = document.getElementById('snz-hint');
+    if (hint) hint.textContent = 'The SNOOZE button on a reminder notification delays it by ' + cur + ' minutes.';
+}
+document.addEventListener('DOMContentLoaded', updateSnoozeUI);
+if (document.readyState !== 'loading') updateSnoozeUI();
+
+function snoozeFromNotification(mins) {
+    if (activeNotificationQuestId !== null && activeNotificationQuestId !== undefined) {
+        snoozeQuest(activeNotificationQuestId, mins);
+    }
+    closeNotification();
+}
+
+// ---- Next up banner ----
+function getNextUpEnabled() {
+    try { return localStorage.getItem('nextUpBanner') !== 'off'; } catch (e) { return true; }
+}
+function updateNextUpUI() {
+    const on = getNextUpEnabled();
+    const onBtn = document.getElementById('nextup-on');
+    const offBtn = document.getElementById('nextup-off');
+    const hint = document.getElementById('nextup-hint');
+    if (onBtn) onBtn.classList.toggle('outline', !on);
+    if (offBtn) offBtn.classList.toggle('outline', on);
+    if (hint) hint.textContent = on
+        ? 'Home shows a banner with your next upcoming reminder.'
+        : 'The Next Up banner is hidden.';
+}
+function setNextUp(on) {
+    try { localStorage.setItem('nextUpBanner', on ? 'on' : 'off'); } catch (e) {}
+    updateNextUpUI();
+    updateNextUpBanner();
+}
+document.addEventListener('DOMContentLoaded', updateNextUpUI);
+if (document.readyState !== 'loading') updateNextUpUI();
+
+function updateNextUpBanner() {
+    const el = document.getElementById('next-up-banner');
+    if (!el) return;
+    if (!getNextUpEnabled()) { el.style.display = 'none'; return; }
+    let best = null, bq = null;
+    (systemState.quests || []).forEach(q => {
+        if (q.completed) return;
+        const t = getNextReminderTime(q);
+        if (t !== null && (best === null || t < best)) { best = t; bq = q; }
+    });
+    if (!bq) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const txt = document.getElementById('next-up-text');
+    if (txt) txt.textContent = bq.title + ' in ' + formatCompactCountdown((best - Date.now()) / 1000);
+}
+
+// ---- Sort by soonest ----
+function getSortSoonest() {
+    try { return localStorage.getItem('sortSoonest') === 'on'; } catch (e) { return false; }
+}
+function updateSortSoonestUI() {
+    const b = document.getElementById('sort-soonest-btn');
+    if (b) b.classList.toggle('outline', !getSortSoonest());
+}
+function toggleSortSoonest() {
+    try { localStorage.setItem('sortSoonest', getSortSoonest() ? 'off' : 'on'); } catch (e) {}
+    updateSortSoonestUI();
+    renderQuests();
+}
+document.addEventListener('DOMContentLoaded', updateSortSoonestUI);
+if (document.readyState !== 'loading') updateSortSoonestUI();
+
+function getRenderOrder() {
+    const urg = q => (q.urgent && !q.completed) ? 1 : 0;
+    const arr = [...systemState.quests].sort((a, b) => urg(b) - urg(a));
+    if (!getSortSoonest()) return arr;
+    const t = q => {
+        if (q.completed) return Infinity;
+        const n = getCountdownTargetMs(q);
+        return n === null ? Infinity : n;
+    };
+    return arr.sort((a, b) => (urg(b) - urg(a)) || (t(a) === t(b) ? 0 : (t(a) < t(b) ? -1 : 1)));
+}
+
+// Next reminder, including any active snooze
 function getNextReminderTime(quest) {
+    let best = _baseNextReminderTime(quest);
+    if (quest && !quest.completed) {
+        const sn = getActiveSnoozes().find(s => s.id == quest.id);
+        if (sn && (best === null || sn.at < best)) best = sn.at;
+    }
+    return best;
+}
+function _baseNextReminderTime(quest) {
     if (!quest.reminders || quest.reminders.length === 0) return null;
     const nowMs = Date.now();
     const isDaily = quest.type === 'daily' || !quest.type;
@@ -654,7 +817,51 @@ function getNextReminderTime(quest) {
     return best;
 }
 
+function getCountdownEnabled() {
+    try { return localStorage.getItem('reminderCountdown') !== 'off'; } catch (e) { return true; }
+}
+
+function updateCountdownToggleUI() {
+    const on = getCountdownEnabled();
+    const onBtn = document.getElementById('rcount-on');
+    const offBtn = document.getElementById('rcount-off');
+    const hint = document.getElementById('rcount-hint');
+    if (onBtn) onBtn.classList.toggle('outline', !on);
+    if (offBtn) offBtn.classList.toggle('outline', on);
+    if (hint) hint.textContent = on
+        ? 'Tasks show a compact countdown (1y, 3m, 2w, 5d, 3h, 4:12) to their due date, or next reminder.'
+        : 'Countdowns are hidden. Reminders still ring as normal.';
+}
+
+function setReminderCountdown(on) {
+    try { localStorage.setItem('reminderCountdown', on ? 'on' : 'off'); } catch (e) {}
+    updateCountdownToggleUI();
+    renderQuests();
+}
+
+document.addEventListener('DOMContentLoaded', updateCountdownToggleUI);
+if (document.readyState !== 'loading') updateCountdownToggleUI();
+
 function getReminderCountdownInfo(quest) {
+    if (!getCountdownEnabled() || !quest || quest.completed) return { text: '', cls: '' };
+    const isDaily = quest.type === 'daily' || !quest.type;
+    const due = getDueMs(quest);
+    if (due !== null) {
+        const ds = Math.round((due - Date.now()) / 1000);
+        if (ds <= 0) return { text: 'OVERDUE', cls: 'rem-urgent' };
+        return { text: formatCompactCountdown(ds), cls: ds < 3600 ? 'rem-urgent' : (ds < 86400 ? 'rem-warn' : '') };
+    }
+    if (!quest.reminders || quest.reminders.length === 0) return { text: '', cls: '' };
+    const next = getNextReminderTime(quest);
+    if (next === null) {
+        if (isDaily) return { text: '', cls: '' };
+        return { text: "TIME'S UP", cls: 'rem-urgent' };
+    }
+    const s = Math.max(0, Math.round((next - Date.now()) / 1000));
+    return { text: formatCompactCountdown(s), cls: s < 60 ? 'rem-urgent' : (s < 3600 ? 'rem-warn' : '') };
+}
+function _oldReminderCountdownInfo(quest) {
+    if (!getCountdownEnabled()) return { text: '', cls: '' };
     if (!quest.reminders || quest.reminders.length === 0 || quest.completed) return { text: '', cls: '' };
     const next = getNextReminderTime(quest);
     if (next === null) {
@@ -762,7 +969,7 @@ function renderQuests() {
     if (mainContainer) mainContainer.innerHTML = '';
 
     // urgent (unfinished) tasks are pinned to the top; everything else keeps its saved order
-    [...systemState.quests].sort((a, b) => ((b.urgent && !b.completed) ? 1 : 0) - ((a.urgent && !a.completed) ? 1 : 0)).forEach(quest => {
+    getRenderOrder().forEach(quest => {
         const isDaily = quest.type === 'daily' || !quest.type;
         const activeFilter = isDaily ? filters.home : filters.quests;
 
@@ -818,7 +1025,7 @@ function renderQuests() {
 
         const hasReminder = quest.reminders && quest.reminders.length > 0;
         const remInfo = getReminderCountdownInfo(quest);
-        const reminderCountdown = (hasReminder && remInfo.text)
+        const reminderCountdown = (remInfo.text)
             ? `<span class="rem-countdown ${remInfo.cls}" data-qid="${quest.id}">${remInfo.text}</span>`
             : '';
         const reminderIcon = hasReminder
@@ -858,7 +1065,7 @@ function renderQuests() {
                     ${clIndicator}
                     ${urgentBadge}
                     ${streak}
-                    ${reminderCountdown}${reminderIcon}
+                    ${reminderCountdown}
                     ${pinIcon}
                 </div>
             </div>
@@ -2563,6 +2770,11 @@ async function requestNotificationPermission() {
                 types:[{
                     id: 'QUEST_ACTIONS',
                     actions:[{
+                        id: 'SNOOZE_QUEST',
+                        title: 'SNOOZE',
+                        foreground: false
+                    },
+                    {
                         id: 'COMPLETE_QUEST',
                         title: 'COMPLETE', 
                         foreground: false 
@@ -2574,6 +2786,11 @@ async function requestNotificationPermission() {
             await Capacitor.Plugins.LocalNotifications.removeAllListeners();
 
             Capacitor.Plugins.LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+                if (notificationAction.actionId === 'SNOOZE_QUEST') {
+                    const sid = notificationAction.notification.extra && notificationAction.notification.extra.questId;
+                    if (sid !== undefined && sid !== null) snoozeQuest(sid, getSnoozeMins());
+                    return;
+                }
                 if (notificationAction.actionId === 'COMPLETE_QUEST') {
                     const questId = notificationAction.notification.extra.questId;
                     if (questId) toggleQuest(questId);
@@ -2752,6 +2969,10 @@ async function syncQuestNotifications() {
             }
         });
 
+        getActiveSnoozes().forEach(sn => {
+            const sq = (systemState.quests || []).find(x => x.id == sn.id);
+            if (sq && !sq.completed) tasks.push({ q: sq, at: new Date(sn.at), body: sq.notes || "Snoozed reminder." });
+        });
         tasks.sort((a, b) => a.at - b.at);
         const list = tasks.slice(0, 400).map((t, i) => ({
             title: t.q.title,
@@ -4382,6 +4603,8 @@ function showNotification(quest) {
     
     // Hide the "COMPLETE" button for system errors and warnings
     const actionsDiv = document.querySelector('.notif-actions');
+    const snzRow = document.querySelector('.notif-snooze-row');
+    if (snzRow) snzRow.style.display = (quest.id === 'error' || quest.id === 'system-warning') ? 'none' : 'flex';
     if (quest.id === 'error' || quest.id === 'system-warning') {
         actionsDiv.style.display = 'none';
     } else {
