@@ -858,6 +858,18 @@ button.sci-fi-btn.filter-opt.active {
     background: rgba(15, 23, 42, 1) !important; /* Solid background so it pops */
     opacity: 1 !important;
 }
+.rem-countdown {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+    line-height: 1;
+}
+.rem-countdown.rem-warn { color: var(--neon-gold); }
+.rem-countdown.rem-urgent { color: var(--neon-red); }
 .quest-streak-badge {
     font-size: 11px;
     font-weight: 700;

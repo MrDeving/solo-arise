@@ -589,6 +589,7 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
             }
         }
 
+        updateReminderCountdowns();
         // --- REMINDER CHECKER ---
         const now = new Date();
         const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -622,6 +623,62 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
             }
         });
     }, 1000);
+}
+
+// --- REMINDER COUNTDOWN (HH:MM:SS shown on quests that have a reminder) ---
+function getNextReminderTime(quest) {
+    if (!quest.reminders || quest.reminders.length === 0) return null;
+    const nowMs = Date.now();
+    const isDaily = quest.type === 'daily' || !quest.type;
+    let best = null;
+    quest.reminders.forEach(rem => {
+        if (!rem) return;
+        if (isDaily) {
+            const parts = String(rem).split(':').map(Number);
+            const hh = parts[0], mm = parts[1];
+            if (isNaN(hh) || isNaN(mm)) return;
+            for (let i = 0; i < 30; i++) {
+                const at = new Date();
+                at.setDate(at.getDate() + i);
+                at.setHours(hh, mm, 0, 0);
+                if (at.getTime() <= nowMs) continue;
+                if (!isQuestActiveOnDate(quest, at)) continue;
+                if (best === null || at.getTime() < best) best = at.getTime();
+                break;
+            }
+        } else {
+            const at = new Date(rem).getTime();
+            if (!isNaN(at) && at > nowMs && (best === null || at < best)) best = at;
+        }
+    });
+    return best;
+}
+
+function getReminderCountdownInfo(quest) {
+    if (!quest.reminders || quest.reminders.length === 0 || quest.completed) return { text: '', cls: '' };
+    const next = getNextReminderTime(quest);
+    if (next === null) {
+        const isDaily = quest.type === 'daily' || !quest.type;
+        if (isDaily) return { text: '', cls: '' };
+        return { text: "TIME'S UP", cls: 'rem-urgent' };
+    }
+    const s = Math.max(0, Math.round((next - Date.now()) / 1000));
+    const pad = n => String(n).padStart(2, '0');
+    const text = pad(Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60);
+    let cls = '';
+    if (s < 60) cls = 'rem-urgent';
+    else if (s < 3600) cls = 'rem-warn';
+    return { text, cls };
+}
+
+function updateReminderCountdowns() {
+    document.querySelectorAll('.rem-countdown').forEach(el => {
+        const q = systemState.quests.find(x => x.id == el.getAttribute('data-qid'));
+        if (!q) return;
+        const info = getReminderCountdownInfo(q);
+        el.textContent = info.text;
+        el.className = 'rem-countdown ' + info.cls;
+    });
 }
 
 // --- NEW HELPER: Checks if a Daily Quest is supposed to happen on a specific date ---
@@ -760,6 +817,10 @@ function renderQuests() {
             : '';
 
         const hasReminder = quest.reminders && quest.reminders.length > 0;
+        const remInfo = getReminderCountdownInfo(quest);
+        const reminderCountdown = (hasReminder && remInfo.text)
+            ? `<span class="rem-countdown ${remInfo.cls}" data-qid="${quest.id}">${remInfo.text}</span>`
+            : '';
         const reminderIcon = hasReminder
             ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.45;flex-shrink:0;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6M22 6l-3-3"/></svg>`
             : '';
@@ -797,7 +858,7 @@ function renderQuests() {
                     ${clIndicator}
                     ${urgentBadge}
                     ${streak}
-                    ${reminderIcon}
+                    ${reminderCountdown}${reminderIcon}
                     ${pinIcon}
                 </div>
             </div>
