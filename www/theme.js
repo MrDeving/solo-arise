@@ -259,6 +259,7 @@ html.theme-swap *, html.theme-swap *::before, html.theme-swap *::after { transit
         document.documentElement.setAttribute('data-tmode', D.mode);
         document.documentElement.style.colorScheme = D.mode === 'light' ? 'light' : 'dark';
         const meta = document.querySelector('meta[name="theme-color"]'); if (meta) meta.setAttribute('content', D.mode === 'light' ? '#f4f6fb' : '#030b16');
+        if (window.syncAlarmTheme) window.syncAlarmTheme();
     }
     function persist() { store.set(KEY, JSON.stringify(S)); }
 

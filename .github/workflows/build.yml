@@ -3322,6 +3322,23 @@ jobs:
                   call.resolve();
               }
 
+              @PluginMethod
+              public void testAlarm(PluginCall call) {
+                  int sec = call.getInt("seconds", 10);
+                  AlarmScheduler.scheduleOne(getContext(), 1899999999, System.currentTimeMillis() + sec * 1000L,
+                      "Test alarm", "This is how your quest alarms will look and sound.", "");
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void setTheme(PluginCall call) {
+                  try {
+                      JSObject d = call.getData();
+                      getContext().getSharedPreferences(AlarmScheduler.PREFS, Context.MODE_PRIVATE).edit().putString("theme", d.toString()).apply();
+                  } catch (Throwable ignored) {}
+                  call.resolve();
+              }
+
               private boolean fullScreenAllowed() {
                   try {
                       if (Build.VERSION.SDK_INT >= 34) {
@@ -3439,7 +3456,7 @@ jobs:
                   if (intent == null) { stopSelf(); return START_NOT_STICKY; }
                   String act = intent.getAction();
                   if (ACTION_STOP.equals(act)) { stopRinging(); return START_NOT_STICKY; }
-                  if (ACTION_SNOOZE.equals(act)) { snooze(); stopRinging(); return START_NOT_STICKY; }
+                  if (ACTION_SNOOZE.equals(act)) { snooze(intent.getIntExtra("minutes", SNOOZE_MIN)); stopRinging(); return START_NOT_STICKY; }
                   if (ACTION_COMPLETE.equals(act)) { complete(); stopRinging(); return START_NOT_STICKY; }
 
                   curId = intent.getIntExtra("id", 0);
@@ -3585,9 +3602,9 @@ jobs:
                   wl = null;
               }
 
-              private void snooze() {
+              private void snooze(int minutes) {
                   AlarmScheduler.scheduleOne(this, 1900000000 + (curId % 1000),
-                      System.currentTimeMillis() + SNOOZE_MIN * 60000L, curTitle, curBody, curQuestId);
+                      System.currentTimeMillis() + minutes * 60000L, curTitle, curBody, curQuestId);
               }
 
               // Same hand-off the home-screen widgets use: the app ticks the quest next time it is visible.
@@ -3733,7 +3750,14 @@ jobs:
                   root.addView(sp);
 
                   if (!questId.isEmpty()) root.addView(makeBtn("Complete", 0xFF34D399, AlarmService.ACTION_COMPLETE));
-                  root.addView(makeBtn("Snooze " + AlarmService.SNOOZE_MIN + " min", 0xFFFBBF24, AlarmService.ACTION_SNOOZE));
+                  LinearLayout snoozeRow = new LinearLayout(this);
+                  snoozeRow.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  rowLp.topMargin = dp(12);
+                  snoozeRow.setLayoutParams(rowLp);
+                  int[] snoozeChoices = {5, 10, 15};
+                  for (int k = 0; k < snoozeChoices.length; k++) snoozeRow.addView(makeSnoozeBtn(snoozeChoices[k], k));
+                  root.addView(snoozeRow);
                   root.addView(makeBtn("Dismiss", 0xFF94A3B8, AlarmService.ACTION_STOP));
 
                   setContentView(root);
@@ -3742,6 +3766,29 @@ jobs:
                       @Override public void onReceive(Context c, Intent i) { finish(); }
                   };
                   ContextCompat.registerReceiver(this, stopped, new IntentFilter(AlarmService.BROADCAST_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED);
+              }
+
+              private Button makeSnoozeBtn(final int minutes, int index) {
+                  Button b = new Button(this);
+                  b.setText(minutes + " MIN");
+                  b.setTextColor(0xFFFBBF24);
+                  b.setTextSize(16);
+                  b.setAllCaps(true);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(0x14FBBF24);
+                  g.setCornerRadius(dp(14));
+                  g.setStroke(dp(1), 0x73FBBF24);
+                  b.setBackground(g);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, dp(52), 1f);
+                  if (index > 0) lp.leftMargin = dp(10);
+                  b.setLayoutParams(lp);
+                  b.setOnClickListener(new View.OnClickListener() {
+                      @Override public void onClick(View v) {
+                          startService(new Intent(AlarmActivity.this, AlarmService.class).setAction(AlarmService.ACTION_SNOOZE).putExtra("minutes", minutes));
+                          finish();
+                      }
+                  });
+                  return b;
               }
 
               private Button makeBtn(String label, int color, final String action) {
@@ -3768,6 +3815,385 @@ jobs:
 
               @Override
               protected void onDestroy() {
+                  try { if (stopped != null) unregisterReceiver(stopped); } catch (Throwable ignored) {}
+                  super.onDestroy();
+              }
+          }
+          JEOF
+
+      - name: Alarm screen v2 (themed glass)
+        run: |
+          D=android/app/src/main/java/com/hunter/arisesolo
+
+          cat > $D/AlarmActivity.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.animation.ObjectAnimator;
+          import android.animation.PropertyValuesHolder;
+          import android.animation.ValueAnimator;
+          import android.app.Activity;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.content.res.ColorStateList;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.graphics.drawable.RippleDrawable;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.FrameLayout;
+          import android.widget.LinearLayout;
+          import android.widget.ScrollView;
+          import android.widget.TextClock;
+          import android.widget.TextView;
+          import androidx.core.content.ContextCompat;
+          import java.util.ArrayList;
+          import org.json.JSONObject;
+
+          // Full-screen alarm over the lock screen. Colours come from the app's Theme Studio (saved by the web side).
+          public class AlarmActivity extends Activity {
+              private BroadcastReceiver stopped;
+              private final ArrayList<ObjectAnimator> anims = new ArrayList<ObjectAnimator>();
+              private JSONObject theme = new JSONObject();
+              private boolean light = false;
+              private int radius = 16;
+
+              private int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              private int col(String key, int def) {
+                  try {
+                      String s = theme.optString(key, "");
+                      if (s.length() > 0) return Color.parseColor(s);
+                  } catch (Throwable ignored) {}
+                  return def;
+              }
+
+              private static int withAlpha(int color, int a) {
+                  return (color & 0x00FFFFFF) | (a << 24);
+              }
+
+              private void blink(View v) {
+                  ObjectAnimator a = ObjectAnimator.ofFloat(v, "alpha", 1f, 0.25f);
+                  a.setDuration(900);
+                  a.setRepeatCount(ValueAnimator.INFINITE);
+                  a.setRepeatMode(ValueAnimator.REVERSE);
+                  a.start();
+                  anims.add(a);
+              }
+
+              private void breathe(View v, long delay) {
+                  ObjectAnimator a = ObjectAnimator.ofPropertyValuesHolder(v,
+                      PropertyValuesHolder.ofFloat("scaleX", 1f, 1.045f),
+                      PropertyValuesHolder.ofFloat("scaleY", 1f, 1.045f),
+                      PropertyValuesHolder.ofFloat("alpha", 0.95f, 0.45f));
+                  a.setDuration(1200);
+                  a.setStartDelay(delay);
+                  a.setRepeatCount(ValueAnimator.INFINITE);
+                  a.setRepeatMode(ValueAnimator.REVERSE);
+                  a.start();
+                  anims.add(a);
+              }
+
+              private void addOrb(FrameLayout root, int color, int alphaByte, int sizeDp, int gravity, int l, int t, int r, int bm) {
+                  View v = new View(this);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+                  g.setGradientRadius(dp(sizeDp) / 2f);
+                  g.setColors(new int[]{withAlpha(color, alphaByte), withAlpha(color, 0)});
+                  v.setBackground(g);
+                  FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(dp(sizeDp), dp(sizeDp), gravity);
+                  lp.setMargins(dp(l), dp(t), dp(r), dp(bm));
+                  root.addView(v, lp);
+              }
+
+              private View ring(int color, int strokeAlpha, int marginDp) {
+                  View v = new View(this);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setShape(GradientDrawable.OVAL);
+                  g.setColor(Color.TRANSPARENT);
+                  g.setStroke(dp(1), withAlpha(color, strokeAlpha));
+                  v.setBackground(g);
+                  return v;
+              }
+
+              private Button styledBtn(String label, int fill, int stroke, int textColor, int sizeSp) {
+                  Button b = new Button(this);
+                  b.setText(label);
+                  b.setAllCaps(true);
+                  b.setTextColor(textColor);
+                  b.setTextSize(sizeSp);
+                  b.setTypeface(Typeface.create("sans-serif-condensed", Typeface.BOLD));
+                  b.setLetterSpacing(0.12f);
+                  b.setStateListAnimator(null);
+                  b.setMinHeight(0);
+                  b.setMinimumHeight(0);
+                  b.setMinWidth(0);
+                  b.setMinimumWidth(0);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(fill);
+                  g.setCornerRadius(dp(radius));
+                  if (stroke != 0) g.setStroke(dp(1), stroke);
+                  GradientDrawable mask = new GradientDrawable();
+                  mask.setColor(Color.WHITE);
+                  mask.setCornerRadius(dp(radius));
+                  b.setBackground(new RippleDrawable(ColorStateList.valueOf(0x33FFFFFF), g, mask));
+                  return b;
+              }
+
+              private void bind(Button b, final String action, final int minutes) {
+                  b.setOnClickListener(new View.OnClickListener() {
+                      @Override public void onClick(View v) {
+                          startService(new Intent(AlarmActivity.this, AlarmService.class).setAction(action).putExtra("minutes", minutes));
+                          finish();
+                      }
+                  });
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  if (Build.VERSION.SDK_INT >= 27) {
+                      setShowWhenLocked(true);
+                      setTurnScreenOn(true);
+                  } else {
+                      getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+                  }
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                  try {
+                      String raw = getSharedPreferences(AlarmScheduler.PREFS, MODE_PRIVATE).getString("theme", "{}");
+                      theme = new JSONObject(raw);
+                  } catch (Throwable ignored) {}
+                  light = "light".equals(theme.optString("mode", "dark"));
+                  radius = Math.max(8, Math.min(28, theme.optInt("radius", 16)));
+
+                  int bg1 = col("bg1", 0xFF0F172A);
+                  int bg2 = col("bg2", 0xFF020617);
+                  int accent = col("accent", 0xFF38BDF8);
+                  int accent2 = col("accent2", 0xFF818CF8);
+                  int panelA = col("panelA", 0x24FFFFFF);
+                  int panelB = col("panelB", 0x0FFFFFFF);
+                  int edge = col("edge", 0x1FFFFFFF);
+                  int text = col("text", 0xFFF1F7FB);
+                  int muted = col("muted", 0xFF9FB3C8);
+                  int gold = light ? 0xFFB45309 : 0xFFFBBF24;
+                  int green = light ? 0xFF059669 : 0xFF34D399;
+                  int onGreen = light ? 0xFFFFFFFF : 0xFF04130C;
+                  Typeface head = Typeface.create("sans-serif-condensed", Typeface.BOLD);
+
+                  try {
+                      getWindow().setStatusBarColor(bg1);
+                      getWindow().setNavigationBarColor(bg2);
+                  } catch (Throwable ignored) {}
+
+                  Intent in = getIntent();
+                  String title = in.getStringExtra("title");
+                  String body = in.getStringExtra("body");
+                  String questId = in.getStringExtra("questId");
+                  if (title == null) title = "";
+                  if (body == null) body = "";
+                  if (questId == null) questId = "";
+
+                  FrameLayout root = new FrameLayout(this);
+                  root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bg1, bg2}));
+                  addOrb(root, accent, 0x4D, 380, Gravity.TOP | Gravity.START, -120, -140, 0, 0);
+                  addOrb(root, accent2, 0x33, 320, Gravity.CENTER_VERTICAL | Gravity.END, 0, 0, -150, 0);
+                  addOrb(root, accent, 0x2E, 360, Gravity.BOTTOM | Gravity.START, -110, 0, 0, -170);
+
+                  ScrollView sv = new ScrollView(this);
+                  sv.setFillViewport(true);
+                  sv.setVerticalScrollBarEnabled(false);
+                  LinearLayout colm = new LinearLayout(this);
+                  colm.setOrientation(LinearLayout.VERTICAL);
+                  colm.setPadding(dp(24), dp(56), dp(24), dp(40));
+                  sv.addView(colm, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+                  root.addView(sv, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+                  // --- SYSTEM ALERT pill ---
+                  LinearLayout pill = new LinearLayout(this);
+                  pill.setOrientation(LinearLayout.HORIZONTAL);
+                  pill.setGravity(Gravity.CENTER_VERTICAL);
+                  pill.setPadding(dp(16), dp(8), dp(16), dp(8));
+                  GradientDrawable pg = new GradientDrawable();
+                  pg.setColor(withAlpha(accent, 0x1A));
+                  pg.setCornerRadius(dp(40));
+                  pg.setStroke(dp(1), withAlpha(accent, 0x66));
+                  pill.setBackground(pg);
+                  View dot = new View(this);
+                  GradientDrawable dg = new GradientDrawable();
+                  dg.setShape(GradientDrawable.OVAL);
+                  dg.setColor(accent);
+                  dot.setBackground(dg);
+                  LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dp(8), dp(8));
+                  dlp.rightMargin = dp(10);
+                  pill.addView(dot, dlp);
+                  TextView pt = new TextView(this);
+                  pt.setText("SYSTEM ALERT");
+                  pt.setTextColor(accent);
+                  pt.setTextSize(14);
+                  pt.setTypeface(head);
+                  pt.setLetterSpacing(0.22f);
+                  pill.addView(pt);
+                  LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  plp.gravity = Gravity.CENTER_HORIZONTAL;
+                  colm.addView(pill, plp);
+                  blink(dot);
+
+                  // --- clock inside glowing rings ---
+                  FrameLayout ringBox = new FrameLayout(this);
+                  LinearLayout.LayoutParams rbp = new LinearLayout.LayoutParams(dp(264), dp(264));
+                  rbp.gravity = Gravity.CENTER_HORIZONTAL;
+                  rbp.topMargin = dp(28);
+                  colm.addView(ringBox, rbp);
+                  View r1 = ring(accent, 0x47, 0);
+                  ringBox.addView(r1, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+                  View r2 = ring(accent, 0x80, 26);
+                  FrameLayout.LayoutParams r2p = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  r2p.setMargins(dp(26), dp(26), dp(26), dp(26));
+                  ringBox.addView(r2, r2p);
+                  View disc = new View(this);
+                  GradientDrawable discG = new GradientDrawable();
+                  discG.setShape(GradientDrawable.OVAL);
+                  discG.setColor(withAlpha(text, 0x0D));
+                  discG.setStroke(dp(1), edge);
+                  disc.setBackground(discG);
+                  FrameLayout.LayoutParams dsp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+                  dsp.setMargins(dp(52), dp(52), dp(52), dp(52));
+                  ringBox.addView(disc, dsp);
+                  breathe(r1, 0);
+                  breathe(r2, 400);
+
+                  LinearLayout timeCol = new LinearLayout(this);
+                  timeCol.setOrientation(LinearLayout.VERTICAL);
+                  timeCol.setGravity(Gravity.CENTER_HORIZONTAL);
+                  TextClock clock = new TextClock(this);
+                  clock.setFormat12Hour("h:mm");
+                  clock.setFormat24Hour("HH:mm");
+                  clock.setTextColor(text);
+                  clock.setTextSize(60);
+                  clock.setTypeface(head);
+                  clock.setIncludeFontPadding(false);
+                  timeCol.addView(clock);
+                  TextClock date = new TextClock(this);
+                  date.setFormat12Hour("EEE \u00B7 MMM d");
+                  date.setFormat24Hour("EEE \u00B7 MMM d");
+                  date.setAllCaps(true);
+                  date.setTextColor(muted);
+                  date.setTextSize(13);
+                  date.setTypeface(head);
+                  date.setLetterSpacing(0.2f);
+                  timeCol.addView(date);
+                  ringBox.addView(timeCol, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.CENTER));
+
+                  // --- glass quest card ---
+                  LinearLayout card = new LinearLayout(this);
+                  card.setOrientation(LinearLayout.VERTICAL);
+                  card.setPadding(dp(20), dp(18), dp(20), dp(18));
+                  GradientDrawable cg = new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{panelA, panelB});
+                  cg.setCornerRadius(dp(radius + 4));
+                  cg.setStroke(dp(1), edge);
+                  card.setBackground(cg);
+                  LinearLayout.LayoutParams cp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  cp.topMargin = dp(28);
+                  colm.addView(card, cp);
+
+                  TextView tag = new TextView(this);
+                  tag.setText(questId.isEmpty() ? "ALARM" : "QUEST REMINDER");
+                  tag.setTextColor(gold);
+                  tag.setTextSize(12);
+                  tag.setTypeface(head);
+                  tag.setLetterSpacing(0.2f);
+                  tag.setPadding(dp(10), dp(3), dp(10), dp(3));
+                  GradientDrawable tg = new GradientDrawable();
+                  tg.setColor(withAlpha(gold, 0x1A));
+                  tg.setCornerRadius(dp(30));
+                  tg.setStroke(dp(1), withAlpha(gold, 0x66));
+                  tag.setBackground(tg);
+                  LinearLayout.LayoutParams tagp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  card.addView(tag, tagp);
+
+                  TextView t = new TextView(this);
+                  t.setText(title.isEmpty() ? "Quest alarm" : title);
+                  t.setTextColor(text);
+                  t.setTextSize(26);
+                  t.setTypeface(head);
+                  LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  tp.topMargin = dp(10);
+                  card.addView(t, tp);
+
+                  if (body.length() > 0) {
+                      TextView bd = new TextView(this);
+                      bd.setText(body);
+                      bd.setTextColor(muted);
+                      bd.setTextSize(15);
+                      bd.setLineSpacing(0f, 1.15f);
+                      LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                      bp.topMargin = dp(6);
+                      card.addView(bd, bp);
+                  }
+
+                  View sp = new View(this);
+                  sp.setMinimumHeight(dp(16));
+                  colm.addView(sp, new LinearLayout.LayoutParams(1, 0, 1f));
+
+                  // --- actions ---
+                  if (!questId.isEmpty()) {
+                      Button done = styledBtn("Complete", green, 0, onGreen, 20);
+                      bind(done, AlarmService.ACTION_COMPLETE, 0);
+                      colm.addView(done, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
+                  }
+
+                  TextView sl = new TextView(this);
+                  sl.setText("SNOOZE");
+                  sl.setTextColor(muted);
+                  sl.setTextSize(12);
+                  sl.setTypeface(head);
+                  sl.setLetterSpacing(0.25f);
+                  sl.setGravity(Gravity.CENTER);
+                  LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  slp.topMargin = dp(20);
+                  colm.addView(sl, slp);
+
+                  LinearLayout row = new LinearLayout(this);
+                  row.setOrientation(LinearLayout.HORIZONTAL);
+                  LinearLayout.LayoutParams rowp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                  rowp.topMargin = dp(8);
+                  colm.addView(row, rowp);
+                  int[] mins = {5, 10, 15};
+                  for (int k = 0; k < mins.length; k++) {
+                      Button sb = styledBtn(mins[k] + " min", withAlpha(gold, 0x14), withAlpha(gold, 0x73), gold, 18);
+                      bind(sb, AlarmService.ACTION_SNOOZE, mins[k]);
+                      LinearLayout.LayoutParams sbp = new LinearLayout.LayoutParams(0, dp(52), 1f);
+                      if (k > 0) sbp.leftMargin = dp(10);
+                      row.addView(sb, sbp);
+                  }
+
+                  Button dismiss = styledBtn("Dismiss", 0, 0, muted, 14);
+                  bind(dismiss, AlarmService.ACTION_STOP, 0);
+                  LinearLayout.LayoutParams dmp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48));
+                  dmp.topMargin = dp(8);
+                  colm.addView(dismiss, dmp);
+
+                  setContentView(root);
+
+                  stopped = new BroadcastReceiver() {
+                      @Override public void onReceive(Context c, Intent i) { finish(); }
+                  };
+                  ContextCompat.registerReceiver(this, stopped, new IntentFilter(AlarmService.BROADCAST_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED);
+              }
+
+              @Override
+              protected void onDestroy() {
+                  for (ObjectAnimator a : anims) { try { a.cancel(); } catch (Throwable ignored) {} }
                   try { if (stopped != null) unregisterReceiver(stopped); } catch (Throwable ignored) {}
                   super.onDestroy();
               }

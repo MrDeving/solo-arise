@@ -338,6 +338,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateArcadeComingSoon();
     
     syncQuestNotificationsDebounced(); // rebuild reminder notifications on launch
+    if (window.syncAlarmTheme) window.syncAlarmTheme(); // give the native alarm screen the current theme
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
     renderEventList();
@@ -2722,6 +2723,67 @@ async function syncQuestNotifications() {
     } finally {
         _qNotifBusy = false;
         if (_qNotifDirty) { _qNotifDirty = false; syncQuestNotificationsDebounced(); }
+    }
+}
+
+// Sends the current Theme Studio colours to the native alarm screen
+let _alarmThemeTimer = null, _lastAlarmThemeSig = '';
+function _cssArgb(value, fallback) {
+    try {
+        const el = document.createElement('div');
+        el.style.color = value || fallback;
+        document.body.appendChild(el);
+        const c = getComputedStyle(el).color;
+        document.body.removeChild(el);
+        const m = c.match(/[\d.]+/g);
+        if (m && m.length >= 3) {
+            const a = m.length >= 4 ? parseFloat(m[3]) : 1;
+            const h = n => Math.max(0, Math.min(255, Math.round(+n))).toString(16).padStart(2, '0');
+            return '#' + h(a * 255) + h(m[0]) + h(m[1]) + h(m[2]);
+        }
+    } catch (e) {}
+    return fallback;
+}
+window.syncAlarmTheme = function () {
+    clearTimeout(_alarmThemeTimer);
+    _alarmThemeTimer = setTimeout(async () => {
+        try {
+            const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+            if (!QA || !QA.setTheme || !document.body) return;
+            const cs = getComputedStyle(document.documentElement);
+            const v = n => cs.getPropertyValue(n).trim();
+            const theme = {
+                mode: document.documentElement.getAttribute('data-tmode') || 'dark',
+                accent: _cssArgb(v('--accent'), '#ff38bdf8'),
+                accent2: _cssArgb(v('--accent2'), '#ff818cf8'),
+                bg1: _cssArgb(v('--t-bg1'), '#ff0f172a'),
+                bg2: _cssArgb(v('--t-bg2'), '#ff020617'),
+                panelA: _cssArgb(v('--t-panelA'), '#24ffffff'),
+                panelB: _cssArgb(v('--t-panelB'), '#0fffffff'),
+                edge: _cssArgb(v('--t-edge'), '#1fffffff'),
+                text: _cssArgb(v('--t-text'), '#fff1f7fb'),
+                muted: _cssArgb(v('--t-muted'), '#ff9fb3c8'),
+                radius: parseInt(v('--r-md'), 10) || 16
+            };
+            const sig = JSON.stringify(theme);
+            if (sig === _lastAlarmThemeSig) return;
+            _lastAlarmThemeSig = sig;
+            await QA.setTheme(theme);
+        } catch (e) {}
+    }, 500);
+};
+
+async function testAlarm() {
+    const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+    if (!QA || !QA.testAlarm) {
+        sysAlert('Real alarms only work in the Android app. On a computer, reminders show as an on-screen popup.', { title: 'ALARM TEST' });
+        return;
+    }
+    try {
+        await QA.testAlarm({ seconds: 10 });
+        sysAlert('Test alarm set. It rings in 10 seconds. Lock your phone now if you want to test the lock screen.', { title: 'ALARM TEST' });
+    } catch (e) {
+        sysAlert('Could not set the test alarm.', { title: 'ALARM TEST' });
     }
 }
 
