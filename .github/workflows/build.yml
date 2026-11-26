@@ -128,6 +128,7 @@ jobs:
               @Override
               public void onCreate(Bundle savedInstanceState) {
                   registerPlugin(ImmersivePlugin.class);
+                  registerPlugin(AlarmPlugin.class);
                   super.onCreate(savedInstanceState);
               }
 
@@ -3175,6 +3176,627 @@ jobs:
           s = s.replace("</application>", block + "</application>", 1)
           open(p, "w", encoding="utf-8").write(s)
           print("calendar widget registered")
+          PYEOF
+
+      - name: Create native alarm system
+        run: |
+          D=android/app/src/main/java/com/hunter/arisesolo
+
+          cat > $D/AlarmScheduler.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.app.AlarmManager;
+          import android.app.PendingIntent;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Registers real alarm-clock alarms (they fire even in Doze) and remembers them so a reboot can restore them.
+          public final class AlarmScheduler {
+              static final String PREFS = "AriseAlarms";
+              static final String KEY = "list";
+              static final int MAX_ALARMS = 150;
+
+              private AlarmScheduler() {}
+
+              static SharedPreferences prefs(Context ctx) {
+                  return ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+              }
+
+              static PendingIntent firePi(Context ctx, int id, String title, String body, String questId) {
+                  Intent i = new Intent(ctx, AlarmReceiver.class);
+                  i.putExtra("id", id);
+                  i.putExtra("title", title);
+                  i.putExtra("body", body);
+                  i.putExtra("questId", questId);
+                  return PendingIntent.getBroadcast(ctx, id, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+              }
+
+              static void cancelStored(Context ctx) {
+                  try {
+                      AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                      JSONArray a = new JSONArray(prefs(ctx).getString(KEY, "[]"));
+                      for (int k = 0; k < a.length(); k++) {
+                          JSONObject o = a.getJSONObject(k);
+                          am.cancel(firePi(ctx, o.getInt("id"), "", "", ""));
+                      }
+                  } catch (Throwable ignored) {}
+              }
+
+              static void scheduleStored(Context ctx) {
+                  try {
+                      JSONArray a = new JSONArray(prefs(ctx).getString(KEY, "[]"));
+                      long now = System.currentTimeMillis();
+                      for (int k = 0; k < a.length(); k++) {
+                          JSONObject o = a.getJSONObject(k);
+                          long at = o.getLong("at");
+                          if (at <= now) continue;
+                          scheduleOne(ctx, o.getInt("id"), at, o.optString("title", ""), o.optString("body", ""), o.optString("questId", ""));
+                      }
+                  } catch (Throwable ignored) {}
+              }
+
+              static void scheduleOne(Context ctx, int id, long at, String title, String body, String questId) {
+                  try {
+                      AlarmManager am = (AlarmManager) ctx.getSystemService(Context.ALARM_SERVICE);
+                      Intent launch = ctx.getPackageManager().getLaunchIntentForPackage(ctx.getPackageName());
+                      if (launch == null) launch = new Intent();
+                      PendingIntent show = PendingIntent.getActivity(ctx, 7400, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+                      am.setAlarmClock(new AlarmManager.AlarmClockInfo(at, show), firePi(ctx, id, title, body, questId));
+                  } catch (Throwable ignored) {}
+              }
+
+              static void replaceAll(Context ctx, JSONArray list) {
+                  cancelStored(ctx);
+                  prefs(ctx).edit().putString(KEY, list.toString()).apply();
+                  scheduleStored(ctx);
+              }
+          }
+          JEOF
+
+          cat > $D/AlarmPlugin.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.app.NotificationManager;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.net.Uri;
+          import android.os.Build;
+          import android.provider.Settings;
+          import com.getcapacitor.JSArray;
+          import com.getcapacitor.JSObject;
+          import com.getcapacitor.Plugin;
+          import com.getcapacitor.PluginCall;
+          import com.getcapacitor.PluginMethod;
+          import com.getcapacitor.annotation.CapacitorPlugin;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          @CapacitorPlugin(name = "QuestAlarm")
+          public class AlarmPlugin extends Plugin {
+
+              @PluginMethod
+              public void setAlarms(PluginCall call) {
+                  try {
+                      JSArray in = call.getArray("alarms");
+                      JSONArray out = new JSONArray();
+                      if (in != null) {
+                          for (int i = 0; i < in.length() && out.length() < AlarmScheduler.MAX_ALARMS; i++) {
+                              JSONObject o = in.getJSONObject(i);
+                              JSONObject n = new JSONObject();
+                              n.put("id", o.getInt("id"));
+                              n.put("at", o.getLong("at"));
+                              n.put("title", o.optString("title", ""));
+                              n.put("body", o.optString("body", ""));
+                              n.put("questId", o.optString("questId", ""));
+                              out.put(n);
+                          }
+                      }
+                      AlarmScheduler.replaceAll(getContext(), out);
+                      JSObject r = new JSObject();
+                      r.put("count", out.length());
+                      r.put("fullScreen", fullScreenAllowed());
+                      call.resolve(r);
+                  } catch (Exception e) {
+                      call.reject(String.valueOf(e.getMessage()));
+                  }
+              }
+
+              @PluginMethod
+              public void cancelAll(PluginCall call) {
+                  AlarmScheduler.replaceAll(getContext(), new JSONArray());
+                  call.resolve();
+              }
+
+              @PluginMethod
+              public void openFullScreenSettings(PluginCall call) {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 34) {
+                          Intent i = new Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:" + getContext().getPackageName()));
+                          i.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                          getContext().startActivity(i);
+                      }
+                  } catch (Throwable ignored) {}
+                  call.resolve();
+              }
+
+              private boolean fullScreenAllowed() {
+                  try {
+                      if (Build.VERSION.SDK_INT >= 34) {
+                          NotificationManager nm = (NotificationManager) getContext().getSystemService(Context.NOTIFICATION_SERVICE);
+                          return nm.canUseFullScreenIntent();
+                      }
+                  } catch (Throwable ignored) {}
+                  return true;
+              }
+          }
+          JEOF
+
+          cat > $D/AlarmReceiver.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import androidx.core.content.ContextCompat;
+
+          // Fired by AlarmManager at the reminder time: hands over to the ringing service.
+          public class AlarmReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context ctx, Intent in) {
+                  try {
+                      Intent s = new Intent(ctx, AlarmService.class);
+                      s.setAction(AlarmService.ACTION_RING);
+                      if (in != null && in.getExtras() != null) s.putExtras(in.getExtras());
+                      ContextCompat.startForegroundService(ctx, s);
+                  } catch (Throwable ignored) {}
+              }
+          }
+          JEOF
+
+          cat > $D/BootReceiver.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+
+          // After a reboot or app update, put all saved alarms back.
+          public class BootReceiver extends BroadcastReceiver {
+              @Override
+              public void onReceive(Context ctx, Intent in) {
+                  AlarmScheduler.scheduleStored(ctx);
+              }
+          }
+          JEOF
+
+          cat > $D/AlarmService.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.app.Notification;
+          import android.app.NotificationChannel;
+          import android.app.NotificationManager;
+          import android.app.PendingIntent;
+          import android.app.Service;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.content.pm.ServiceInfo;
+          import android.content.res.AssetFileDescriptor;
+          import android.media.AudioAttributes;
+          import android.media.AudioFocusRequest;
+          import android.media.AudioManager;
+          import android.media.MediaPlayer;
+          import android.media.RingtoneManager;
+          import android.os.Build;
+          import android.os.Handler;
+          import android.os.IBinder;
+          import android.os.Looper;
+          import android.os.PowerManager;
+          import android.os.VibrationEffect;
+          import android.os.Vibrator;
+          import androidx.core.app.NotificationCompat;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          // Plays the alarm sound on the ALARM volume stream, vibrates, and shows the full-screen alarm.
+          public class AlarmService extends Service {
+              static final String ACTION_RING = "com.hunter.arisesolo.ALARM_RING";
+              static final String ACTION_STOP = "com.hunter.arisesolo.ALARM_STOP";
+              static final String ACTION_SNOOZE = "com.hunter.arisesolo.ALARM_SNOOZE";
+              static final String ACTION_COMPLETE = "com.hunter.arisesolo.ALARM_COMPLETE";
+              static final String BROADCAST_STOPPED = "com.hunter.arisesolo.ALARM_STOPPED";
+              static final String CHANNEL = "arise_alarm";
+              static final int NOTIF_ID = 7421;
+              static final long RING_MS = 2 * 60 * 1000L;
+              static final int SNOOZE_MIN = 5;
+
+              private MediaPlayer player;
+              private Vibrator vibrator;
+              private PowerManager.WakeLock wl;
+              private AudioManager audio;
+              private AudioFocusRequest focusReq;
+              private final Handler handler = new Handler(Looper.getMainLooper());
+              private String curTitle = "";
+              private String curBody = "";
+              private String curQuestId = "";
+              private int curId = 0;
+
+              private final Runnable timeout = new Runnable() {
+                  @Override public void run() {
+                      postMissed();
+                      stopRinging();
+                  }
+              };
+
+              @Override
+              public IBinder onBind(Intent intent) { return null; }
+
+              @Override
+              public int onStartCommand(Intent intent, int flags, int startId) {
+                  if (intent == null) { stopSelf(); return START_NOT_STICKY; }
+                  String act = intent.getAction();
+                  if (ACTION_STOP.equals(act)) { stopRinging(); return START_NOT_STICKY; }
+                  if (ACTION_SNOOZE.equals(act)) { snooze(); stopRinging(); return START_NOT_STICKY; }
+                  if (ACTION_COMPLETE.equals(act)) { complete(); stopRinging(); return START_NOT_STICKY; }
+
+                  curId = intent.getIntExtra("id", 0);
+                  curTitle = nz(intent.getStringExtra("title"));
+                  curBody = nz(intent.getStringExtra("body"));
+                  curQuestId = nz(intent.getStringExtra("questId"));
+                  startRinging();
+                  return START_NOT_STICKY;
+              }
+
+              private static String nz(String s) { return s == null ? "" : s; }
+
+              private PendingIntent svcPi(String action, int req) {
+                  Intent i = new Intent(this, AlarmService.class).setAction(action);
+                  return PendingIntent.getService(this, req, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+              }
+
+              private Notification buildNotification() {
+                  if (Build.VERSION.SDK_INT >= 26) {
+                      NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                      NotificationChannel ch = new NotificationChannel(CHANNEL, "Quest Alarms", NotificationManager.IMPORTANCE_HIGH);
+                      ch.setSound(null, null);
+                      ch.enableVibration(false);
+                      ch.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC);
+                      nm.createNotificationChannel(ch);
+                  }
+                  Intent act = new Intent(this, AlarmActivity.class);
+                  act.putExtra("title", curTitle);
+                  act.putExtra("body", curBody);
+                  act.putExtra("questId", curQuestId);
+                  act.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                  PendingIntent full = PendingIntent.getActivity(this, 7410, act, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+
+                  NotificationCompat.Builder b = new NotificationCompat.Builder(this, CHANNEL)
+                      .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                      .setContentTitle(curTitle.isEmpty() ? "Quest alarm" : curTitle)
+                      .setContentText(curBody)
+                      .setCategory(NotificationCompat.CATEGORY_ALARM)
+                      .setPriority(NotificationCompat.PRIORITY_MAX)
+                      .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+                      .setOngoing(true)
+                      .setAutoCancel(false)
+                      .setContentIntent(full)
+                      .setFullScreenIntent(full, true);
+                  if (!curQuestId.isEmpty()) b.addAction(0, "COMPLETE", svcPi(ACTION_COMPLETE, 7411));
+                  b.addAction(0, "SNOOZE", svcPi(ACTION_SNOOZE, 7412));
+                  b.addAction(0, "DISMISS", svcPi(ACTION_STOP, 7413));
+                  return b.build();
+              }
+
+              private void startRinging() {
+                  releaseMedia();
+                  Notification n = buildNotification();
+                  if (Build.VERSION.SDK_INT >= 29) startForeground(NOTIF_ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK);
+                  else startForeground(NOTIF_ID, n);
+                  try {
+                      PowerManager pm = (PowerManager) getSystemService(POWER_SERVICE);
+                      wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "arisesolo:alarm");
+                      wl.acquire(RING_MS + 15000L);
+                  } catch (Throwable ignored) {}
+                  int rm = ringerMode();
+                  if (rm == AudioManager.RINGER_MODE_NORMAL) startSound();
+                  if (rm != AudioManager.RINGER_MODE_SILENT) startVibration();
+                  handler.removeCallbacks(timeout);
+                  handler.postDelayed(timeout, RING_MS);
+              }
+
+              private int ringerMode() {
+                  try {
+                      return ((AudioManager) getSystemService(AUDIO_SERVICE)).getRingerMode();
+                  } catch (Throwable t) {
+                      return AudioManager.RINGER_MODE_NORMAL;
+                  }
+              }
+
+              private AudioAttributes alarmAttrs() {
+                  return new AudioAttributes.Builder()
+                      .setUsage(AudioAttributes.USAGE_ALARM)
+                      .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                      .build();
+              }
+
+              @SuppressWarnings("deprecation")
+              private void startSound() {
+                  try {
+                      AudioAttributes aa = alarmAttrs();
+                      audio = (AudioManager) getSystemService(AUDIO_SERVICE);
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          focusReq = new AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(aa).build();
+                          audio.requestAudioFocus(focusReq);
+                      } else {
+                          audio.requestAudioFocus(null, AudioManager.STREAM_ALARM, AudioManager.AUDIOFOCUS_GAIN_TRANSIENT);
+                      }
+                      MediaPlayer mp = new MediaPlayer();
+                      mp.setAudioAttributes(aa);
+                      try {
+                          AssetFileDescriptor afd = null;
+                          try {
+                              android.net.Uri ru = RingtoneManager.getActualDefaultRingtoneUri(this, RingtoneManager.TYPE_ALARM);
+                              if (ru == null) ru = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM);
+                              mp.setDataSource(this, ru);
+                          } catch (Throwable t0) {
+                              mp.reset();
+                              mp.setAudioAttributes(aa);
+                              afd = getResources().openRawResourceFd(R.raw.mysound);
+                          }
+                          if (afd != null) mp.setDataSource(afd.getFileDescriptor(), afd.getStartOffset(), afd.getLength());
+                          if (afd != null) afd.close();
+                      } catch (Throwable t) {
+                          mp.reset();
+                          mp.setAudioAttributes(aa);
+                          mp.setDataSource(this, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM));
+                      }
+                      mp.setLooping(true);
+                      mp.prepare();
+                      mp.start();
+                      player = mp;
+                  } catch (Throwable ignored) {}
+              }
+
+              @SuppressWarnings("deprecation")
+              private void startVibration() {
+                  try {
+                      vibrator = (Vibrator) getSystemService(VIBRATOR_SERVICE);
+                      long[] pat = {0, 700, 500};
+                      if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(pat, 0), alarmAttrs());
+                      else vibrator.vibrate(pat, 0);
+                  } catch (Throwable ignored) {}
+              }
+
+              @SuppressWarnings("deprecation")
+              private void releaseMedia() {
+                  try { if (player != null) { player.stop(); player.release(); } } catch (Throwable ignored) {}
+                  player = null;
+                  try { if (vibrator != null) vibrator.cancel(); } catch (Throwable ignored) {}
+                  try {
+                      if (audio != null) {
+                          if (Build.VERSION.SDK_INT >= 26 && focusReq != null) audio.abandonAudioFocusRequest(focusReq);
+                          else audio.abandonAudioFocus(null);
+                      }
+                  } catch (Throwable ignored) {}
+                  try { if (wl != null && wl.isHeld()) wl.release(); } catch (Throwable ignored) {}
+                  wl = null;
+              }
+
+              private void snooze() {
+                  AlarmScheduler.scheduleOne(this, 1900000000 + (curId % 1000),
+                      System.currentTimeMillis() + SNOOZE_MIN * 60000L, curTitle, curBody, curQuestId);
+              }
+
+              // Same hand-off the home-screen widgets use: the app ticks the quest next time it is visible.
+              private void complete() {
+                  try {
+                      if (curQuestId.isEmpty()) return;
+                      SharedPreferences p = getSharedPreferences("CapacitorStorage", Context.MODE_PRIVATE);
+                      JSONArray a = new JSONArray(p.getString("widget_actions", "[]"));
+                      JSONObject o = new JSONObject();
+                      o.put("id", curQuestId);
+                      o.put("t", "task");
+                      o.put("d", true);
+                      a.put(o);
+                      p.edit().putString("widget_actions", a.toString()).apply();
+                  } catch (Throwable ignored) {}
+              }
+
+              private void postMissed() {
+                  try {
+                      NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+                      if (Build.VERSION.SDK_INT >= 26) {
+                          nm.createNotificationChannel(new NotificationChannel("arise_alarm_missed", "Missed alarms", NotificationManager.IMPORTANCE_DEFAULT));
+                      }
+                      Intent launch = getPackageManager().getLaunchIntentForPackage(getPackageName());
+                      NotificationCompat.Builder b = new NotificationCompat.Builder(this, "arise_alarm_missed")
+                          .setSmallIcon(android.R.drawable.ic_lock_idle_alarm)
+                          .setContentTitle("Missed: " + curTitle)
+                          .setContentText(curBody)
+                          .setAutoCancel(true);
+                      if (launch != null) {
+                          b.setContentIntent(PendingIntent.getActivity(this, 7430, launch, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE));
+                      }
+                      nm.notify(7500 + (curId % 1000), b.build());
+                  } catch (Throwable ignored) {}
+              }
+
+              @SuppressWarnings("deprecation")
+              private void stopRinging() {
+                  handler.removeCallbacks(timeout);
+                  releaseMedia();
+                  try { sendBroadcast(new Intent(BROADCAST_STOPPED).setPackage(getPackageName())); } catch (Throwable ignored) {}
+                  try { stopForeground(true); } catch (Throwable ignored) {}
+                  try { ((NotificationManager) getSystemService(NOTIFICATION_SERVICE)).cancel(NOTIF_ID); } catch (Throwable ignored) {}
+                  stopSelf();
+              }
+
+              @Override
+              public void onDestroy() {
+                  handler.removeCallbacks(timeout);
+                  releaseMedia();
+                  super.onDestroy();
+              }
+          }
+          JEOF
+
+          cat > $D/AlarmActivity.java << 'JEOF'
+          package com.hunter.arisesolo;
+
+          import android.app.Activity;
+          import android.content.BroadcastReceiver;
+          import android.content.Context;
+          import android.content.Intent;
+          import android.content.IntentFilter;
+          import android.graphics.drawable.GradientDrawable;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.view.WindowManager;
+          import android.widget.Button;
+          import android.widget.LinearLayout;
+          import android.widget.TextClock;
+          import android.widget.TextView;
+          import androidx.core.content.ContextCompat;
+
+          // Full-screen alarm shown over the lock screen.
+          public class AlarmActivity extends Activity {
+              private BroadcastReceiver stopped;
+
+              private int dp(int v) {
+                  return (int) (v * getResources().getDisplayMetrics().density + 0.5f);
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  if (Build.VERSION.SDK_INT >= 27) {
+                      setShowWhenLocked(true);
+                      setTurnScreenOn(true);
+                  } else {
+                      getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON);
+                  }
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+                  Intent in = getIntent();
+                  String title = in.getStringExtra("title");
+                  String body = in.getStringExtra("body");
+                  String questId = in.getStringExtra("questId");
+                  if (title == null) title = "";
+                  if (body == null) body = "";
+                  if (questId == null) questId = "";
+
+                  LinearLayout root = new LinearLayout(this);
+                  root.setOrientation(LinearLayout.VERTICAL);
+                  root.setGravity(Gravity.CENTER_HORIZONTAL);
+                  root.setBackgroundColor(0xFF04070D);
+                  root.setPadding(dp(28), dp(64), dp(28), dp(36));
+
+                  TextView tag = new TextView(this);
+                  tag.setText("SYSTEM ALERT");
+                  tag.setTextColor(0xFF38BDF8);
+                  tag.setTextSize(14);
+                  tag.setLetterSpacing(0.3f);
+                  tag.setGravity(Gravity.CENTER);
+                  root.addView(tag);
+
+                  TextClock clock = new TextClock(this);
+                  clock.setFormat12Hour("h:mm");
+                  clock.setFormat24Hour("HH:mm");
+                  clock.setTextColor(0xFFFFFFFF);
+                  clock.setTextSize(64);
+                  clock.setGravity(Gravity.CENTER);
+                  root.addView(clock);
+
+                  TextView t = new TextView(this);
+                  t.setText(title.isEmpty() ? "Quest alarm" : title);
+                  t.setTextColor(0xFFFFFFFF);
+                  t.setTextSize(26);
+                  t.setGravity(Gravity.CENTER);
+                  t.setPadding(0, dp(24), 0, dp(8));
+                  root.addView(t);
+
+                  TextView bd = new TextView(this);
+                  bd.setText(body);
+                  bd.setTextColor(0xFF9AA7B8);
+                  bd.setTextSize(16);
+                  bd.setGravity(Gravity.CENTER);
+                  root.addView(bd);
+
+                  View sp = new View(this);
+                  sp.setLayoutParams(new LinearLayout.LayoutParams(1, 0, 1f));
+                  root.addView(sp);
+
+                  if (!questId.isEmpty()) root.addView(makeBtn("Complete", 0xFF34D399, AlarmService.ACTION_COMPLETE));
+                  root.addView(makeBtn("Snooze " + AlarmService.SNOOZE_MIN + " min", 0xFFFBBF24, AlarmService.ACTION_SNOOZE));
+                  root.addView(makeBtn("Dismiss", 0xFF94A3B8, AlarmService.ACTION_STOP));
+
+                  setContentView(root);
+
+                  stopped = new BroadcastReceiver() {
+                      @Override public void onReceive(Context c, Intent i) { finish(); }
+                  };
+                  ContextCompat.registerReceiver(this, stopped, new IntentFilter(AlarmService.BROADCAST_STOPPED), ContextCompat.RECEIVER_NOT_EXPORTED);
+              }
+
+              private Button makeBtn(String label, int color, final String action) {
+                  Button b = new Button(this);
+                  b.setText(label);
+                  b.setTextColor(0xFF05080F);
+                  b.setTextSize(16);
+                  b.setAllCaps(true);
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  g.setCornerRadius(dp(14));
+                  b.setBackground(g);
+                  LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(58));
+                  lp.topMargin = dp(12);
+                  b.setLayoutParams(lp);
+                  b.setOnClickListener(new View.OnClickListener() {
+                      @Override public void onClick(View v) {
+                          startService(new Intent(AlarmActivity.this, AlarmService.class).setAction(action));
+                          finish();
+                      }
+                  });
+                  return b;
+              }
+
+              @Override
+              protected void onDestroy() {
+                  try { if (stopped != null) unregisterReceiver(stopped); } catch (Throwable ignored) {}
+                  super.onDestroy();
+              }
+          }
+          JEOF
+
+      - name: Register native alarm in AndroidManifest
+        run: |
+          python3 << 'PYEOF'
+          p = "android/app/src/main/AndroidManifest.xml"
+          s = open(p, encoding="utf-8").read()
+          comps = (
+              '    <receiver android:name="com.hunter.arisesolo.AlarmReceiver" android:exported="false"/>\n'
+              '    <receiver android:name="com.hunter.arisesolo.BootReceiver" android:exported="true">'
+              '<intent-filter><action android:name="android.intent.action.BOOT_COMPLETED"/>'
+              '<action android:name="android.intent.action.MY_PACKAGE_REPLACED"/></intent-filter></receiver>\n'
+              '    <service android:name="com.hunter.arisesolo.AlarmService" android:exported="false" android:foregroundServiceType="mediaPlayback"/>\n'
+              '    <activity android:name="com.hunter.arisesolo.AlarmActivity" android:exported="false" android:launchMode="singleTask"'
+              ' android:showWhenLocked="true" android:turnScreenOn="true" android:excludeFromRecents="true" android:taskAffinity=""'
+              ' android:theme="@android:style/Theme.DeviceDefault.NoActionBar"/>\n'
+          )
+          names = ["WAKE_LOCK", "VIBRATE", "RECEIVE_BOOT_COMPLETED", "USE_FULL_SCREEN_INTENT",
+                   "FOREGROUND_SERVICE", "FOREGROUND_SERVICE_MEDIA_PLAYBACK", "POST_NOTIFICATIONS"]
+          perms = "".join('    <uses-permission android:name="android.permission.%s" />\n' % n for n in names)
+          assert "</application>" in s and "</manifest>" in s
+          s = s.replace("</application>", comps + "</application>", 1)
+          s = s.replace("</manifest>", perms + "</manifest>", 1)
+          open(p, "w", encoding="utf-8").write(s)
+          print("native alarm registered")
           PYEOF
 
       - name: Inject Exact Alarm Permissions

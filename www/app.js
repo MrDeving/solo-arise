@@ -2707,7 +2707,15 @@ async function syncQuestNotifications() {
         const pending = await LN.getPending();
         const old = (pending.notifications || []).filter(n => n.id < EVENT_NOTIF_BASE && n.id !== 99999);
         if (old.length > 0) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
-        if (list.length > 0) await LN.schedule({ notifications: list });
+        const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+        if (QA && QA.setAlarms) {
+            // Real alarms: ring on the ALARM volume, over the lock screen, until dismissed
+            const res = await QA.setAlarms({ alarms: list.slice(0, 150).map(n => ({ id: n.id, at: +n.schedule.at, title: n.title, body: n.body, questId: String(n.extra.questId) })) });
+            if (list.length > 0 && res && res.fullScreen === false && !localStorage.getItem('alarmFsiAsked')) {
+                localStorage.setItem('alarmFsiAsked', '1');
+                sysConfirm('Allow full-screen alarms so reminders can light up your lock screen like a real alarm clock?', { title: 'ALARM PERMISSION' }).then(ok => { if (ok && QA.openFullScreenSettings) QA.openFullScreenSettings(); });
+            }
+        } else if (list.length > 0) await LN.schedule({ notifications: list });
         _lastQNotifSig = sig;
     } catch (e) {
         console.log("Quest notifications skipped (browser or plugin missing).");
@@ -3581,6 +3589,8 @@ async function applyWidgetActions() {
     _applyingWidgetActions = false;
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) applyWidgetActions(); });
+// Picks up "COMPLETE" pressed on an alarm while the app is already open
+setInterval(() => { if (!document.hidden) applyWidgetActions(); }, 4000);
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
