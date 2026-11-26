@@ -2702,21 +2702,26 @@ async function syncQuestNotifications() {
             extra: { questId: t.q.id }
         }));
 
-        const sig = JSON.stringify(list.map(n => [n.extra.questId, +n.schedule.at, n.title, n.body]));
+        const reminderMode = getReminderMode();
+        const sig = JSON.stringify([reminderMode, list.map(n => [n.extra.questId, +n.schedule.at, n.title, n.body])]);
         if (sig === _lastQNotifSig) return;   // nothing changed, leave the OS alone
 
         const pending = await LN.getPending();
         const old = (pending.notifications || []).filter(n => n.id < EVENT_NOTIF_BASE && n.id !== 99999);
         if (old.length > 0) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
         const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
-        if (QA && QA.setAlarms) {
+        if (QA && QA.setAlarms && reminderMode === 'alarm') {
             // Real alarms: ring on the ALARM volume, over the lock screen, until dismissed
             const res = await QA.setAlarms({ alarms: list.slice(0, 150).map(n => ({ id: n.id, at: +n.schedule.at, title: n.title, body: n.body, questId: String(n.extra.questId) })) });
             if (list.length > 0 && res && res.fullScreen === false && !localStorage.getItem('alarmFsiAsked')) {
                 localStorage.setItem('alarmFsiAsked', '1');
                 sysConfirm('Allow full-screen alarms so reminders can light up your lock screen like a real alarm clock?', { title: 'ALARM PERMISSION' }).then(ok => { if (ok && QA.openFullScreenSettings) QA.openFullScreenSettings(); });
             }
-        } else if (list.length > 0) await LN.schedule({ notifications: list });
+        } else {
+            // Notification mode (or no native plugin): clear native alarms, use plain notification popups
+            if (QA && QA.setAlarms) { try { await QA.setAlarms({ alarms: [] }); } catch (e) {} }
+            if (list.length > 0) await LN.schedule({ notifications: list });
+        }
         _lastQNotifSig = sig;
     } catch (e) {
         console.log("Quest notifications skipped (browser or plugin missing).");
@@ -2773,7 +2778,63 @@ window.syncAlarmTheme = function () {
     }, 500);
 };
 
+// ==========================================
+// --- REMINDER MODE: 'alarm' (rings, full screen) or 'notification' (popup) ---
+// ==========================================
+function getReminderMode() {
+    try { return localStorage.getItem('reminderMode') === 'notification' ? 'notification' : 'alarm'; } catch (e) { return 'alarm'; }
+}
+
+function updateReminderModeUI() {
+    const mode = getReminderMode();
+    const a = document.getElementById('rmode-alarm');
+    const n = document.getElementById('rmode-notification');
+    const hint = document.getElementById('rmode-hint');
+    if (a) a.classList.toggle('outline', mode !== 'alarm');
+    if (n) n.classList.toggle('outline', mode !== 'notification');
+    if (hint) hint.textContent = mode === 'alarm'
+        ? 'Reminders ring like a real alarm, even on the lock screen. Press volume down to stop the sound and vibration.'
+        : 'Reminders show up as a normal notification popup.';
+}
+
+function setReminderMode(mode) {
+    try { localStorage.setItem('reminderMode', mode === 'notification' ? 'notification' : 'alarm'); } catch (e) {}
+    updateReminderModeUI();
+    _lastQNotifSig = '';              // force a full re-schedule in the new mode
+    syncQuestNotificationsDebounced();
+}
+
+document.addEventListener('DOMContentLoaded', updateReminderModeUI);
+if (document.readyState !== 'loading') updateReminderModeUI();
+
+async function testNotificationReminder() {
+    const LN = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications;
+    if (!LN) {
+        sysAlert('Notifications only work in the Android app. On a computer, reminders show as an on-screen popup.', { title: 'REMINDER TEST' });
+        return;
+    }
+    try {
+        let perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') perm = await LN.requestPermissions();
+        if (perm.display !== 'granted') {
+            sysAlert('Notification permission is turned off for this app.', { title: 'REMINDER TEST' });
+            return;
+        }
+        await LN.schedule({ notifications: [{
+            title: 'Test reminder',
+            body: 'This is how your quest reminders will look.',
+            id: 1600000001,
+            schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true },
+            channelId: 'system_alerts'
+        }] });
+        sysAlert('Test notification set. It shows in 10 seconds.', { title: 'REMINDER TEST' });
+    } catch (e) {
+        sysAlert('Could not set the test notification.', { title: 'REMINDER TEST' });
+    }
+}
+
 async function testAlarm() {
+    if (getReminderMode() === 'notification') { return testNotificationReminder(); }
     const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
     if (!QA || !QA.testAlarm) {
         sysAlert('Real alarms only work in the Android app. On a computer, reminders show as an on-screen popup.', { title: 'ALARM TEST' });
