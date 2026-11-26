@@ -337,6 +337,7 @@ document.addEventListener('DOMContentLoaded', () => {
     applyWidgetActions(); // 7b. Apply anything ticked on the widgets while the app was closed
     updateArcadeComingSoon();
     
+    syncQuestNotificationsDebounced(); // rebuild reminder notifications on launch
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
     renderEventList();
@@ -964,7 +965,7 @@ function togglePinQuest(id) {
 function deleteQuest(id) {
     sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: 'trash', color: 'red' }).then(ok => {
         if (!ok) return;
-        cancelWorkManagerTasks(id);
+        syncQuestNotificationsDebounced();
         systemState.quests = systemState.quests.filter(q => q.id !== id);
         saveGameState();
         renderQuests();
@@ -2009,6 +2010,122 @@ const ETH_MONTHS = ["", "መስከረም", "ጥቅምት", "ህዳር", "ታህ�
 let selectedEventColor = '#8b5cf6';
 let currentEditEventId = null;
 
+// ---- G.C. / E.C. MODE + US HOLIDAYS ----
+const GC_MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const US_HOLIDAY_COLOR = '#14b8a6';
+let gcCurrentYear = new Date().getFullYear();
+let gcCurrentMonth = new Date().getMonth() + 1;
+
+// Any Date -> Ethiopian {year, month, day} (same anchor as getLiveEthDate)
+function dateToEth(date) {
+    const diff = Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(2026, 1, 9)) / 86400000);
+    let y = 2018, m = 6, d = 2 + diff;
+    while (true) {
+        const dim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30;
+        if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } }
+        else if (d < 1) { m--; if (m < 1) { m = 13; y--; } d += (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30; }
+        else break;
+    }
+    return { year: y, month: m, day: d };
+}
+
+const _usHolCache = {};
+function getUSHolidays(year) {
+    if (_usHolCache[year]) return _usHolCache[year];
+    const map = {};
+    const add = (m, d, name) => { (map[m + '-' + d] = map[m + '-' + d] || []).push(name); };
+    const nth = (m, wd, n) => 1 + ((wd - new Date(year, m - 1, 1).getDay() + 7) % 7) + (n - 1) * 7;
+    const last = (m, wd) => { const e = new Date(year, m, 0); return e.getDate() - ((e.getDay() - wd + 7) % 7); };
+    add(1, 1, "New Year's Day");
+    add(1, nth(1, 1, 3), "Martin Luther King Jr. Day");
+    if ((year - 2025) % 4 === 0) add(1, 20, "Inauguration Day");
+    add(2, 2, "Groundhog Day");
+    add(2, 14, "Valentine's Day");
+    add(2, nth(2, 1, 3), "Presidents' Day");
+    add(3, 17, "St. Patrick's Day");
+    add(4, 1, "April Fools' Day");
+    add(4, 15, "Tax Day");
+    add(4, 22, "Earth Day");
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const mm = Math.floor((a + 11 * h + 22 * l) / 451);
+    const em = Math.floor((h + l - 7 * mm + 114) / 31), ed = ((h + l - 7 * mm + 114) % 31) + 1;
+    add(em, ed, "Easter Sunday");
+    const gf = new Date(year, em - 1, ed - 2);
+    add(gf.getMonth() + 1, gf.getDate(), "Good Friday");
+    add(5, 5, "Cinco de Mayo");
+    add(5, nth(5, 0, 2), "Mother's Day");
+    add(5, last(5, 1), "Memorial Day");
+    add(6, 14, "Flag Day");
+    add(6, 19, "Juneteenth");
+    add(6, nth(6, 0, 3), "Father's Day");
+    add(7, 4, "Independence Day");
+    add(9, nth(9, 1, 1), "Labor Day");
+    add(9, 11, "Patriot Day");
+    add(10, nth(10, 1, 2), "Columbus Day / Indigenous Peoples' Day");
+    add(10, 31, "Halloween");
+    add(11, 11, "Veterans Day");
+    add(11, nth(11, 1, 1) + 1, "Election Day");
+    const tg = nth(11, 4, 4);
+    add(11, tg, "Thanksgiving");
+    add(11, tg + 1, "Black Friday");
+    add(12, 24, "Christmas Eve");
+    add(12, 25, "Christmas Day");
+    add(12, 31, "New Year's Eve");
+    return (_usHolCache[year] = map);
+}
+function getUSHolidayNames(date) {
+    return getUSHolidays(date.getFullYear())[(date.getMonth() + 1) + '-' + date.getDate()] || [];
+}
+// flat G.C. list for the home-screen widget
+function getHolidayListForWidget() {
+    const out = [], y0 = new Date().getFullYear();
+    for (let y = y0 - 1; y <= y0 + 2; y++) {
+        const map = getUSHolidays(y);
+        Object.keys(map).forEach(k => { const [m, d] = k.split('-').map(Number); map[k].forEach(t => out.push({ y, m, d, t })); });
+    }
+    return out;
+}
+
+function openAddForDay(ec) {
+    resetCalForm();
+    document.getElementById('evt-day').value = ec.day;
+    document.getElementById('evt-month').value = ec.month;
+    switchCalPanel('add');
+}
+function setCalMode(mode) {
+    if ((systemState.calMode === 'GC' ? 'GC' : 'EC') === mode) return;
+    if (mode === 'GC') {
+        const g = ethToGregorian(ethCurrentYear, ethCurrentMonth, ethCurrentMonth === 13 ? 1 : 15);
+        gcCurrentYear = g.getFullYear(); gcCurrentMonth = g.getMonth() + 1;
+    } else {
+        const e = dateToEth(new Date(gcCurrentYear, gcCurrentMonth - 1, 15));
+        ethCurrentYear = e.year; ethCurrentMonth = e.month;
+    }
+    systemState.calMode = mode;
+    saveGameState();
+    renderEthCalendar();
+}
+function toggleCalMode() { setCalMode(systemState.calMode === 'GC' ? 'EC' : 'GC'); }
+function toggleUSHolidays() {
+    systemState.showUSHolidays = !systemState.showUSHolidays;
+    saveGameState();
+    renderEthCalendar();
+}
+function updateCalModeUI() {
+    const mb = document.getElementById('cal-mode-btn');
+    if (mb) mb.textContent = systemState.calMode === 'GC' ? 'G.C' : 'E.C';
+    const hb = document.getElementById('cal-hol-btn');
+    if (hb) {
+        const on = !!systemState.showUSHolidays;
+        hb.textContent = on ? 'ON' : 'OFF';
+        hb.style.color = on ? 'var(--neon-green)' : 'var(--text-muted)';
+        hb.style.borderColor = on ? 'var(--neon-green)' : 'var(--text-muted)';
+    }
+}
+
 function switchCalPanel(panel) {
     document.getElementById('cal-panel-add').style.display = panel === 'add' ? 'block' : 'none';
     document.getElementById('cal-panel-list').style.display = panel === 'list' ? 'block' : 'none';
@@ -2039,11 +2156,17 @@ function renderEthCalendar() {
     const frag = document.createDocumentFragment();
     bindCalTips(container);
     
-    document.getElementById('cal-month-name').innerHTML = ETH_MONTHS[ethCurrentMonth] + `<span class="cal-month-num">${ethCurrentMonth}</span>`;
-    document.getElementById('cal-year-num').innerText = ethCurrentYear;
+    const isGC = systemState.calMode === 'GC';
+    const showHol = !!systemState.showUSHolidays;
+    const viewY = isGC ? gcCurrentYear : ethCurrentYear;
+    const viewM = isGC ? gcCurrentMonth : ethCurrentMonth;
+    document.getElementById('cal-month-name').innerHTML = (isGC ? GC_MONTHS[viewM] : ETH_MONTHS[viewM]) + `<span class="cal-month-num">${viewM}</span>`;
+    updateCalModeUI();
+    document.getElementById('cal-year-num').innerText = viewY;
 
-    let daysInMonth = (ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30;
-    const startDay = getEthMonthStartDay(ethCurrentYear, ethCurrentMonth);
+    let daysInMonth = isGC ? new Date(viewY, viewM, 0).getDate() : ((ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30);
+    const ecBaseGC = isGC ? null : ethToGregorian(ethCurrentYear, ethCurrentMonth, 1);
+    const startDay = isGC ? new Date(viewY, viewM - 1, 1).getDay() : getEthMonthStartDay(ethCurrentYear, ethCurrentMonth);
     const gridOffset = (startDay + 6) % 7; 
 
     for (let i = 0; i < gridOffset; i++) {
@@ -2055,8 +2178,10 @@ function renderEthCalendar() {
     for (let d = 1; d <= daysInMonth; d++) {
         const div = document.createElement('div');
         div.className = 'cal-cell';
+        const gcDate = isGC ? new Date(viewY, viewM - 1, d) : new Date(ecBaseGC.getFullYear(), ecBaseGC.getMonth(), ecBaseGC.getDate() + d - 1);
+        const ec = isGC ? dateToEth(gcDate) : { year: ethCurrentYear, month: ethCurrentMonth, day: d };
         
-        if (ethCurrentYear === TODAY_ETH.year && ethCurrentMonth === TODAY_ETH.month && d === TODAY_ETH.day) {
+        if (ec.year === TODAY_ETH.year && ec.month === TODAY_ETH.month && ec.day === TODAY_ETH.day) {
             div.classList.add('is-today');
             const tag = document.createElement('div');
             tag.className = 'cal-today-tag';
@@ -2068,7 +2193,8 @@ function renderEthCalendar() {
         numSpan.innerText = d;
         div.appendChild(numSpan);
 
-        const daysEvents = systemState.events.filter(ev => isEventActive(ev, d, ethCurrentMonth, ethCurrentYear));
+        const userEvents = systemState.events.filter(ev => isEventActive(ev, ec.day, ec.month, ec.year));
+        const daysEvents = showHol ? userEvents.concat(getUSHolidayNames(gcDate).map(n => ({ id: null, title: n, color: US_HOLIDAY_COLOR, isHoliday: true }))) : userEvents;
         
         if (daysEvents.length > 0) {
             div.classList.add('has-event');
@@ -2092,23 +2218,24 @@ function renderEthCalendar() {
 
             // Keep the Tooltip logic so they can hover/press to read what the events are
             // tooltip is built lazily on first touch (see ensureCalTip) instead of 30 nodes + date maths per render
-            div._tipEvents = daysEvents; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
+            div._tipEvents = daysEvents; div._tipYMD = [ec.year, ec.month, ec.day]; div._tipGC = gcDate;
             
             // --- FINDASH FEATURE: Click to Edit & Cycle ---
             // If the day has events, clicking it loads the event into the editor.
             // If it has MULTIPLE events, each click cycles to the next one automatically!
             let clickIndex = 0;
             div.onclick = () => {
-                loadEventToEdit(daysEvents[clickIndex].id);
+                if (userEvents.length === 0) { openAddForDay(ec); return; }
+                loadEventToEdit(userEvents[clickIndex % userEvents.length].id);
                 // Advance the index so the next click loads the next event on this day
-                clickIndex = (clickIndex + 1) % daysEvents.length;
+                clickIndex = (clickIndex + 1) % Math.max(1, userEvents.length);
             };
         } else {
-            div._tipEvents = null; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
+            div._tipEvents = null; div._tipYMD = [ec.year, ec.month, ec.day]; div._tipGC = gcDate;
             div.onclick = () => {
                 resetCalForm();
-                document.getElementById('evt-day').value = d;
-                document.getElementById('evt-month').value = ethCurrentMonth;
+                document.getElementById('evt-day').value = ec.day;
+                document.getElementById('evt-month').value = ec.month;
                 switchCalPanel('add');
             };
         }
@@ -2121,7 +2248,9 @@ function ensureCalTip(cell) {
     if (!cell || cell._tipDone || !cell._tipYMD) return;
     cell._tipDone = true;
     const [y, m, d] = cell._tipYMD;
-    const g = ethToGregorian(y, m, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const g = (systemState.calMode === 'GC')
+        ? `E.C. ${ETH_MONTHS[m]} ${d}, ${y}`
+        : cell._tipGC.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const tip = document.createElement('div');
     tip.className = 'cal-tooltip';
     tip.innerHTML = `<div class="tooltip-greg-date">${g}</div>` + (cell._tipEvents ? cell._tipEvents.map(ev => `
@@ -2138,6 +2267,13 @@ function bindCalTips(container) {
 }
 
 function changeEthMonth(delta) {
+    if (systemState.calMode === 'GC') {
+        gcCurrentMonth += delta;
+        if (gcCurrentMonth > 12) { gcCurrentMonth = 1; gcCurrentYear++; }
+        else if (gcCurrentMonth < 1) { gcCurrentMonth = 12; gcCurrentYear--; }
+        renderEthCalendar();
+        return;
+    }
     ethCurrentMonth += delta;
     if (ethCurrentMonth > 13) { ethCurrentMonth = 1; ethCurrentYear++; }
     else if (ethCurrentMonth < 1) { ethCurrentMonth = 13; ethCurrentYear--; }
@@ -2151,6 +2287,8 @@ function selectColor(el, color) {
 }
 
 function jumpToToday() {
+    gcCurrentYear = new Date().getFullYear();
+    gcCurrentMonth = new Date().getMonth() + 1;
     ethCurrentYear = TODAY_ETH.year;
     ethCurrentMonth = TODAY_ETH.month;
     renderEthCalendar();
@@ -2495,6 +2633,88 @@ async function cancelWorkManagerTasks(questId) {
             await Capacitor.Plugins.LocalNotifications.cancel({ notifications: toCancel });
         }
     } catch (e) { }
+}
+
+// ==========================================
+// --- QUEST REMINDER NOTIFICATIONS (single source of truth) ---
+// Wipes every pending quest reminder and rebuilds it from the current quests,
+// so completed / not-due / deleted / edited quests can never ring.
+// ==========================================
+let _qNotifTimer = null, _qNotifBusy = false, _qNotifDirty = false, _lastQNotifSig = '';
+function syncQuestNotificationsDebounced() {
+    clearTimeout(_qNotifTimer);
+    _qNotifTimer = setTimeout(syncQuestNotifications, 800);
+}
+async function syncQuestNotifications() {
+    if (_qNotifBusy) { _qNotifDirty = true; return; }
+    _qNotifBusy = true;
+    try {
+        if (!window.Capacitor || !Capacitor.Plugins.LocalNotifications) return;
+        const LN = Capacitor.Plugins.LocalNotifications;
+        const perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') return;
+
+        // A finished daily stays quiet until the next reset, then rings again on its next due day
+        const now = new Date();
+        const { h: rh, m: rm } = getResetTime();
+        const nextReset = new Date(now);
+        nextReset.setHours(rh, rm, 0, 0);
+        if (nextReset <= now) nextReset.setDate(nextReset.getDate() + 1);
+
+        const tasks = [];
+        (systemState.quests || []).forEach(q => {
+            if (!q.reminders || q.reminders.length === 0) return;
+            const isDaily = q.type === 'daily' || !q.type;
+            if (isDaily) {
+                q.reminders.forEach(rem => {
+                    const [hh, mm] = String(rem).split(':').map(Number);
+                    if (isNaN(hh) || isNaN(mm)) return;
+                    let count = 0;
+                    for (let i = 0; i < 30 && count < 14; i++) {
+                        const at = new Date();
+                        at.setDate(at.getDate() + i);
+                        at.setHours(hh, mm, 0, 0);
+                        if (at.getTime() <= Date.now()) continue;
+                        if (!isQuestActiveOnDate(q, at)) continue;   // not due that day
+                        count++;
+                        if (q.completed && at < nextReset) continue; // already done this cycle
+                        tasks.push({ q, at, body: q.notes || "A daily task requires your attention." });
+                    }
+                });
+            } else {
+                if (q.completed) return;                             // finished quests never ring
+                q.reminders.forEach(rem => {
+                    const at = new Date(rem);
+                    if (!isNaN(at.getTime()) && at.getTime() > Date.now()) tasks.push({ q, at, body: q.notes || "A task requires your attention." });
+                });
+            }
+        });
+
+        tasks.sort((a, b) => a.at - b.at);
+        const list = tasks.slice(0, 400).map((t, i) => ({
+            title: t.q.title,
+            body: t.body,
+            id: i + 1,
+            schedule: { at: t.at, allowWhileIdle: true },
+            channelId: 'system_alerts',
+            actionTypeId: 'QUEST_ACTIONS',
+            extra: { questId: t.q.id }
+        }));
+
+        const sig = JSON.stringify(list.map(n => [n.extra.questId, +n.schedule.at, n.title, n.body]));
+        if (sig === _lastQNotifSig) return;   // nothing changed, leave the OS alone
+
+        const pending = await LN.getPending();
+        const old = (pending.notifications || []).filter(n => n.id < EVENT_NOTIF_BASE && n.id !== 99999);
+        if (old.length > 0) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
+        if (list.length > 0) await LN.schedule({ notifications: list });
+        _lastQNotifSig = sig;
+    } catch (e) {
+        console.log("Quest notifications skipped (browser or plugin missing).");
+    } finally {
+        _qNotifBusy = false;
+        if (_qNotifDirty) { _qNotifDirty = false; syncQuestNotificationsDebounced(); }
+    }
 }
 
 // 5. Applies data to HTML elements on load AND after save
@@ -2919,7 +3139,7 @@ function saveQuest() {
     
     // --- WORKMANAGER: Schedule the background tasks natively ---
     const savedQuest = systemState.quests.find(q => q.title === title);
-    if (savedQuest) scheduleNativeWorkManager(savedQuest);
+    syncQuestNotificationsDebounced();
 
     closeQuestModal(); 
 }
@@ -2946,7 +3166,7 @@ function cancelDeleteQuest() {
 }
 
 function confirmDeleteQuest() {
-    cancelWorkManagerTasks(editingQuestId); // Delete background tasks from OS!
+    syncQuestNotificationsDebounced();
     
     // Actually delete it
     systemState.quests = systemState.quests.filter(q => q.id !== editingQuestId);
@@ -3149,6 +3369,7 @@ function saveGameState() {
     syncWidgetData();
     syncTaskWidgets();
     scheduleEventNotificationsDebounced();
+    syncQuestNotificationsDebounced();
 }
 
 // ==========================================
@@ -3249,6 +3470,8 @@ function syncWidgetData() {
             todayEthMonth: today.month,
             todayEthYear:  today.year,
             accent:        getAccentHex(),
+            calMode:       systemState.calMode === 'GC' ? 'GC' : 'EC',
+            holidays:      systemState.showUSHolidays ? getHolidayListForWidget() : [],
             events: (systemState.events || []).map(e => ({
                 day: e.day,
                 month: e.month,
@@ -3369,7 +3592,8 @@ function sanitizeSystemState(loadedState) {
         quests: [], streakIncrementedToday: false,
         lastCompletedDate: null, weeklyHistory: [],
         events: [], dailyBonus: null, dailyBonusClaimed: false,
-        achievements: [], _titleFlags: {}
+        achievements: [], _titleFlags: {},
+        calMode: 'EC', showUSHolidays: false
     };
 
     // 2. Merge them. The loaded save will overwrite the defaults, 

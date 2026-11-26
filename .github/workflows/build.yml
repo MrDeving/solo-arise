@@ -2683,6 +2683,7 @@ jobs:
           a('        </LinearLayout>')
           a('        <ImageView android:id="@+id/ec_next" android:layout_width="32dp" android:layout_height="32dp"')
           a('            android:padding="4dp" android:src="@drawable/ic_ecal_next"/>')
+          a('        <TextView android:id="@+id/ec_mode" android:layout_width="wrap_content" android:layout_height="26dp" android:layout_marginStart="6dp" android:minWidth="36dp" android:gravity="center" android:paddingStart="8dp" android:paddingEnd="8dp" android:textSize="11sp" android:textStyle="bold" android:textColor="#38BDF8" android:background="@drawable/ecal_pill_ring"/>')
           a('    </LinearLayout>')
           # weekday letters (Monday first, like the app)
           a('    <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:orientation="horizontal" android:paddingBottom="4dp">')
@@ -2740,9 +2741,11 @@ jobs:
               static final String ACT_PREV  = "com.hunter.arisesolo.widget.ECAL_PREV";
               static final String ACT_NEXT  = "com.hunter.arisesolo.widget.ECAL_NEXT";
               static final String ACT_TODAY = "com.hunter.arisesolo.widget.ECAL_TODAY";
+              static final String ACT_MODE  = "com.hunter.arisesolo.widget.ECAL_MODE";
               static final String ACT_CELL  = "com.hunter.arisesolo.widget.ECAL_CELL";
               static final String PREFS = "EthCalWidget";
               static final int MAX_ROWS = 6;
+              static final String[] GC_SHORT = {"","Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"};
               static final String[] ETH_MONTHS = {"","መስከረም","ጥቅምት","ህዳር","ታህሳስ","ጥር","የካቲት","መጋቢት","ሚያዝያ","ግንቦት","ሰኔ","ሐምሌ","ነሐሴ","ጳጉሜ"};
 
               @Override
@@ -2758,7 +2761,7 @@ jobs:
               @Override
               public void onDeleted(Context ctx, int[] ids) {
                   SharedPreferences.Editor ed = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit();
-                  for (int id : ids) ed.remove("moff_" + id);
+                  for (int id : ids) { ed.remove("moff_" + id); ed.remove("gc_" + id); }
                   ed.apply();
               }
 
@@ -2767,6 +2770,14 @@ jobs:
                   if (intent == null) return;
                   String a = intent.getAction();
                   AppWidgetManager mgr = AppWidgetManager.getInstance(ctx);
+                  if (ACT_MODE.equals(a)) {
+                      int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
+                      if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return;
+                      SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                      p.edit().putBoolean("gc_" + id, !isGC(ctx, id, loadData(ctx))).putInt("moff_" + id, 0).apply();
+                      safeRender(ctx, mgr, id);
+                      return;
+                  }
                   if (ACT_PREV.equals(a) || ACT_NEXT.equals(a) || ACT_TODAY.equals(a)) {
                       int id = intent.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID);
                       if (id == AppWidgetManager.INVALID_APPWIDGET_ID) return;
@@ -2827,6 +2838,48 @@ jobs:
                   while (d > dim(y, m)) { d -= dim(y, m); m++; if (m > 13) { m = 1; y++; } }
                   while (d < 1) { m--; if (m < 1) { m = 13; y--; } d += dim(y, m); }
                   return new int[] { y, m, d };
+              }
+
+              static boolean isGC(Context ctx, int id, JSONObject data) {
+                  SharedPreferences p = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+                  if (p.contains("gc_" + id)) return p.getBoolean("gc_" + id, false);
+                  return "GC".equals(data.optString("calMode", "EC"));
+              }
+
+              static int[] gcMonthAt(int off) {
+                  Calendar n = Calendar.getInstance();
+                  long idx = n.get(Calendar.YEAR) * 12L + n.get(Calendar.MONTH) + off;
+                  return new int[] { (int) Math.floorDiv(idx, 12L), (int) Math.floorMod(idx, 12L) + 1 };
+              }
+
+              // 0 = Monday ... 6 = Sunday
+              static int gcFirstCol(int y, int m) {
+                  Calendar c = new java.util.GregorianCalendar(y, m - 1, 1);
+                  return (c.get(Calendar.DAY_OF_WEEK) + 5) % 7;
+              }
+
+              static int gcRowsFor(int y, int m) {
+                  Calendar c = new java.util.GregorianCalendar(y, m - 1, 1);
+                  return Math.min(MAX_ROWS, (gcFirstCol(y, m) + c.getActualMaximum(Calendar.DAY_OF_MONTH) + 6) / 7);
+              }
+
+              static Calendar gcGridStart(int y, int m) {
+                  Calendar c = new java.util.GregorianCalendar(y, m - 1, 1, 12, 0, 0);
+                  c.add(Calendar.DAY_OF_MONTH, -gcFirstCol(y, m));
+                  return c;
+              }
+
+              static Calendar ethToGreg(int y, int m, int d) {
+                  Calendar c = new java.util.GregorianCalendar(2026, Calendar.FEBRUARY, 9, 12, 0, 0);
+                  c.add(Calendar.DAY_OF_MONTH, (int) (ord(y, m, d) - ord(2018, 6, 2)));
+                  return c;
+              }
+
+              static int[] gregToEth(Calendar g) {
+                  Calendar a = new java.util.GregorianCalendar(2026, Calendar.FEBRUARY, 9, 12, 0, 0);
+                  Calendar b = new java.util.GregorianCalendar(g.get(Calendar.YEAR), g.get(Calendar.MONTH), g.get(Calendar.DAY_OF_MONTH), 12, 0, 0);
+                  long diff = Math.round((b.getTimeInMillis() - a.getTimeInMillis()) / 86400000.0);
+                  return addDays(2018, 6, 2, (int) diff);
               }
 
               static int[] today() {
@@ -2968,11 +3021,16 @@ jobs:
                   int off = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt("moff_" + id, 0);
 
                   int[] t = today();
-                  int[] mid = monthAt(t, off);                                                // {year, month} being shown
-                  int rows = rowsFor(mid[0], mid[1]);                                         // whole month always fits
-                  int[] ws = addDays(mid[0], mid[1], 1, -weekday(mid[0], mid[1], 1));         // Monday on/before the 1st
+                  boolean gc = isGC(ctx, id, data);
+                  int[] mid = gc ? gcMonthAt(off) : monthAt(t, off);                                                // {year, month} being shown
+                  int rows = gc ? gcRowsFor(mid[0], mid[1]) : rowsFor(mid[0], mid[1]);                                         // whole month always fits
+                  int[] ws = gc ? null : addDays(mid[0], mid[1], 1, -weekday(mid[0], mid[1], 1));
+                  Calendar gStart = gc ? gcGridStart(mid[0], mid[1]) : ethToGreg(ws[0], ws[1], ws[2]);         // Monday on/before the 1st
 
-                  v.setTextViewText(R.id.ec_month, ETH_MONTHS[mid[1]]);
+                  v.setTextViewText(R.id.ec_month, gc ? GC_SHORT[mid[1]] : ETH_MONTHS[mid[1]]);
+                  v.setTextViewText(R.id.ec_mode, gc ? "G.C" : "E.C");
+                  v.setTextColor(R.id.ec_mode, accent);
+                  v.setOnClickPendingIntent(R.id.ec_mode, nav(ctx, id, ACT_MODE));
                   v.setTextColor(R.id.ec_month, accent);
                   v.setTextViewText(R.id.ec_monthnum, String.valueOf(mid[1]));
                   v.setTextViewText(R.id.ec_year, String.valueOf(mid[0]));
@@ -3000,7 +3058,8 @@ jobs:
                       if (!on) continue;
                       for (int c = 0; c < 7; c++) {
                           int i = r * 7 + c;
-                          int[] dt = addDays(ws[0], ws[1], ws[2], i);
+                          Calendar gcal = (Calendar) gStart.clone(); gcal.add(Calendar.DAY_OF_MONTH, i);
+                          int[] dt = gc ? gregToEth(gcal) : addDays(ws[0], ws[1], ws[2], i);
                           int cell = res.getIdentifier("ec_c" + i, "id", pkg);
                           int fill = res.getIdentifier("ec_f" + i, "id", pkg);
                           int ring = res.getIdentifier("ec_r" + i, "id", pkg);
@@ -3008,11 +3067,11 @@ jobs:
                           if (cell == 0 || fill == 0 || ring == 0 || txt == 0) continue;
 
                           boolean isToday = dt[0] == t[0] && dt[1] == t[1] && dt[2] == t[2];
-                          boolean inMonth = dt[0] == mid[0] && dt[1] == mid[1];
+                          boolean inMonth = gc ? (gcal.get(Calendar.YEAR) == mid[0] && gcal.get(Calendar.MONTH) + 1 == mid[1]) : (dt[0] == mid[0] && dt[1] == mid[1]);
 
                           String titles = "";
                           int count = 0, first = accent;
-                          int[] cols = new int[events.length()];
+                          int[] cols = new int[events.length() + 8];
                           for (int e = 0; e < events.length(); e++) {
                               JSONObject ev = events.optJSONObject(e);
                               if (ev == null || !hit(ev, dt)) continue;
@@ -3020,6 +3079,20 @@ jobs:
                               if (count == 0) first = cols[count];
                               titles += (count == 0 ? "" : "\n") + "• " + ev.optString("title", "");
                               count++;
+                          }
+
+                          JSONArray hol = data.optJSONArray("holidays");
+                          if (hol != null) {
+                              int gy = gcal.get(Calendar.YEAR), gm = gcal.get(Calendar.MONTH) + 1, gd = gcal.get(Calendar.DAY_OF_MONTH);
+                              for (int h = 0; h < hol.length(); h++) {
+                                  JSONObject ho = hol.optJSONObject(h);
+                                  if (ho == null || ho.optInt("y") != gy || ho.optInt("m") != gm || ho.optInt("d") != gd) continue;
+                                  if (count >= cols.length) break;
+                                  cols[count] = 0xFF14B8A6;
+                                  if (count == 0) first = cols[count];
+                                  titles += (count == 0 ? "" : "\n") + "• " + ho.optString("t", "");
+                                  count++;
+                              }
                           }
 
                           // same rules as the app's calendar tiles
@@ -3042,12 +3115,14 @@ jobs:
                           v.setInt(fill, "setImageAlpha", (inMonth || isToday) ? 255 : 80);
                           v.setViewVisibility(ring, View.GONE);
                           v.setViewPadding(txt, 0, isToday ? (int) (side * 0.16f * res.getDisplayMetrics().density) : 0, 0, 0);
-                          v.setTextViewText(txt, String.valueOf(dt[2]));
+                          v.setTextViewText(txt, String.valueOf(gc ? gcal.get(Calendar.DAY_OF_MONTH) : dt[2]));
                           v.setTextViewTextSize(txt, android.util.TypedValue.COMPLEX_UNIT_DIP, Math.max(9f, Math.min(18f, side * 0.38f)));
                           v.setTextColor(txt, (!inMonth && !isToday) ? 0x66F1F7FB : ((count > 0 || isToday) ? 0xFFFFFFFF : 0xFFF1F7FB));
 
                           Intent ci = new Intent(ctx, EthDayActivity.class);
-                          ci.putExtra("label", ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0]);
+                          String ecL = ETH_MONTHS[dt[1]] + " " + dt[2] + ", " + dt[0];
+                          String gcL = GC_SHORT[gcal.get(Calendar.MONTH) + 1] + " " + gcal.get(Calendar.DAY_OF_MONTH) + ", " + gcal.get(Calendar.YEAR);
+                          ci.putExtra("label", gc ? ("G.C. " + gcL + "  •  E.C. " + ecL) : ("E.C. " + ecL + "  •  G.C. " + gcL));
                           ci.putExtra("titles", titles);
                           ci.setData(Uri.parse("ecal://cell/" + id + "/" + i));
                           v.setOnClickPendingIntent(cell, PendingIntent.getActivity(ctx, 0, ci,
