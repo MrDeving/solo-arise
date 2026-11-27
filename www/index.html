@@ -69,6 +69,7 @@
         <!-- HOME VIEW -->
         <div id="view-home" class="view active">
             
+            <div id="next-up-banner" class="next-up-banner" style="display:none;"><span class="next-up-label">NEXT</span><span id="next-up-text" class="next-up-text"></span></div>
             <!-- Daily Quests Header -->
             <div class="section-header">
                 <h3 class="glow-title">DAILY QUESTS</h3>
@@ -148,10 +149,11 @@
                     <button class="icon-btn" onclick="jumpToToday()" style="margin-right: 8px;" title="Jump to Today">
                         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--neon-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/><circle cx="12" cy="15" r="2"/></svg>
                     </button>
+                    <button id="cal-mode-btn" class="icon-btn" onclick="toggleCalMode()" title="Switch E.C / G.C" style="margin-right:8px; font-size:11px; font-weight:800; letter-spacing:1px; color:var(--neon-blue); border:1px solid var(--neon-blue); border-radius:8px; padding:4px 8px; min-width:40px;">E.C</button>
                     <button class="icon-btn" onclick="changeEthMonth(-1)">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
                     </button>
-                    <div style="text-align:center">
+                    <div style="text-align:center; flex:1; min-width:0; white-space:nowrap;">
                         <h2 id="cal-month-name" style="margin:0; font-size: 20px; color: var(--neon-blue); letter-spacing: 2px; text-transform: uppercase;">Meskerem</h2>
                         <span id="cal-year-num" style="color:var(--text-muted); font-size: 12px; font-weight: bold;">2016</span>
                     </div>
@@ -164,6 +166,10 @@
                     <span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span><span>S</span>
                 </div>
                 <div id="cal-days-container" class="cal-days-grid"></div>
+                <div style="display:flex; align-items:center; justify-content:space-between; margin-top:12px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.08);">
+                    <span style="font-size:11px; color:var(--text-muted); letter-spacing:1px; text-transform:uppercase;">Show US Holidays (G.C.)</span>
+                    <button id="cal-hol-btn" class="icon-btn" onclick="toggleUSHolidays()" style="font-size:11px; font-weight:800; border:1px solid var(--text-muted); border-radius:8px; padding:4px 12px; min-width:48px; color:var(--text-muted);">OFF</button>
+                </div>
             </div>
 
             <!-- Tab Toggle -->
@@ -366,6 +372,49 @@
     <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">APP THEME</div>
     <button class="sci-fi-btn" style="width:100%;" onclick="openThemeStudio()">OPEN THEME STUDIO</button>
 </div>
+                <!-- Reminder Mode -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">REMINDER MODE</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="rmode-alarm" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderMode('alarm')">ALARM</button>
+                        <button id="rmode-notification" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderMode('notification')">NOTIFICATION</button>
+                    </div>
+                    <div id="rmode-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Reminder Countdown -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">REMINDER COUNTDOWN</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="rcount-on" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderCountdown(true)">ON</button>
+                        <button id="rcount-off" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setReminderCountdown(false)">OFF</button>
+                    </div>
+                    <div id="rcount-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Next Up Banner -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">NEXT UP BANNER</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="nextup-on" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setNextUp(true)">ON</button>
+                        <button id="nextup-off" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setNextUp(false)">OFF</button>
+                    </div>
+                    <div id="nextup-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Snooze Length -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">SNOOZE LENGTH</div>
+                    <div style="display:flex;gap:8px;">
+                        <button id="snz-5" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(5)">5 MIN</button>
+                        <button id="snz-10" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(10)">10 MIN</button>
+                        <button id="snz-15" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setSnoozeMins(15)">15 MIN</button>
+                    </div>
+                    <div id="snz-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;"></div>
+                </div>
+                <!-- Alarm Test -->
+                <div class="data-management-card" style="flex-direction:column;gap:10px;">
+                    <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">ALARM TEST</div>
+                    <div style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;">Rings in 10 seconds so you can check the sound, silent mode and the lock screen.</div>
+                    <button class="sci-fi-btn" style="width:100%;" onclick="testAlarm()">TEST ALARM</button>
+                </div>
                 <!-- Reset Time Setting -->
                 <div class="data-management-card" style="flex-direction:column;gap:8px;">
                     <div style="font-size:10px;color:var(--text-muted);letter-spacing:2px;text-align:center;">DAILY RESET TIME</div>
@@ -546,6 +595,17 @@
                     </button>
                 </div>
 
+                <!-- REMINDER STYLE (per task) -->
+                <div id="reminder-style-section" class="quest-section">
+                    <label>Reminder Style</label>
+                    <div style="display:flex;gap:8px;">
+                        <button type="button" id="qmode-default" class="sci-fi-btn" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setQuestReminderMode('default')">DEFAULT</button>
+                        <button type="button" id="qmode-alarm" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setQuestReminderMode('alarm')">ALARM</button>
+                        <button type="button" id="qmode-notification" class="sci-fi-btn outline" style="flex:1;padding-left:6px;padding-right:6px;" onclick="setQuestReminderMode('notification')">NOTIF</button>
+                    </div>
+                    <div id="qmode-hint" style="font-size:12px;color:var(--text-muted);text-align:center;line-height:1.4;margin-top:8px;"></div>
+                </div>
+
                 <!-- Padding at bottom so scroll doesn't get cut off behind the screen -->
         <div style="height: 400px;"></div>
 
@@ -603,6 +663,7 @@
                     <button class="sci-fi-btn outline filter-opt" id="filter-due" onclick="setFilter('due')">DUE</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-scheduled" onclick="setFilter('scheduled')" style="display: none;">SCHEDULED</button>
                     <button class="sci-fi-btn outline filter-opt" id="filter-done" onclick="setFilter('done')">DONE</button>
+                    <button class="sci-fi-btn outline" id="sort-soonest-btn" onclick="toggleSortSoonest()">SORT: SOONEST FIRST</button>
                 </div>
             </div>
         </div>
@@ -774,6 +835,7 @@
             </div>
             <div class="notif-body-area"><div class="notif-desc" id="notif-desc">You have unread messages.</div></div>
         </div>
+        <div class="notif-snooze-row"><span class="notif-snooze-label">SNOOZE</span><button class="notif-snooze-btn" onclick="snoozeFromNotification(5)">5M</button><button class="notif-snooze-btn" onclick="snoozeFromNotification(10)">10M</button><button class="notif-snooze-btn" onclick="snoozeFromNotification(15)">15M</button></div>
         <div class="notif-actions"><button class="notif-complete-btn" id="notif-complete-btn" onclick="completeFromNotification()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"></polyline></svg>COMPLETE</button></div>
     </div>
 

@@ -337,6 +337,8 @@ document.addEventListener('DOMContentLoaded', () => {
     applyWidgetActions(); // 7b. Apply anything ticked on the widgets while the app was closed
     updateArcadeComingSoon();
     
+    syncQuestNotificationsDebounced(); // rebuild reminder notifications on launch
+    if (window.syncAlarmTheme) window.syncAlarmTheme(); // give the native alarm screen the current theme
     // 7. Render Calendar (No Lucide required anymore!)
     renderEthCalendar();
     renderEventList();
@@ -587,6 +589,9 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
             }
         }
 
+        updateReminderCountdowns();
+        checkSnoozes();
+        updateNextUpBanner();
         // --- REMINDER CHECKER ---
         const now = new Date();
         const localISOTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
@@ -620,6 +625,298 @@ const dateStr = now.toLocaleDateString('en-US', optionsDate).toUpperCase();
             }
         });
     }, 1000);
+}
+
+// --- REMINDER COUNTDOWN (HH:MM:SS shown on quests that have a reminder) ---
+// ---- Compact countdown text: 1y / 3m / 2w / 5d / 3h / 4:12 ----
+function formatCompactCountdown(s) {
+    s = Math.max(0, Math.round(s));
+    const d = Math.floor(s / 86400);
+    if (d >= 365) return Math.floor(d / 365) + 'y';
+    if (d >= 30) return Math.floor(d / 30) + 'm';
+    if (d >= 7) return Math.floor(d / 7) + 'w';
+    if (d >= 1) return d + 'd';
+    if (s >= 3600) return Math.floor(s / 3600) + 'h';
+    return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0');
+}
+
+function getDueMs(quest) {
+    const isDaily = quest.type === 'daily' || !quest.type;
+    if (isDaily || !quest.dueDate) return null;
+    const p = String(quest.dueDate).split('-').map(Number);
+    const t = new Date(p[0], (p[1] || 1) - 1, p[2] || 1, 23, 59, 59).getTime();
+    return isNaN(t) ? null : t;
+}
+
+// What the countdown (and "soonest" sort) aims at: due date if set, otherwise next reminder
+function getCountdownTargetMs(quest) {
+    const d = getDueMs(quest);
+    return d !== null ? d : getNextReminderTime(quest);
+}
+
+// ---- Snooze ----
+function loadSnoozes() {
+    try { const a = JSON.parse(localStorage.getItem('qSnoozes') || '[]'); return Array.isArray(a) ? a : []; } catch (e) { return []; }
+}
+function saveSnoozes(list) {
+    try { localStorage.setItem('qSnoozes', JSON.stringify(list)); } catch (e) {}
+}
+function getActiveSnoozes() {
+    const now = Date.now();
+    return loadSnoozes().filter(s => s && s.at > now);
+}
+function snoozeQuest(id, mins) {
+    const now = Date.now();
+    const list = loadSnoozes().filter(s => s.id != id && s.at > now - 60000);
+    list.push({ id: id, at: now + mins * 60000 });
+    saveSnoozes(list);
+    syncQuestNotificationsDebounced();
+    updateReminderCountdowns();
+    updateNextUpBanner();
+}
+function checkSnoozes() {
+    const list = loadSnoozes();
+    if (!list.length) return;
+    const now = Date.now();
+    const due = list.filter(s => s.at <= now);
+    if (!due.length) return;
+    saveSnoozes(list.filter(s => s.at > now));
+    due.forEach(s => {
+        if (now - s.at > 60000) return; // stale, app was closed
+        const q = (systemState.quests || []).find(x => x.id == s.id);
+        if (q && !q.completed) triggerSystemAlert(q);
+    });
+}
+function getSnoozeMins() {
+    try { const n = parseInt(localStorage.getItem('snoozeMins'), 10); return [5, 10, 15].includes(n) ? n : 10; } catch (e) { return 10; }
+}
+function setSnoozeMins(n) {
+    try { localStorage.setItem('snoozeMins', String(n)); } catch (e) {}
+    updateSnoozeUI();
+}
+function updateSnoozeUI() {
+    const cur = getSnoozeMins();
+    [5, 10, 15].forEach(n => {
+        const b = document.getElementById('snz-' + n);
+        if (b) b.classList.toggle('outline', n !== cur);
+    });
+    const hint = document.getElementById('snz-hint');
+    if (hint) hint.textContent = 'The SNOOZE button on a reminder notification delays it by ' + cur + ' minutes.';
+}
+document.addEventListener('DOMContentLoaded', updateSnoozeUI);
+if (document.readyState !== 'loading') updateSnoozeUI();
+
+function snoozeFromNotification(mins) {
+    if (activeNotificationQuestId !== null && activeNotificationQuestId !== undefined) {
+        snoozeQuest(activeNotificationQuestId, mins);
+    }
+    closeNotification();
+}
+
+// ---- Next up banner ----
+function getNextUpEnabled() {
+    try { return localStorage.getItem('nextUpBanner') !== 'off'; } catch (e) { return true; }
+}
+function updateNextUpUI() {
+    const on = getNextUpEnabled();
+    const onBtn = document.getElementById('nextup-on');
+    const offBtn = document.getElementById('nextup-off');
+    const hint = document.getElementById('nextup-hint');
+    if (onBtn) onBtn.classList.toggle('outline', !on);
+    if (offBtn) offBtn.classList.toggle('outline', on);
+    if (hint) hint.textContent = on
+        ? 'Home shows a banner with your next upcoming reminder.'
+        : 'The Next Up banner is hidden.';
+}
+function setNextUp(on) {
+    try { localStorage.setItem('nextUpBanner', on ? 'on' : 'off'); } catch (e) {}
+    updateNextUpUI();
+    updateNextUpBanner();
+}
+document.addEventListener('DOMContentLoaded', updateNextUpUI);
+if (document.readyState !== 'loading') updateNextUpUI();
+
+// Keeps the Next Up banner inside the header card and sizes the page content to the real header height
+function syncHeaderHeight() {
+    try {
+        const hdr = document.getElementById('shared-header');
+        const card = hdr && hdr.querySelector('.hud-card');
+        const ban = document.getElementById('next-up-banner');
+        if (card && ban && ban.parentElement !== card) card.appendChild(ban);
+        if (!hdr) return;
+        const h = 180 + ((ban && ban.offsetHeight) ? Math.ceil(ban.offsetHeight) + 8 : 0);
+        if (h !== window._hdrH) {
+            window._hdrH = h;
+            document.documentElement.style.setProperty('--hdr-h', h + 'px');
+        }
+    } catch (e) {}
+}
+window.addEventListener('resize', syncHeaderHeight);
+document.addEventListener('DOMContentLoaded', syncHeaderHeight);
+function updateNextUpBanner() {
+    _updateNextUpBanner();
+    syncHeaderHeight();
+}
+function _updateNextUpBanner() {
+    const el = document.getElementById('next-up-banner');
+    if (!el) return;
+    if (!getNextUpEnabled()) { el.style.display = 'none'; return; }
+    let best = null, bq = null;
+    (systemState.quests || []).forEach(q => {
+        if (q.completed) return;
+        const t = getNextReminderTime(q);
+        if (t !== null && (best === null || t < best)) { best = t; bq = q; }
+    });
+    if (!bq) { el.style.display = 'none'; return; }
+    el.style.display = 'flex';
+    const txt = document.getElementById('next-up-text');
+    if (txt) {
+        txt.textContent = '';
+        const a = document.createElement('span');
+        a.className = 'nu-title';
+        a.textContent = bq.title;
+        const b = document.createElement('span');
+        b.className = 'nu-time';
+        b.textContent = 'in ' + formatCompactCountdown((best - Date.now()) / 1000);
+        txt.appendChild(a);
+        txt.appendChild(b);
+    }
+}
+
+// ---- Sort by soonest ----
+function getSortSoonest() {
+    try { return localStorage.getItem('sortSoonest') === 'on'; } catch (e) { return false; }
+}
+function updateSortSoonestUI() {
+    const b = document.getElementById('sort-soonest-btn');
+    if (b) b.classList.toggle('outline', !getSortSoonest());
+}
+function toggleSortSoonest() {
+    try { localStorage.setItem('sortSoonest', getSortSoonest() ? 'off' : 'on'); } catch (e) {}
+    updateSortSoonestUI();
+    renderQuests();
+}
+document.addEventListener('DOMContentLoaded', updateSortSoonestUI);
+if (document.readyState !== 'loading') updateSortSoonestUI();
+
+function getRenderOrder() {
+    const urg = q => (q.urgent && !q.completed) ? 1 : 0;
+    const arr = [...systemState.quests].sort((a, b) => urg(b) - urg(a));
+    if (!getSortSoonest()) return arr;
+    const t = q => {
+        if (q.completed) return Infinity;
+        const n = getCountdownTargetMs(q);
+        return n === null ? Infinity : n;
+    };
+    return arr.sort((a, b) => (urg(b) - urg(a)) || (t(a) === t(b) ? 0 : (t(a) < t(b) ? -1 : 1)));
+}
+
+// Next reminder, including any active snooze
+function getNextReminderTime(quest) {
+    let best = _baseNextReminderTime(quest);
+    if (quest && !quest.completed) {
+        const sn = getActiveSnoozes().find(s => s.id == quest.id);
+        if (sn && (best === null || sn.at < best)) best = sn.at;
+    }
+    return best;
+}
+function _baseNextReminderTime(quest) {
+    if (!quest.reminders || quest.reminders.length === 0) return null;
+    const nowMs = Date.now();
+    const isDaily = quest.type === 'daily' || !quest.type;
+    let best = null;
+    quest.reminders.forEach(rem => {
+        if (!rem) return;
+        if (isDaily) {
+            const parts = String(rem).split(':').map(Number);
+            const hh = parts[0], mm = parts[1];
+            if (isNaN(hh) || isNaN(mm)) return;
+            for (let i = 0; i < 30; i++) {
+                const at = new Date();
+                at.setDate(at.getDate() + i);
+                at.setHours(hh, mm, 0, 0);
+                if (at.getTime() <= nowMs) continue;
+                if (!isQuestActiveOnDate(quest, at)) continue;
+                if (best === null || at.getTime() < best) best = at.getTime();
+                break;
+            }
+        } else {
+            const at = new Date(rem).getTime();
+            if (!isNaN(at) && at > nowMs && (best === null || at < best)) best = at;
+        }
+    });
+    return best;
+}
+
+function getCountdownEnabled() {
+    try { return localStorage.getItem('reminderCountdown') !== 'off'; } catch (e) { return true; }
+}
+
+function updateCountdownToggleUI() {
+    const on = getCountdownEnabled();
+    const onBtn = document.getElementById('rcount-on');
+    const offBtn = document.getElementById('rcount-off');
+    const hint = document.getElementById('rcount-hint');
+    if (onBtn) onBtn.classList.toggle('outline', !on);
+    if (offBtn) offBtn.classList.toggle('outline', on);
+    if (hint) hint.textContent = on
+        ? 'Tasks show a compact countdown (1y, 3m, 2w, 5d, 3h, 4:12) to their due date, or next reminder.'
+        : 'Countdowns are hidden. Reminders still ring as normal.';
+}
+
+function setReminderCountdown(on) {
+    try { localStorage.setItem('reminderCountdown', on ? 'on' : 'off'); } catch (e) {}
+    updateCountdownToggleUI();
+    renderQuests();
+}
+
+document.addEventListener('DOMContentLoaded', updateCountdownToggleUI);
+if (document.readyState !== 'loading') updateCountdownToggleUI();
+
+function getReminderCountdownInfo(quest) {
+    if (!getCountdownEnabled() || !quest || quest.completed) return { text: '', cls: '' };
+    const isDaily = quest.type === 'daily' || !quest.type;
+    const due = getDueMs(quest);
+    if (due !== null) {
+        const ds = Math.round((due - Date.now()) / 1000);
+        if (ds <= 0) return { text: 'OVERDUE', cls: 'rem-urgent' };
+        return { text: formatCompactCountdown(ds), cls: ds < 3600 ? 'rem-urgent' : (ds < 86400 ? 'rem-warn' : '') };
+    }
+    if (!quest.reminders || quest.reminders.length === 0) return { text: '', cls: '' };
+    const next = getNextReminderTime(quest);
+    if (next === null) {
+        if (isDaily) return { text: '', cls: '' };
+        return { text: "TIME'S UP", cls: 'rem-urgent' };
+    }
+    const s = Math.max(0, Math.round((next - Date.now()) / 1000));
+    return { text: formatCompactCountdown(s), cls: s < 60 ? 'rem-urgent' : (s < 3600 ? 'rem-warn' : '') };
+}
+function _oldReminderCountdownInfo(quest) {
+    if (!getCountdownEnabled()) return { text: '', cls: '' };
+    if (!quest.reminders || quest.reminders.length === 0 || quest.completed) return { text: '', cls: '' };
+    const next = getNextReminderTime(quest);
+    if (next === null) {
+        const isDaily = quest.type === 'daily' || !quest.type;
+        if (isDaily) return { text: '', cls: '' };
+        return { text: "TIME'S UP", cls: 'rem-urgent' };
+    }
+    const s = Math.max(0, Math.round((next - Date.now()) / 1000));
+    const pad = n => String(n).padStart(2, '0');
+    const text = pad(Math.floor(s / 3600)) + ':' + pad(Math.floor((s % 3600) / 60)) + ':' + pad(s % 60);
+    let cls = '';
+    if (s < 60) cls = 'rem-urgent';
+    else if (s < 3600) cls = 'rem-warn';
+    return { text, cls };
+}
+
+function updateReminderCountdowns() {
+    document.querySelectorAll('.rem-countdown').forEach(el => {
+        const q = systemState.quests.find(x => x.id == el.getAttribute('data-qid'));
+        if (!q) return;
+        const info = getReminderCountdownInfo(q);
+        el.textContent = info.text;
+        el.className = 'rem-countdown ' + info.cls;
+    });
 }
 
 // --- NEW HELPER: Checks if a Daily Quest is supposed to happen on a specific date ---
@@ -703,7 +1000,7 @@ function renderQuests() {
     if (mainContainer) mainContainer.innerHTML = '';
 
     // urgent (unfinished) tasks are pinned to the top; everything else keeps its saved order
-    [...systemState.quests].sort((a, b) => ((b.urgent && !b.completed) ? 1 : 0) - ((a.urgent && !a.completed) ? 1 : 0)).forEach(quest => {
+    getRenderOrder().forEach(quest => {
         const isDaily = quest.type === 'daily' || !quest.type;
         const activeFilter = isDaily ? filters.home : filters.quests;
 
@@ -758,6 +1055,10 @@ function renderQuests() {
             : '';
 
         const hasReminder = quest.reminders && quest.reminders.length > 0;
+        const remInfo = getReminderCountdownInfo(quest);
+        const reminderCountdown = (remInfo.text)
+            ? `<span class="rem-countdown ${remInfo.cls}" data-qid="${quest.id}">${remInfo.text}</span>`
+            : '';
         const reminderIcon = hasReminder
             ? `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="opacity:0.45;flex-shrink:0;"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2"/><path d="M5 3L2 6M22 6l-3-3"/></svg>`
             : '';
@@ -795,7 +1096,7 @@ function renderQuests() {
                     ${clIndicator}
                     ${urgentBadge}
                     ${streak}
-                    ${reminderIcon}
+                    ${reminderCountdown}
                     ${pinIcon}
                 </div>
             </div>
@@ -964,7 +1265,7 @@ function togglePinQuest(id) {
 function deleteQuest(id) {
     sysConfirm("Delete this quest? This cannot be undone.", { title: 'DELETE QUEST', icon: 'trash', color: 'red' }).then(ok => {
         if (!ok) return;
-        cancelWorkManagerTasks(id);
+        syncQuestNotificationsDebounced();
         systemState.quests = systemState.quests.filter(q => q.id !== id);
         saveGameState();
         renderQuests();
@@ -2009,6 +2310,122 @@ const ETH_MONTHS = ["", "መስከረም", "ጥቅምት", "ህዳር", "ታህ�
 let selectedEventColor = '#8b5cf6';
 let currentEditEventId = null;
 
+// ---- G.C. / E.C. MODE + US HOLIDAYS ----
+const GC_MONTHS = ["", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const US_HOLIDAY_COLOR = '#14b8a6';
+let gcCurrentYear = new Date().getFullYear();
+let gcCurrentMonth = new Date().getMonth() + 1;
+
+// Any Date -> Ethiopian {year, month, day} (same anchor as getLiveEthDate)
+function dateToEth(date) {
+    const diff = Math.round((Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) - Date.UTC(2026, 1, 9)) / 86400000);
+    let y = 2018, m = 6, d = 2 + diff;
+    while (true) {
+        const dim = (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30;
+        if (d > dim) { d -= dim; m++; if (m > 13) { m = 1; y++; } }
+        else if (d < 1) { m--; if (m < 1) { m = 13; y--; } d += (m === 13) ? ((y % 4 === 3) ? 6 : 5) : 30; }
+        else break;
+    }
+    return { year: y, month: m, day: d };
+}
+
+const _usHolCache = {};
+function getUSHolidays(year) {
+    if (_usHolCache[year]) return _usHolCache[year];
+    const map = {};
+    const add = (m, d, name) => { (map[m + '-' + d] = map[m + '-' + d] || []).push(name); };
+    const nth = (m, wd, n) => 1 + ((wd - new Date(year, m - 1, 1).getDay() + 7) % 7) + (n - 1) * 7;
+    const last = (m, wd) => { const e = new Date(year, m, 0); return e.getDate() - ((e.getDay() - wd + 7) % 7); };
+    add(1, 1, "New Year's Day");
+    add(1, nth(1, 1, 3), "Martin Luther King Jr. Day");
+    if ((year - 2025) % 4 === 0) add(1, 20, "Inauguration Day");
+    add(2, 2, "Groundhog Day");
+    add(2, 14, "Valentine's Day");
+    add(2, nth(2, 1, 3), "Presidents' Day");
+    add(3, 17, "St. Patrick's Day");
+    add(4, 1, "April Fools' Day");
+    add(4, 15, "Tax Day");
+    add(4, 22, "Earth Day");
+    const a = year % 19, b = Math.floor(year / 100), c = year % 100;
+    const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const mm = Math.floor((a + 11 * h + 22 * l) / 451);
+    const em = Math.floor((h + l - 7 * mm + 114) / 31), ed = ((h + l - 7 * mm + 114) % 31) + 1;
+    add(em, ed, "Easter Sunday");
+    const gf = new Date(year, em - 1, ed - 2);
+    add(gf.getMonth() + 1, gf.getDate(), "Good Friday");
+    add(5, 5, "Cinco de Mayo");
+    add(5, nth(5, 0, 2), "Mother's Day");
+    add(5, last(5, 1), "Memorial Day");
+    add(6, 14, "Flag Day");
+    add(6, 19, "Juneteenth");
+    add(6, nth(6, 0, 3), "Father's Day");
+    add(7, 4, "Independence Day");
+    add(9, nth(9, 1, 1), "Labor Day");
+    add(9, 11, "Patriot Day");
+    add(10, nth(10, 1, 2), "Columbus Day / Indigenous Peoples' Day");
+    add(10, 31, "Halloween");
+    add(11, 11, "Veterans Day");
+    add(11, nth(11, 1, 1) + 1, "Election Day");
+    const tg = nth(11, 4, 4);
+    add(11, tg, "Thanksgiving");
+    add(11, tg + 1, "Black Friday");
+    add(12, 24, "Christmas Eve");
+    add(12, 25, "Christmas Day");
+    add(12, 31, "New Year's Eve");
+    return (_usHolCache[year] = map);
+}
+function getUSHolidayNames(date) {
+    return getUSHolidays(date.getFullYear())[(date.getMonth() + 1) + '-' + date.getDate()] || [];
+}
+// flat G.C. list for the home-screen widget
+function getHolidayListForWidget() {
+    const out = [], y0 = new Date().getFullYear();
+    for (let y = y0 - 1; y <= y0 + 2; y++) {
+        const map = getUSHolidays(y);
+        Object.keys(map).forEach(k => { const [m, d] = k.split('-').map(Number); map[k].forEach(t => out.push({ y, m, d, t })); });
+    }
+    return out;
+}
+
+function openAddForDay(ec) {
+    resetCalForm();
+    document.getElementById('evt-day').value = ec.day;
+    document.getElementById('evt-month').value = ec.month;
+    switchCalPanel('add');
+}
+function setCalMode(mode) {
+    if ((systemState.calMode === 'GC' ? 'GC' : 'EC') === mode) return;
+    if (mode === 'GC') {
+        const g = ethToGregorian(ethCurrentYear, ethCurrentMonth, ethCurrentMonth === 13 ? 1 : 15);
+        gcCurrentYear = g.getFullYear(); gcCurrentMonth = g.getMonth() + 1;
+    } else {
+        const e = dateToEth(new Date(gcCurrentYear, gcCurrentMonth - 1, 15));
+        ethCurrentYear = e.year; ethCurrentMonth = e.month;
+    }
+    systemState.calMode = mode;
+    saveGameState();
+    renderEthCalendar();
+}
+function toggleCalMode() { setCalMode(systemState.calMode === 'GC' ? 'EC' : 'GC'); }
+function toggleUSHolidays() {
+    systemState.showUSHolidays = !systemState.showUSHolidays;
+    saveGameState();
+    renderEthCalendar();
+}
+function updateCalModeUI() {
+    const mb = document.getElementById('cal-mode-btn');
+    if (mb) mb.textContent = systemState.calMode === 'GC' ? 'G.C' : 'E.C';
+    const hb = document.getElementById('cal-hol-btn');
+    if (hb) {
+        const on = !!systemState.showUSHolidays;
+        hb.textContent = on ? 'ON' : 'OFF';
+        hb.style.color = on ? 'var(--neon-green)' : 'var(--text-muted)';
+        hb.style.borderColor = on ? 'var(--neon-green)' : 'var(--text-muted)';
+    }
+}
+
 function switchCalPanel(panel) {
     document.getElementById('cal-panel-add').style.display = panel === 'add' ? 'block' : 'none';
     document.getElementById('cal-panel-list').style.display = panel === 'list' ? 'block' : 'none';
@@ -2039,11 +2456,17 @@ function renderEthCalendar() {
     const frag = document.createDocumentFragment();
     bindCalTips(container);
     
-    document.getElementById('cal-month-name').innerHTML = ETH_MONTHS[ethCurrentMonth] + `<span class="cal-month-num">${ethCurrentMonth}</span>`;
-    document.getElementById('cal-year-num').innerText = ethCurrentYear;
+    const isGC = systemState.calMode === 'GC';
+    const showHol = !!systemState.showUSHolidays;
+    const viewY = isGC ? gcCurrentYear : ethCurrentYear;
+    const viewM = isGC ? gcCurrentMonth : ethCurrentMonth;
+    document.getElementById('cal-month-name').innerHTML = (isGC ? GC_MONTHS[viewM] : ETH_MONTHS[viewM]) + `<span class="cal-month-num">${viewM}</span>`;
+    updateCalModeUI();
+    document.getElementById('cal-year-num').innerText = viewY;
 
-    let daysInMonth = (ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30;
-    const startDay = getEthMonthStartDay(ethCurrentYear, ethCurrentMonth);
+    let daysInMonth = isGC ? new Date(viewY, viewM, 0).getDate() : ((ethCurrentMonth === 13) ? (ethCurrentYear % 4 === 3 ? 6 : 5) : 30);
+    const ecBaseGC = isGC ? null : ethToGregorian(ethCurrentYear, ethCurrentMonth, 1);
+    const startDay = isGC ? new Date(viewY, viewM - 1, 1).getDay() : getEthMonthStartDay(ethCurrentYear, ethCurrentMonth);
     const gridOffset = (startDay + 6) % 7; 
 
     for (let i = 0; i < gridOffset; i++) {
@@ -2055,8 +2478,10 @@ function renderEthCalendar() {
     for (let d = 1; d <= daysInMonth; d++) {
         const div = document.createElement('div');
         div.className = 'cal-cell';
+        const gcDate = isGC ? new Date(viewY, viewM - 1, d) : new Date(ecBaseGC.getFullYear(), ecBaseGC.getMonth(), ecBaseGC.getDate() + d - 1);
+        const ec = isGC ? dateToEth(gcDate) : { year: ethCurrentYear, month: ethCurrentMonth, day: d };
         
-        if (ethCurrentYear === TODAY_ETH.year && ethCurrentMonth === TODAY_ETH.month && d === TODAY_ETH.day) {
+        if (ec.year === TODAY_ETH.year && ec.month === TODAY_ETH.month && ec.day === TODAY_ETH.day) {
             div.classList.add('is-today');
             const tag = document.createElement('div');
             tag.className = 'cal-today-tag';
@@ -2068,7 +2493,8 @@ function renderEthCalendar() {
         numSpan.innerText = d;
         div.appendChild(numSpan);
 
-        const daysEvents = systemState.events.filter(ev => isEventActive(ev, d, ethCurrentMonth, ethCurrentYear));
+        const userEvents = systemState.events.filter(ev => isEventActive(ev, ec.day, ec.month, ec.year));
+        const daysEvents = showHol ? userEvents.concat(getUSHolidayNames(gcDate).map(n => ({ id: null, title: n, color: US_HOLIDAY_COLOR, isHoliday: true }))) : userEvents;
         
         if (daysEvents.length > 0) {
             div.classList.add('has-event');
@@ -2092,23 +2518,24 @@ function renderEthCalendar() {
 
             // Keep the Tooltip logic so they can hover/press to read what the events are
             // tooltip is built lazily on first touch (see ensureCalTip) instead of 30 nodes + date maths per render
-            div._tipEvents = daysEvents; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
+            div._tipEvents = daysEvents; div._tipYMD = [ec.year, ec.month, ec.day]; div._tipGC = gcDate;
             
             // --- FINDASH FEATURE: Click to Edit & Cycle ---
             // If the day has events, clicking it loads the event into the editor.
             // If it has MULTIPLE events, each click cycles to the next one automatically!
             let clickIndex = 0;
             div.onclick = () => {
-                loadEventToEdit(daysEvents[clickIndex].id);
+                if (userEvents.length === 0) { openAddForDay(ec); return; }
+                loadEventToEdit(userEvents[clickIndex % userEvents.length].id);
                 // Advance the index so the next click loads the next event on this day
-                clickIndex = (clickIndex + 1) % daysEvents.length;
+                clickIndex = (clickIndex + 1) % Math.max(1, userEvents.length);
             };
         } else {
-            div._tipEvents = null; div._tipYMD = [ethCurrentYear, ethCurrentMonth, d];
+            div._tipEvents = null; div._tipYMD = [ec.year, ec.month, ec.day]; div._tipGC = gcDate;
             div.onclick = () => {
                 resetCalForm();
-                document.getElementById('evt-day').value = d;
-                document.getElementById('evt-month').value = ethCurrentMonth;
+                document.getElementById('evt-day').value = ec.day;
+                document.getElementById('evt-month').value = ec.month;
                 switchCalPanel('add');
             };
         }
@@ -2121,7 +2548,9 @@ function ensureCalTip(cell) {
     if (!cell || cell._tipDone || !cell._tipYMD) return;
     cell._tipDone = true;
     const [y, m, d] = cell._tipYMD;
-    const g = ethToGregorian(y, m, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const g = (systemState.calMode === 'GC')
+        ? `E.C. ${ETH_MONTHS[m]} ${d}, ${y}`
+        : cell._tipGC.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
     const tip = document.createElement('div');
     tip.className = 'cal-tooltip';
     tip.innerHTML = `<div class="tooltip-greg-date">${g}</div>` + (cell._tipEvents ? cell._tipEvents.map(ev => `
@@ -2138,6 +2567,13 @@ function bindCalTips(container) {
 }
 
 function changeEthMonth(delta) {
+    if (systemState.calMode === 'GC') {
+        gcCurrentMonth += delta;
+        if (gcCurrentMonth > 12) { gcCurrentMonth = 1; gcCurrentYear++; }
+        else if (gcCurrentMonth < 1) { gcCurrentMonth = 12; gcCurrentYear--; }
+        renderEthCalendar();
+        return;
+    }
     ethCurrentMonth += delta;
     if (ethCurrentMonth > 13) { ethCurrentMonth = 1; ethCurrentYear++; }
     else if (ethCurrentMonth < 1) { ethCurrentMonth = 13; ethCurrentYear--; }
@@ -2151,6 +2587,8 @@ function selectColor(el, color) {
 }
 
 function jumpToToday() {
+    gcCurrentYear = new Date().getFullYear();
+    gcCurrentMonth = new Date().getMonth() + 1;
     ethCurrentYear = TODAY_ETH.year;
     ethCurrentMonth = TODAY_ETH.month;
     renderEthCalendar();
@@ -2363,6 +2801,11 @@ async function requestNotificationPermission() {
                 types:[{
                     id: 'QUEST_ACTIONS',
                     actions:[{
+                        id: 'SNOOZE_QUEST',
+                        title: 'SNOOZE',
+                        foreground: false
+                    },
+                    {
                         id: 'COMPLETE_QUEST',
                         title: 'COMPLETE', 
                         foreground: false 
@@ -2374,6 +2817,11 @@ async function requestNotificationPermission() {
             await Capacitor.Plugins.LocalNotifications.removeAllListeners();
 
             Capacitor.Plugins.LocalNotifications.addListener('localNotificationActionPerformed', (notificationAction) => {
+                if (notificationAction.actionId === 'SNOOZE_QUEST') {
+                    const sid = notificationAction.notification.extra && notificationAction.notification.extra.questId;
+                    if (sid !== undefined && sid !== null) snoozeQuest(sid, getSnoozeMins());
+                    return;
+                }
                 if (notificationAction.actionId === 'COMPLETE_QUEST') {
                     const questId = notificationAction.notification.extra.questId;
                     if (questId) toggleQuest(questId);
@@ -2497,6 +2945,227 @@ async function cancelWorkManagerTasks(questId) {
     } catch (e) { }
 }
 
+// ==========================================
+// --- QUEST REMINDER NOTIFICATIONS (single source of truth) ---
+// Wipes every pending quest reminder and rebuilds it from the current quests,
+// so completed / not-due / deleted / edited quests can never ring.
+// ==========================================
+let _qNotifTimer = null, _qNotifBusy = false, _qNotifDirty = false, _lastQNotifSig = '';
+function syncQuestNotificationsDebounced() {
+    clearTimeout(_qNotifTimer);
+    _qNotifTimer = setTimeout(syncQuestNotifications, 800);
+}
+async function syncQuestNotifications() {
+    if (_qNotifBusy) { _qNotifDirty = true; return; }
+    _qNotifBusy = true;
+    try {
+        if (!window.Capacitor || !Capacitor.Plugins.LocalNotifications) return;
+        const LN = Capacitor.Plugins.LocalNotifications;
+        const perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') return;
+
+        // A finished daily stays quiet until the next reset, then rings again on its next due day
+        const now = new Date();
+        const { h: rh, m: rm } = getResetTime();
+        const nextReset = new Date(now);
+        nextReset.setHours(rh, rm, 0, 0);
+        if (nextReset <= now) nextReset.setDate(nextReset.getDate() + 1);
+
+        const tasks = [];
+        (systemState.quests || []).forEach(q => {
+            if (!q.reminders || q.reminders.length === 0) return;
+            const isDaily = q.type === 'daily' || !q.type;
+            if (isDaily) {
+                q.reminders.forEach(rem => {
+                    const [hh, mm] = String(rem).split(':').map(Number);
+                    if (isNaN(hh) || isNaN(mm)) return;
+                    let count = 0;
+                    for (let i = 0; i < 30 && count < 14; i++) {
+                        const at = new Date();
+                        at.setDate(at.getDate() + i);
+                        at.setHours(hh, mm, 0, 0);
+                        if (at.getTime() <= Date.now()) continue;
+                        if (!isQuestActiveOnDate(q, at)) continue;   // not due that day
+                        count++;
+                        if (q.completed && at < nextReset) continue; // already done this cycle
+                        tasks.push({ q, at, body: q.notes || "A daily task requires your attention." });
+                    }
+                });
+            } else {
+                if (q.completed) return;                             // finished quests never ring
+                q.reminders.forEach(rem => {
+                    const at = new Date(rem);
+                    if (!isNaN(at.getTime()) && at.getTime() > Date.now()) tasks.push({ q, at, body: q.notes || "A task requires your attention." });
+                });
+            }
+        });
+
+        getActiveSnoozes().forEach(sn => {
+            const sq = (systemState.quests || []).find(x => x.id == sn.id);
+            if (sq && !sq.completed) tasks.push({ q: sq, at: new Date(sn.at), body: sq.notes || "Snoozed reminder." });
+        });
+        tasks.sort((a, b) => a.at - b.at);
+        const list = tasks.slice(0, 400).map((t, i) => ({
+            title: t.q.title,
+            body: t.body,
+            id: i + 1,
+            schedule: { at: t.at, allowWhileIdle: true },
+            channelId: 'system_alerts',
+            actionTypeId: 'QUEST_ACTIONS',
+            extra: { questId: t.q.id },
+            _mode: (t.q.reminderMode === 'alarm' || t.q.reminderMode === 'notification') ? t.q.reminderMode : getReminderMode()
+        }));
+
+        const reminderMode = getReminderMode();
+        const sig = JSON.stringify([reminderMode, list.map(n => [n.extra.questId, +n.schedule.at, n.title, n.body, n._mode])]);
+        if (sig === _lastQNotifSig) return;   // nothing changed, leave the OS alone
+
+        const pending = await LN.getPending();
+        const old = (pending.notifications || []).filter(n => n.id < EVENT_NOTIF_BASE && n.id !== 99999);
+        if (old.length > 0) await LN.cancel({ notifications: old.map(n => ({ id: n.id })) });
+        const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+        const hasNative = !!(QA && QA.setAlarms);
+        const alarmList = hasNative ? list.filter(n => n._mode === 'alarm') : [];
+        const notifList = list.filter(n => !(hasNative && n._mode === 'alarm')).map(({ _mode, ...n }) => n);
+        if (hasNative && alarmList.length > 0) {
+            // Real alarms: ring on the ALARM volume, over the lock screen, until dismissed
+            const res = await QA.setAlarms({ alarms: alarmList.slice(0, 150).map(n => ({ id: n.id, at: +n.schedule.at, title: n.title, body: n.body, questId: String(n.extra.questId) })) });
+            if (alarmList.length > 0 && res && res.fullScreen === false && !localStorage.getItem('alarmFsiAsked')) {
+                localStorage.setItem('alarmFsiAsked', '1');
+                sysConfirm('Allow full-screen alarms so reminders can light up your lock screen like a real alarm clock?', { title: 'ALARM PERMISSION' }).then(ok => { if (ok && QA.openFullScreenSettings) QA.openFullScreenSettings(); });
+            }
+        } else {
+            // Notification mode (or no native plugin): clear native alarms, use plain notification popups
+            if (QA && QA.setAlarms) { try { await QA.setAlarms({ alarms: [] }); } catch (e) {} }
+            // (notification-style reminders are scheduled just below)
+        }
+        if (notifList.length > 0) await LN.schedule({ notifications: notifList });
+        _lastQNotifSig = sig;
+    } catch (e) {
+        console.log("Quest notifications skipped (browser or plugin missing).");
+    } finally {
+        _qNotifBusy = false;
+        if (_qNotifDirty) { _qNotifDirty = false; syncQuestNotificationsDebounced(); }
+    }
+}
+
+// Sends the current Theme Studio colours to the native alarm screen
+let _alarmThemeTimer = null, _lastAlarmThemeSig = '';
+function _cssArgb(value, fallback) {
+    try {
+        const el = document.createElement('div');
+        el.style.color = value || fallback;
+        document.body.appendChild(el);
+        const c = getComputedStyle(el).color;
+        document.body.removeChild(el);
+        const m = c.match(/[\d.]+/g);
+        if (m && m.length >= 3) {
+            const a = m.length >= 4 ? parseFloat(m[3]) : 1;
+            const h = n => Math.max(0, Math.min(255, Math.round(+n))).toString(16).padStart(2, '0');
+            return '#' + h(a * 255) + h(m[0]) + h(m[1]) + h(m[2]);
+        }
+    } catch (e) {}
+    return fallback;
+}
+window.syncAlarmTheme = function () {
+    clearTimeout(_alarmThemeTimer);
+    _alarmThemeTimer = setTimeout(async () => {
+        try {
+            const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+            if (!QA || !QA.setTheme || !document.body) return;
+            const cs = getComputedStyle(document.documentElement);
+            const v = n => cs.getPropertyValue(n).trim();
+            const theme = {
+                mode: document.documentElement.getAttribute('data-tmode') || 'dark',
+                accent: _cssArgb(v('--accent'), '#ff38bdf8'),
+                accent2: _cssArgb(v('--accent2'), '#ff818cf8'),
+                bg1: _cssArgb(v('--t-bg1'), '#ff0f172a'),
+                bg2: _cssArgb(v('--t-bg2'), '#ff020617'),
+                panelA: _cssArgb(v('--t-panelA'), '#24ffffff'),
+                panelB: _cssArgb(v('--t-panelB'), '#0fffffff'),
+                edge: _cssArgb(v('--t-edge'), '#1fffffff'),
+                text: _cssArgb(v('--t-text'), '#fff1f7fb'),
+                muted: _cssArgb(v('--t-muted'), '#ff9fb3c8'),
+                radius: parseInt(v('--r-md'), 10) || 16
+            };
+            const sig = JSON.stringify(theme);
+            if (sig === _lastAlarmThemeSig) return;
+            _lastAlarmThemeSig = sig;
+            await QA.setTheme(theme);
+        } catch (e) {}
+    }, 500);
+};
+
+// ==========================================
+// --- REMINDER MODE: 'alarm' (rings, full screen) or 'notification' (popup) ---
+// ==========================================
+function getReminderMode() {
+    try { return localStorage.getItem('reminderMode') === 'notification' ? 'notification' : 'alarm'; } catch (e) { return 'alarm'; }
+}
+
+function updateReminderModeUI() {
+    const mode = getReminderMode();
+    const a = document.getElementById('rmode-alarm');
+    const n = document.getElementById('rmode-notification');
+    const hint = document.getElementById('rmode-hint');
+    if (a) a.classList.toggle('outline', mode !== 'alarm');
+    if (n) n.classList.toggle('outline', mode !== 'notification');
+    if (hint) hint.textContent = mode === 'alarm'
+        ? 'Reminders ring like a real alarm, even on the lock screen. Press volume down to stop the sound and vibration.'
+        : 'Reminders show up as a normal notification popup.';
+}
+
+function setReminderMode(mode) {
+    try { localStorage.setItem('reminderMode', mode === 'notification' ? 'notification' : 'alarm'); } catch (e) {}
+    updateReminderModeUI();
+    _lastQNotifSig = '';              // force a full re-schedule in the new mode
+    syncQuestNotificationsDebounced();
+}
+
+document.addEventListener('DOMContentLoaded', updateReminderModeUI);
+if (document.readyState !== 'loading') updateReminderModeUI();
+
+async function testNotificationReminder() {
+    const LN = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.LocalNotifications;
+    if (!LN) {
+        sysAlert('Notifications only work in the Android app. On a computer, reminders show as an on-screen popup.', { title: 'REMINDER TEST' });
+        return;
+    }
+    try {
+        let perm = await LN.checkPermissions();
+        if (perm.display !== 'granted') perm = await LN.requestPermissions();
+        if (perm.display !== 'granted') {
+            sysAlert('Notification permission is turned off for this app.', { title: 'REMINDER TEST' });
+            return;
+        }
+        await LN.schedule({ notifications: [{
+            title: 'Test reminder',
+            body: 'This is how your quest reminders will look.',
+            id: 1600000001,
+            schedule: { at: new Date(Date.now() + 10000), allowWhileIdle: true },
+            channelId: 'system_alerts'
+        }] });
+        sysAlert('Test notification set. It shows in 10 seconds.', { title: 'REMINDER TEST' });
+    } catch (e) {
+        sysAlert('Could not set the test notification.', { title: 'REMINDER TEST' });
+    }
+}
+
+async function testAlarm() {
+    if (getReminderMode() === 'notification') { return testNotificationReminder(); }
+    const QA = window.Capacitor && Capacitor.Plugins && Capacitor.Plugins.QuestAlarm;
+    if (!QA || !QA.testAlarm) {
+        sysAlert('Real alarms only work in the Android app. On a computer, reminders show as an on-screen popup.', { title: 'ALARM TEST' });
+        return;
+    }
+    try {
+        await QA.testAlarm({ seconds: 10 });
+        sysAlert('Test alarm set. It rings in 10 seconds. Lock your phone now if you want to test the lock screen.', { title: 'ALARM TEST' });
+    } catch (e) {
+        sysAlert('Could not set the test alarm.', { title: 'ALARM TEST' });
+    }
+}
+
 // 5. Applies data to HTML elements on load AND after save
 function applySavedDataToUI() {
     const savedName = localStorage.getItem('hunterName');
@@ -2615,6 +3284,7 @@ let editingQuestId = null; // null means "Create", a number means "Edit"
 let currentQuestType = 'daily'; // Keep track of daily vs quest
 let selectedScheduleDays = [];
 let tempReminders = []; // Holds reminders while editing
+let tempReminderMode = 'default'; // 'default' | 'alarm' | 'notification' for the quest being edited
 
 function toggleDay(el) {
     const day = parseInt(el.getAttribute('data-day'));
@@ -2774,6 +3444,7 @@ function openAddQuestModal(type = 'daily') {
     document.getElementById('quest-scheduling-section').style.display = type === 'quest' ? 'block' : 'none';
     document.getElementById('quest-due-date').value = '';
     tempReminders = [];
+    tempReminderMode = 'default';
     renderReminders();
     tempChecklist = [];
     renderChecklistEditor();
@@ -2807,6 +3478,7 @@ function openEditQuestModal(id) {
     document.getElementById('quest-scheduling-section').style.display = currentQuestType === 'quest' ? 'block' : 'none';
     document.getElementById('quest-due-date').value = quest.dueDate || '';
     tempReminders = quest.reminders ? [...quest.reminders] : [];
+    tempReminderMode = quest.reminderMode || 'default';
     renderReminders();
     tempChecklist = quest.checklist ? quest.checklist.map(i => ({...i})) : [];
     renderChecklistEditor();
@@ -2875,6 +3547,7 @@ function saveQuest() {
         quest.difficulty = currentDifficulty;
         quest.dueDate = document.getElementById('quest-due-date').value;
         quest.reminders = tempReminders.filter(r => r !== '');
+        quest.reminderMode = tempReminderMode === 'default' ? null : tempReminderMode;
         quest.checklist = tempChecklist.filter(i => i.text.trim() !== '');
         if ((quest.type || 'daily') === 'daily') {
             quest.schedule = {
@@ -2906,6 +3579,7 @@ function saveQuest() {
             schedule: scheduleObj,
             dueDate: document.getElementById('quest-due-date').value,
             reminders: tempReminders.filter(r => r !== ''),
+            reminderMode: tempReminderMode === 'default' ? null : tempReminderMode,
             createdAt: Date.now(),
             dailyStreak: 0,
             lastStreakDate: null,
@@ -2919,7 +3593,7 @@ function saveQuest() {
     
     // --- WORKMANAGER: Schedule the background tasks natively ---
     const savedQuest = systemState.quests.find(q => q.title === title);
-    if (savedQuest) scheduleNativeWorkManager(savedQuest);
+    syncQuestNotificationsDebounced();
 
     closeQuestModal(); 
 }
@@ -2946,7 +3620,7 @@ function cancelDeleteQuest() {
 }
 
 function confirmDeleteQuest() {
-    cancelWorkManagerTasks(editingQuestId); // Delete background tasks from OS!
+    syncQuestNotificationsDebounced();
     
     // Actually delete it
     systemState.quests = systemState.quests.filter(q => q.id !== editingQuestId);
@@ -3149,6 +3823,7 @@ function saveGameState() {
     syncWidgetData();
     syncTaskWidgets();
     scheduleEventNotificationsDebounced();
+    syncQuestNotificationsDebounced();
 }
 
 // ==========================================
@@ -3249,6 +3924,8 @@ function syncWidgetData() {
             todayEthMonth: today.month,
             todayEthYear:  today.year,
             accent:        getAccentHex(),
+            calMode:       systemState.calMode === 'GC' ? 'GC' : 'EC',
+            holidays:      systemState.showUSHolidays ? getHolidayListForWidget() : [],
             events: (systemState.events || []).map(e => ({
                 day: e.day,
                 month: e.month,
@@ -3311,10 +3988,11 @@ function syncTaskWidgets() {
                 try { await P.setRegisteredWidgets({ widgets: [
                     'com.hunter.arisesolo.widget.DailiesWidget',
                     'com.hunter.arisesolo.widget.QuestsWidget',
-                    'com.hunter.arisesolo.widget.StreakWidget'
+                    'com.hunter.arisesolo.widget.StreakWidget',
+                    'com.hunter.arisesolo.widget.DualTasksWidget'
                 ] }); } catch (e) {}
                 await P.setItem({ group: 'AriseWidgets', key: 'tasks', value: payload });
-                ['DailiesWidget', 'QuestsWidget', 'StreakWidget'].forEach(k => {
+                ['DailiesWidget', 'QuestsWidget', 'StreakWidget', 'DualTasksWidget'].forEach(k => {
                     P.reloadTimelines({ ofKind: 'com.hunter.arisesolo.widget.' + k }).catch(() => {});
                 });
             } catch (e) { /* plugin missing (browser) */ }
@@ -3357,6 +4035,8 @@ async function applyWidgetActions() {
     _applyingWidgetActions = false;
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) applyWidgetActions(); });
+// Picks up "COMPLETE" pressed on an alarm while the app is already open
+setInterval(() => { if (!document.hidden) applyWidgetActions(); }, 4000);
 
 // Universal Data Patcher (Ensures old saves NEVER break new versions)
 function sanitizeSystemState(loadedState) {
@@ -3368,7 +4048,8 @@ function sanitizeSystemState(loadedState) {
         quests: [], streakIncrementedToday: false,
         lastCompletedDate: null, weeklyHistory: [],
         events: [], dailyBonus: null, dailyBonusClaimed: false,
-        achievements: [], _titleFlags: {}
+        achievements: [], _titleFlags: {},
+        calMode: 'EC', showUSHolidays: false
     };
 
     // 2. Merge them. The loaded save will overwrite the defaults, 
@@ -3918,7 +4599,26 @@ function confirmWelcomeBack() {
 // --- REMINDERS & NOTIFICATION SYSTEM ---
 // ==========================================
 
+function updateQuestReminderModeUI() {
+    ['default', 'alarm', 'notification'].forEach(k => {
+        const b = document.getElementById('qmode-' + k);
+        if (b) b.classList.toggle('outline', tempReminderMode !== k);
+    });
+    const hint = document.getElementById('qmode-hint');
+    if (hint) {
+        hint.textContent = tempReminderMode === 'default'
+            ? 'Uses your Settings choice (currently ' + getReminderMode().toUpperCase() + ').'
+            : tempReminderMode === 'alarm'
+                ? 'This task rings like a real alarm.'
+                : 'This task shows a normal notification popup.';
+    }
+}
+function setQuestReminderMode(m) {
+    tempReminderMode = m;
+    updateQuestReminderModeUI();
+}
 function renderReminders() {
+    updateQuestReminderModeUI();
     const list = document.getElementById('reminders-list');
     list.innerHTML = '';
     
@@ -3963,6 +4663,8 @@ function showNotification(quest) {
     
     // Hide the "COMPLETE" button for system errors and warnings
     const actionsDiv = document.querySelector('.notif-actions');
+    const snzRow = document.querySelector('.notif-snooze-row');
+    if (snzRow) snzRow.style.display = (quest.id === 'error' || quest.id === 'system-warning') ? 'none' : 'flex';
     if (quest.id === 'error' || quest.id === 'system-warning') {
         actionsDiv.style.display = 'none';
     } else {
